@@ -1,0 +1,97 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --color-brand-50: #fff1f2;
+  --color-brand-100: #ffe1e4;
+  --color-brand-200: #ffc7cd;
+  --color-brand-500: #f0283f;
+  --color-brand-600: #e60a2a;
+  --color-brand-700: #c10522;
+  --color-mpesa-500: #39b54a;
+  --color-mpesa-600: #2a9a3a;
+  --color-mpesa-700: #1f7a2d;
+  /* Dark grey used for the sidebar, dark cards and dark buttons (softer than near-black). */
+  --color-charcoal: #33363c;
+  --color-charcoal-light: #41454c;
+  --color-surface: #ffffff;
+  --color-canvas: #f7f7f8;
+}
+
+/* Admin dark theme: surfaces and the zinc scale are flipped, so components only use tokens. */
+.dark {
+  color-scheme: dark;
+  --color-surface: #141416;
+  --color-canvas: #0b0b0c;
+  --color-zinc-50: #1b1b1e;
+  --color-zinc-100: #232327;
+  --color-zinc-200: #2e2e33;
+  --color-zinc-300: #3f3f46;
+  --color-zinc-400: #71717a;
+  --color-zinc-500: #a1a1aa;
+  --color-zinc-600: #c4c4cc;
+  --color-zinc-700: #d4d4d8;
+  --color-zinc-800: #e4e4e7;
+  --color-zinc-900: #f4f4f5;
+  --color-brand-50: #3a0d14;
+  --color-brand-100: #4a1019;
+  --color-brand-200: #6b1522;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-zinc-50 text-zinc-900 antialiased;
+}
+
+/* Still scrollable (swipe / shift+wheel), just without a visible bar. */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-zinc-300;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+  }
+  @page {
+    size: landscape;
+    margin: 0;
+  }
+}
+
+@keyframes slidein {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
