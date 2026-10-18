@@ -1,10 +1,21 @@
-import { ArrowDown, ArrowUp, BookOpen, FileText, Layers, PlayCircle, Plus, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Calendar, Download, ExternalLink, Eye, FileText, Layers, Pencil, PlayCircle, Plus, RefreshCw, Trash2, UserPlus, X } from 'lucide-react'
+import { RowMenu } from '../../components/RowMenu'
+import { canDownloadFile, countDownload, downloadMaterial, formatBytes, materialFileName } from '../materialFiles'
+import { assignedPeople } from '../../lib/assignments'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useFeedback } from '../../components/Feedback'
+import { localISO } from '../../lib/utils'
 import { MaterialPreview, materialIcon } from '../MaterialPreview'
+import { useScope } from '../scope'
+import { videoSource } from '../embeds'
 import { uid, useAdmin } from '../store'
-import type { Journey, Material, MaterialType } from '../types'
+import type { Journey, Material, MaterialType, TrainingLevel } from '../types'
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, Table, Tabs, Textarea } from '../ui'
+
+const LEVELS: TrainingLevel[] = ['Novice', 'Beginner', 'Intermediate', 'Advanced']
+const THUMBNAILS = ['red', 'fayda', 'green', 'blue', 'amber', 'zinc'] as const
+const CURRENT_ADMIN = 'Fasil Wolde'
 
 /* ---------------------------------- Journeys --------------------------------- */
 
@@ -12,8 +23,10 @@ function NewJourneyModal({ onClose }: { onClose: () => void }) {
   const { update } = useAdmin()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const save = () => {
-    const j: Journey = { id: uid('j'), name: name.trim(), description: description.trim(), modules: [] }
+    const j: Journey = { id: uid('j'), name: name.trim(), description: description.trim(), startDate: startDate || undefined, endDate: endDate || undefined, modules: [] }
     update((d) => ({ ...d, journeys: [...d.journeys, j] }), { action: 'Created journey', target: j.name })
     onClose()
   }
@@ -39,6 +52,14 @@ function NewJourneyModal({ onClose }: { onClose: () => void }) {
         <Field label="Description">
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Start date">
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </Field>
+          <Field label="End date">
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </Field>
+        </div>
       </div>
     </Modal>
   )
@@ -79,6 +100,12 @@ export function AdminJourneys() {
                 </span>
                 <span>Used by {used} training{used === 1 ? '' : 's'}</span>
               </div>
+              {(j.startDate || j.endDate) && (
+                <div className="mt-2 flex items-center gap-1 text-xs text-zinc-500">
+                  <Calendar className="size-3.5" />
+                  {j.startDate ?? '…'} → {j.endDate ?? 'open'}
+                </div>
+              )}
             </Link>
           )
         })}
@@ -100,6 +127,9 @@ export function AdminJourneyDetail() {
   const save = (modules: Journey['modules'], action: string) =>
     update((d) => ({ ...d, journeys: d.journeys.map((j) => (j.id === journey.id ? { ...j, modules } : j)) }), { action, target: journey.name })
 
+  const patch = (changes: Partial<Journey>, action: string) =>
+    update((d) => ({ ...d, journeys: d.journeys.map((j) => (j.id === journey.id ? { ...j, ...changes } : j)) }), { action, target: journey.name })
+
   const move = (i: number, dir: -1 | 1) => {
     const next = [...journey.modules]
     ;[next[i], next[i + dir]] = [next[i + dir], next[i]]
@@ -109,14 +139,41 @@ export function AdminJourneyDetail() {
   return (
     <>
       <PageHeader title={<>{journey.name} <Badge>JOURNEY</Badge></>} description={journey.description} />
+      <Card className="mb-5 flex flex-wrap items-end gap-x-6 gap-y-3 p-4">
+        <Field label="Start date">
+          <Input type="date" value={journey.startDate ?? ''} onChange={(e) => patch({ startDate: e.target.value || undefined }, 'Set journey start date')} />
+        </Field>
+        <Field label="End date">
+          <Input type="date" value={journey.endDate ?? ''} onChange={(e) => patch({ endDate: e.target.value || undefined }, 'Set journey end date')} />
+        </Field>
+        <p className="max-w-md text-xs leading-relaxed text-zinc-500">
+          Modules unlock in order — each module's materials and assessment become available only after the previous module is completed.
+        </p>
+      </Card>
       <div className="space-y-3">
         {journey.modules.map((m, i) => {
           const available = data.materials.filter((x) => !m.materialIds.includes(x.id))
           return (
             <Card key={m.id} className="p-4">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="grid size-7 shrink-0 place-items-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-700">{i + 1}</span>
-                <h3 className="flex-1 font-medium text-zinc-900">{m.title}</h3>
+                <h3 className="min-w-40 flex-1 font-medium text-zinc-900">{m.title}</h3>
+                <Field label="Assessment">
+                  <Select
+                    value={m.assessmentId ?? ''}
+                    onChange={(e) =>
+                      save(journey.modules.map((x) => (x.id === m.id ? { ...x, assessmentId: e.target.value || undefined } : x)), `Set assessment for ${m.title}`)
+                    }
+                    className="max-w-xs py-1.5 text-xs"
+                  >
+                    <option value="">None</option>
+                    {data.assessments.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.title}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
                 <Button variant="ghost" size="sm" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">
                   <ArrowUp className="size-4" />
                 </Button>
@@ -143,7 +200,7 @@ export function AdminJourneyDetail() {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-zinc-900">{mat.title}</span>
                         <span className="text-[10px] text-zinc-500 uppercase">
-                          {mat.type} · {mat.minutes} mins
+                          {mat.type} · {mat.minutes} mins{mat.level ? ` · ${mat.level}` : ''}
                         </span>
                       </span>
                       <button onClick={() => setPreview(mat)} className="flex items-center gap-1 text-xs font-medium text-zinc-700 hover:text-zinc-900">
@@ -202,23 +259,96 @@ export function AdminJourneyDetail() {
 
 type TypeFilter = 'ALL' | MaterialType
 
+function GroupPicker({ label, hint, selected, onChange }: { label: string; hint?: string; selected: Set<string>; onChange: (next: Set<string>) => void }) {
+  const { data } = useAdmin()
+  return (
+    <div className="sm:col-span-2">
+      <Field label={label} hint={hint}>
+        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+          {data.groups.map((g) => (
+            <label key={g.id} className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                className="accent-mpesa-600"
+                checked={selected.has(g.id)}
+                onChange={(e) => {
+                  const next = new Set(selected)
+                  if (e.target.checked) next.add(g.id)
+                  else next.delete(g.id)
+                  onChange(next)
+                }}
+              />
+              {g.name}
+            </label>
+          ))}
+        </div>
+      </Field>
+    </div>
+  )
+}
+
 function MaterialModal({ material, onClose }: { material?: Material; onClose: () => void }) {
-  const { update } = useAdmin()
+  const { data, update } = useAdmin()
+  const { toast } = useFeedback()
   const [form, setForm] = useState({
     title: material?.title ?? '',
     type: material?.type ?? ('DOCUMENT' as MaterialType),
     minutes: String(material?.minutes ?? 10),
     description: material?.description ?? '',
+    level: material?.level ?? ('Beginner' as TrainingLevel),
+    skills: (material?.skills ?? []).join(', '),
+    thumbnail: material?.thumbnail ?? ('red' as (typeof THUMBNAILS)[number]),
+    minViewSeconds: String(material?.minViewSeconds ?? 300),
+    url: material?.url ?? '',
   })
+  const [visible, setVisible] = useState<Set<string>>(new Set(material?.visibleGroupIds))
+  const [downloadable, setDownloadable] = useState<Set<string>>(new Set(material?.downloadableGroupIds))
+  const scope = useScope()
+  // A trainer adding material is tagged on it automatically so they can keep editing it.
+  const [trainers, setTrainers] = useState<Set<string>>(new Set(material?.taggedTrainerIds ?? (scope.trainerId ? [scope.trainerId] : [])))
   const valid = form.title.trim() && Number(form.minutes) > 0
 
   const save = () => {
-    const updatedAt = new Date().toISOString().slice(0, 10)
-    const next: Material = { id: material?.id ?? uid('mat'), title: form.title.trim(), type: form.type, minutes: Number(form.minutes), description: form.description.trim(), updatedAt }
+    const now = localISO()
+    const next: Material = {
+      id: material?.id ?? uid('mat'),
+      title: form.title.trim(),
+      type: form.type,
+      minutes: Number(form.minutes),
+      description: form.description.trim(),
+      updatedAt: now.slice(0, 10),
+      level: form.level,
+      skills: form.skills.split(',').map((s) => s.trim()).filter(Boolean),
+      thumbnail: form.thumbnail,
+      minViewSeconds: form.type === 'DOCUMENT' ? Number(form.minViewSeconds) || 0 : undefined,
+      url: form.url.trim() || undefined,
+      downloadableGroupIds: form.type === 'VIDEO' ? [] : [...downloadable],
+      visibleGroupIds: [...visible],
+      taggedTrainerIds: [...trainers],
+      version: material?.version ?? 1,
+      history: material
+        ? [...material.history, { at: now, by: CURRENT_ADMIN, change: 'Details updated' }]
+        : [{ at: now, by: CURRENT_ADMIN, change: 'Created' }],
+    }
     update(
       (d) => ({ ...d, materials: material ? d.materials.map((m) => (m.id === material.id ? next : m)) : [next, ...d.materials] }),
-      { action: material ? 'Updated material' : 'Uploaded material', target: next.title },
+      {
+        action: material ? 'Updated material' : 'Uploaded material',
+        target: next.title,
+        changes: material
+          ? [
+              { field: 'Title', from: material.title, to: next.title },
+              { field: 'Type', from: material.type, to: next.type },
+              { field: 'Level', from: material.level ?? '', to: next.level ?? '' },
+              { field: 'Minutes', from: String(material.minutes), to: String(next.minutes) },
+              { field: 'Visible to groups', from: String(material.visibleGroupIds.length || 'All'), to: String(next.visibleGroupIds.length || 'All') },
+              { field: 'Downloadable groups', from: String(material.downloadableGroupIds.length), to: String(next.downloadableGroupIds.length) },
+              { field: 'Tagged trainers', from: String(material.taggedTrainerIds.length), to: String(next.taggedTrainerIds.length) },
+            ]
+          : undefined,
+      },
     )
+    toast(material ? 'Material updated' : 'Material added')
     onClose()
   }
 
@@ -252,6 +382,78 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
         <Field label="Duration (minutes)">
           <Input type="number" min={1} value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} />
         </Field>
+        <Field label="Difficulty level">
+          <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value as TrainingLevel })}>
+            {LEVELS.map((l) => (
+              <option key={l}>{l}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Thumbnail">
+          <Select value={form.thumbnail} onChange={(e) => setForm({ ...form, thumbnail: e.target.value as (typeof THUMBNAILS)[number] })}>
+            {THUMBNAILS.map((t) => (
+              <option key={t} value={t}>
+                {t[0].toUpperCase() + t.slice(1)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <div className="sm:col-span-2">
+          <Field label="Skills" hint="Comma-separated, used for filtering">
+            <Input value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} placeholder="KYC, Customer registration" />
+          </Field>
+        </div>
+        {(form.type === 'LINK' || form.type === 'VIDEO') && (
+          <div className="sm:col-span-2">
+            <Field label={form.type === 'VIDEO' ? 'Stream URL' : 'External URL'} hint={form.type === 'VIDEO' ? 'YouTube, Vimeo or SharePoint / Stream link — videos always stream, never download (D4)' : undefined}>
+              <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder={form.type === 'VIDEO' ? 'https://www.youtube.com/watch?v=…' : 'https://…'} />
+            </Field>
+            {form.type === 'VIDEO' && form.url.trim() && (
+              <p className={'mt-1.5 text-xs ' + (videoSource(form.url).kind === 'none' ? 'text-brand-600' : 'text-mpesa-700')}>
+                {(() => {
+                  const v = videoSource(form.url)
+                  return v.kind === 'none' ? 'Not a recognised video link — use YouTube, Vimeo, SharePoint / Stream or an .mp4 file.' : 'Plays as an embedded ' + v.label + ' video.'
+                })()}
+              </p>
+            )}
+          </div>
+        )}
+        {form.type === 'DOCUMENT' && (
+          <Field label="Minimum reading time (seconds)" hint="Learner must wait this long before completing">
+            <Input type="number" min={0} value={form.minViewSeconds} onChange={(e) => setForm({ ...form, minViewSeconds: e.target.value })} />
+          </Field>
+        )}
+        <GroupPicker label="Visible to groups" hint="Empty = everyone enrolled" selected={visible} onChange={setVisible} />
+        <GroupPicker
+          label="Downloadable by groups"
+          hint={form.type === 'VIDEO' ? 'Not available for videos' : 'Empty = no downloads'}
+          selected={downloadable}
+          onChange={setDownloadable}
+        />
+        <div className="sm:col-span-2">
+          <Field label="Tagged trainers">
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {data.people
+                .filter((p) => p.role === 'Trainer')
+                .map((p) => (
+                  <label key={p.id} className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="accent-mpesa-600"
+                      checked={trainers.has(p.id)}
+                      onChange={(e) => {
+                        const next = new Set(trainers)
+                        if (e.target.checked) next.add(p.id)
+                        else next.delete(p.id)
+                        setTrainers(next)
+                      }}
+                    />
+                    {p.name}
+                  </label>
+                ))}
+            </div>
+          </Field>
+        </div>
         <div className="sm:col-span-2">
           <Field label="Description">
             <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
@@ -267,17 +469,227 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
   )
 }
 
+function ReplaceFileModal({ material, onClose }: { material: Material; onClose: () => void }) {
+  const { data, update } = useAdmin()
+  const { toast } = useFeedback()
+  const [file, setFile] = useState<File | null>(null)
+  const [note, setNote] = useState('')
+  const accept = material.type === 'PRESENTATION' ? '.ppt,.pptx,.pdf' : '.pdf,.doc,.docx,.ppt,.pptx'
+
+  // Everyone learning through a journey that uses this material.
+  const audience = () => {
+    const journeyIds = new Set(data.journeys.filter((j) => j.modules.some((m) => m.materialIds.includes(material.id))).map((j) => j.id))
+    const people = new Set<string>()
+    data.trainings.filter((t) => t.journeyId && journeyIds.has(t.journeyId)).forEach((t) => t.participantIds.forEach((p) => people.add(p)))
+    return people.size
+  }
+
+  const replace = () => {
+    if (!file) return
+    const version = material.version + 1
+    const now = localISO()
+    update(
+      (d) => ({
+        ...d,
+        materials: d.materials.map((m) =>
+          m.id === material.id
+            ? {
+                ...m,
+                version,
+                fileName: file.name,
+                fileSize: file.size,
+                updatedAt: now.slice(0, 10),
+                history: [...m.history, { at: now, by: CURRENT_ADMIN, change: `Replaced file with ${file.name} (version ${version})${note.trim() ? ` — ${note.trim()}` : ''}` }],
+              }
+            : m,
+        ),
+      }),
+      { action: 'Replaced material file', target: material.title, changes: [{ field: 'File', from: `${materialFileName(material)} (v${material.version})`, to: `${file.name} (v${version})` }] },
+    )
+    const n = audience()
+    toast(n > 0 ? `Replaced — ${n} trainees with access notified` : 'Replaced — no active trainings use this material yet')
+    onClose()
+  }
+
+  const replacements = material.history.filter((h) => h.change.startsWith('Replaced')).slice().reverse()
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Replace file — ${material.title}`}
+      description="The material keeps its journeys, trainings, visibility and download settings. Only the file changes."
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" disabled={!file} onClick={replace}>
+            <RefreshCw className="size-4" /> Replace file
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 rounded-xl border border-zinc-200 p-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-zinc-100 text-zinc-700">
+            <FileText className="size-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium text-zinc-900">{materialFileName(material)}</span>
+            <span className="block text-xs text-zinc-500">
+              Current · version {material.version}
+              {material.fileSize ? ` · ${formatBytes(material.fileSize)}` : ''}
+            </span>
+          </span>
+        </div>
+        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-zinc-200 px-4 py-6 text-center transition hover:border-brand-300 hover:bg-brand-50/40">
+          <RefreshCw className="size-6 text-brand-600" />
+          {file ? (
+            <span className="text-sm">
+              <span className="font-semibold text-zinc-900">{file.name}</span>
+              <span className="block text-xs text-zinc-500">{formatBytes(file.size)} · becomes version {material.version + 1}</span>
+            </span>
+          ) : (
+            <span className="text-sm text-zinc-600">
+              <span className="font-semibold text-brand-600">Choose the new file</span>
+              <span className="block text-xs text-zinc-500">{accept.replaceAll(',', ', ')}</span>
+            </span>
+          )}
+          <input type="file" accept={accept} className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        </label>
+        <Field label="What changed? (optional)">
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Updated tariff table for October" />
+        </Field>
+        {replacements.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-zinc-500">Version history</p>
+            <ul className="mt-2 space-y-1.5">
+              {replacements.slice(0, 5).map((h) => (
+                <li key={h.at + h.change} className="flex gap-2 text-xs text-zinc-600">
+                  <span className="shrink-0 text-zinc-400">{h.at.slice(0, 10)}</span>
+                  <span className="min-w-0">{h.change}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="text-xs text-zinc-500">In this prototype only the file name and size are kept, not the file itself.</p>
+      </div>
+    </Modal>
+  )
+}
+
+function AssignMaterialModal({ material, onClose }: { material: Material; onClose: () => void }) {
+  const { data, update } = useAdmin()
+  const { toast } = useFeedback()
+  const [groupIds, setGroupIds] = useState<string[]>(material.assignedGroupIds ?? [])
+  const [dueDate, setDueDate] = useState(material.dueDate ?? '')
+  const [requiresAck, setRequiresAck] = useState(material.requiresAck ?? true)
+  const reach = assignedPeople(data, { ...material, assignedGroupIds: groupIds }).length
+
+  const save = () => {
+    const at = localISO()
+    update(
+      (d) => ({
+        ...d,
+        materials: d.materials.map((m) =>
+          m.id === material.id
+            ? { ...m, assignedGroupIds: groupIds, dueDate: dueDate || undefined, requiresAck, assignedAt: groupIds.length ? (m.assignedAt ?? at) : undefined }
+            : m,
+        ),
+      }),
+      {
+        action: groupIds.length ? 'Assigned reading' : 'Cleared reading assignment',
+        target: material.title,
+        changes: [{ field: 'Groups', from: String(material.assignedGroupIds?.length ?? 0), to: String(groupIds.length) }],
+      },
+    )
+    toast(groupIds.length ? `Assigned to ${reach} ${reach === 1 ? 'person' : 'people'} — they’ll see it under Assigned to me` : 'Assignment cleared')
+    onClose()
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Assign reading — ${material.title}`}
+      description="Send this material straight to groups for self-paced reading, without scheduling a training."
+      footer={
+        <>
+          <span className="mr-auto self-center text-xs text-zinc-500">{groupIds.length ? `Reaches ${reach} ${reach === 1 ? 'person' : 'people'}` : 'No groups selected'}</span>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={save}>
+            {groupIds.length ? 'Assign' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <p className="mb-1.5 text-sm font-medium text-zinc-700">Groups</p>
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {data.groups.map((g) => (
+              <label key={g.id} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-brand-600"
+                  checked={groupIds.includes(g.id)}
+                  onChange={(e) => setGroupIds(e.target.checked ? [...groupIds, g.id] : groupIds.filter((id) => id !== g.id))}
+                />
+                <span className="min-w-0 flex-1 truncate">{g.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <Field label="Due date (optional)">
+          <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        </Field>
+        <label className="flex items-start gap-2.5 rounded-xl border border-zinc-200 p-3 text-sm">
+          <input type="checkbox" checked={requiresAck} onChange={(e) => setRequiresAck(e.target.checked)} className="mt-0.5 size-4 accent-brand-600" />
+          <span>
+            <span className="font-medium text-zinc-900">Ask for an acknowledgement</span>
+            <span className="block text-xs text-zinc-500">Each person confirms “I have read and understood this”. Turn off for plain sharing — opening it then counts as done.</span>
+          </span>
+        </label>
+      </div>
+    </Modal>
+  )
+}
+
 export function AdminMaterials() {
   const { data, update } = useAdmin()
+  const { toast, confirm } = useFeedback()
+  const scope = useScope()
+  // Trainers edit only materials they're tagged on; everything else is view-only for them (C02).
+  const canEdit = (m: Material) => !scope.trainerId || m.taggedTrainerIds.includes(scope.trainerId)
   const [q, setQ] = useState('')
   const [type, setType] = useState<TypeFilter>('ALL')
+  const [level, setLevel] = useState<'ALL' | TrainingLevel>('ALL')
+  const [skill, setSkill] = useState('ALL')
   const [editing, setEditing] = useState<Material | 'new' | null>(null)
+  const [replacing, setReplacing] = useState<Material | null>(null)
+  const [assigning, setAssigning] = useState<Material | null>(null)
   const [preview, setPreview] = useState<Material | null>(null)
 
-  const rows = data.materials.filter((m) => (type === 'ALL' || m.type === type) && (!q || m.title.toLowerCase().includes(q.toLowerCase())))
+  const allSkills = [...new Set(data.materials.flatMap((m) => m.skills))].sort()
+  const rows = data.materials.filter(
+    (m) =>
+      (type === 'ALL' || m.type === type) &&
+      (level === 'ALL' || m.level === level) &&
+      (skill === 'ALL' || m.skills.includes(skill)) &&
+      (!q || m.title.toLowerCase().includes(q.toLowerCase()) || m.skills.some((s) => s.toLowerCase().includes(q.toLowerCase()))),
+  )
   const usage = (id: string) => data.journeys.filter((j) => j.modules.some((m) => m.materialIds.includes(id))).length
 
-  const remove = (m: Material) => {
+  const download = async (m: Material) => {
+    if (!(await downloadMaterial(m))) return toast('This material has no file or link yet', { tone: 'error' })
+    if (canDownloadFile(m)) {
+      update((d) => countDownload(d, m.id), { action: 'Downloaded material', target: m.title, silent: true })
+      toast(`Downloaded ${materialFileName(m)}`)
+    }
+  }
+
+  const remove = async (m: Material) => {
+    if (!(await confirm({ title: `Delete ${m.title}?`, message: 'It is removed from every journey that uses it. This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return
     update(
       (d) => ({
         ...d,
@@ -292,7 +704,7 @@ export function AdminMaterials() {
     <>
       <PageHeader
         title="Materials"
-        description="Documents, videos and presentations used in journeys."
+        description={scope.trainerId ? 'You can edit materials you’re tagged on; others are view-only.' : 'Documents, videos and presentations used in journeys.'}
         actions={
           <Button variant="primary" onClick={() => setEditing('new')}>
             <Plus className="size-4" /> Add material
@@ -300,14 +712,28 @@ export function AdminMaterials() {
         }
       />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Tabs<TypeFilter>
-          value={type}
-          onChange={setType}
-          items={(['ALL', 'DOCUMENT', 'VIDEO', 'PRESENTATION', 'LINK'] as TypeFilter[]).map((v) => ({ value: v, label: v === 'ALL' ? 'All' : v[0] + v.slice(1).toLowerCase() }))}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Tabs<TypeFilter>
+            value={type}
+            onChange={setType}
+            items={(['ALL', 'DOCUMENT', 'VIDEO', 'PRESENTATION', 'LINK'] as TypeFilter[]).map((v) => ({ value: v, label: v === 'ALL' ? 'All' : v[0] + v.slice(1).toLowerCase() }))}
+          />
+          <Select value={level} onChange={(e) => setLevel(e.target.value as 'ALL' | TrainingLevel)} className="w-auto py-1.5 text-xs">
+            <option value="ALL">All levels</option>
+            {LEVELS.map((l) => (
+              <option key={l}>{l}</option>
+            ))}
+          </Select>
+          <Select value={skill} onChange={(e) => setSkill(e.target.value)} className="w-auto py-1.5 text-xs">
+            <option value="ALL">All skills</option>
+            {allSkills.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </Select>
+        </div>
         <SearchInput value={q} onChange={setQ} placeholder="Search materials…" className="w-full sm:w-64" />
       </div>
-      <Table head={['Title', 'Type', 'Duration', 'Used in', 'Updated', '']}>
+      <Table head={['Title', 'Type', 'Level', 'Skills', 'Duration', 'Used in', 'Assigned', 'Version', 'Updated', '']} minWidth={1040}>
         {rows.map((m) => {
           const Icon = materialIcon[m.type]
           return (
@@ -319,34 +745,68 @@ export function AdminMaterials() {
                   </span>
                   <span className="min-w-0">
                     <span className="block font-medium text-zinc-900">{m.title}</span>
-                    <span className="line-clamp-1 text-xs text-zinc-500">{m.description}</span>
+                    <span className="line-clamp-1 text-xs text-zinc-500">
+                      {canDownloadFile(m) ? `${materialFileName(m)}${m.fileSize ? ` · ${formatBytes(m.fileSize)}` : ''}` : m.description}
+                    </span>
                   </span>
                 </div>
               </td>
               <td className="px-4 py-3">
                 <Badge>{m.type}</Badge>
               </td>
+              <td className="px-4 py-3 text-zinc-600">{m.level ?? '—'}</td>
+              <td className="px-4 py-3">
+                <div className="flex max-w-48 flex-wrap gap-1">
+                  {m.skills.length ? m.skills.map((s) => <Badge key={s}>{s}</Badge>) : <span className="text-zinc-400">—</span>}
+                </div>
+              </td>
               <td className="px-4 py-3 text-zinc-600">{m.minutes} mins</td>
               <td className="px-4 py-3 text-zinc-600">{usage(m.id)} journeys</td>
+              <td className="px-4 py-3 text-zinc-600">
+                {m.assignedGroupIds && m.assignedGroupIds.length > 0 ? (
+                  <Badge tone="green">{m.assignedGroupIds.length} group{m.assignedGroupIds.length === 1 ? '' : 's'}</Badge>
+                ) : (
+                  <span className="text-zinc-400">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-zinc-600">v{m.version}</td>
               <td className="px-4 py-3 whitespace-nowrap text-zinc-600">{m.updatedAt}</td>
               <td className="px-4 py-3">
-                <div className="flex justify-end gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => setPreview(m)}>
-                    Preview
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEditing(m)}>
-                    Edit
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => remove(m)} aria-label="Delete">
-                    <Trash2 className="size-3.5" />
-                  </Button>
+                <div className="flex items-center justify-end gap-2">
+                  {!canEdit(m) && <Badge>View only</Badge>}
+                  <RowMenu
+                    label={`Actions for ${m.title}`}
+                    items={[
+                      { label: 'Preview', icon: Eye, onClick: () => setPreview(m) },
+                      ...(canDownloadFile(m) || m.url ? [{ label: canDownloadFile(m) ? 'Download file' : 'Open source', icon: canDownloadFile(m) ? Download : ExternalLink, onClick: () => void download(m) }] : []),
+                      ...(canEdit(m)
+                        ? [
+                            ...(canDownloadFile(m) ? [{ label: 'Assign to groups', icon: UserPlus, onClick: () => setAssigning(m) }] : []),
+                            { label: 'Edit details', icon: Pencil, onClick: () => setEditing(m) },
+                            ...(canDownloadFile(m) ? [{ label: 'Replace file', icon: RefreshCw, onClick: () => setReplacing(m) }] : []),
+                            ...(!scope.trainerId ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => void remove(m) }] : []),
+                          ]
+                        : []),
+                    ]}
+                  />
                 </div>
               </td>
             </tr>
           )
         })}
       </Table>
+      {!rows.length && (
+        <Card className="mt-4">
+          <Empty
+            icon={FileText}
+            title={data.materials.length ? 'No materials match these filters' : 'No materials yet'}
+            text={data.materials.length ? 'Try another type, level, skill or search.' : 'Add documents, videos and presentations to use in journeys.'}
+          />
+        </Card>
+      )}
       {editing && <MaterialModal material={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
+      {replacing && <ReplaceFileModal material={replacing} onClose={() => setReplacing(null)} />}
+      {assigning && <AssignMaterialModal material={assigning} onClose={() => setAssigning(null)} />}
       <MaterialPreview material={preview} onClose={() => setPreview(null)} />
     </>
   )

@@ -18,13 +18,13 @@ export function AuthShell({ children }: { children: ReactNode }) {
         </svg>
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -right-[30%] -bottom-[40%] z-0 size-[55rem] bg-[#ff716d]/40 mix-blend-screen"
+          className="pointer-events-none absolute -right-[24rem] -bottom-[38rem] z-0 size-[64rem] bg-white/[0.07]"
           style={{
-            maskImage: "url('/M-PESA-money-icon.svg')",
+            maskImage: "url('/M-PESA%20Pattern.svg')",
             maskPosition: 'center',
             maskRepeat: 'no-repeat',
             maskSize: 'contain',
-            WebkitMaskImage: "url('/M-PESA-money-icon.svg')",
+            WebkitMaskImage: "url('/M-PESA%20Pattern.svg')",
             WebkitMaskPosition: 'center',
             WebkitMaskRepeat: 'no-repeat',
             WebkitMaskSize: 'contain',
@@ -32,34 +32,33 @@ export function AuthShell({ children }: { children: ReactNode }) {
         />
 
         <div className="relative flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-xl bg-white/15 ring-1 ring-white/20">
-            <svg viewBox="0 0 32 32" className="size-6">
-              <path d="M7 21c3-7 6-9 9-9s6 2 9 9" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" />
-              <circle cx={16} cy={9} r={2.5} fill="#fff" />
-            </svg>
+          {/* Same lockup as the sidebar logo, a size up. */}
+          <img src="/favicon white.svg" alt="" className="size-14 shrink-0 rounded-xl shadow-lg shadow-black/10" />
+          <span className="leading-none font-bold tracking-tight text-white">
+            <span className="block text-xl leading-[1.05]">M-PESA</span>
+            <span className="block text-lg leading-[1.05] font-semibold text-white/85">Academy</span>
           </span>
-          <span className="text-xl font-semibold tracking-tight">M-PESA Learning</span>
         </div>
 
         <div className="relative z-10 my-auto mx-auto w-full max-w-lg py-10">
           <h1 className="text-5xl leading-[1.02] font-extrabold tracking-tight xl:text-6xl">
-            Learn.<br />
-            Grow.<br />
+            Learn. Grow.<br />
             <span className="text-[#ff716d]">Serve Better.</span>
           </h1>
           <p className="mt-5 max-w-sm text-lg leading-snug text-white/95">
             Build the skills that make every<br className="hidden xl:block" /> customer interaction better.
           </p>
 
-          <ol className="mt-8 space-y-5">
+          <ol className="mt-8 space-y-6">
             {steps.map(({ icon: Icon, title, description }, index) => (
               <li key={title} className="relative flex items-center gap-5">
-                {index < steps.length - 1 && <span aria-hidden="true" className="absolute top-[4.5rem] left-[1.9rem] h-7 w-px bg-white/25" />}
-                <span className="grid size-[4.5rem] shrink-0 place-items-center rounded-full bg-white/15 ring-1 ring-white/10">
-                  <Icon className="size-8 stroke-[1.8]" />
+                {index < steps.length - 1 && <span aria-hidden="true" className="absolute top-[calc(50%+1.75rem)] left-7 h-[calc(100%-2rem)] w-px -translate-x-1/2 bg-white/25" />}
+                <span className="grid size-14 shrink-0 place-items-center rounded-full bg-white/15 ring-1 ring-white/10">
+                  <Icon className="size-6 stroke-[1.8]" />
                 </span>
+                {/* Fixed-width, tabular number so every title starts at the same x. */}
                 <span className="flex items-start gap-3">
-                  <span className="mt-0.5 text-lg font-medium text-white/60">0{index + 1}</span>
+                  <span className="mt-0.5 w-7 shrink-0 text-lg font-medium text-white/60 tabular-nums">0{index + 1}</span>
                   <span>
                     <span className="block text-lg font-semibold leading-tight">{title}</span>
                     <span className="mt-1 block text-sm leading-snug text-white/85">{description}</span>

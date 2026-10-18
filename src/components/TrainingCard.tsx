@@ -1,6 +1,9 @@
-import { ArrowRight, Award, CalendarDays, Check, Circle, Clock, MapPin } from 'lucide-react'
+import { ArrowRight, Award, CalendarDays, Check, Circle, Clock, Heart, MapPin, MessageSquare, Play } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { UserAvatar } from './UserAvatar'
+import { scopedKey } from '../lib/learner'
 import { Link } from 'react-router-dom'
-import { cn, formatDate, progressPercent, progressStatus, sessionStatus, timeRange } from '../lib/utils'
+import { cn, formatDate, isPassed, modulesDone, progressPercent, progressStatus, sessionStatus, timeRange } from '../lib/utils'
 import type { ProgressStatus, Training, TrainingProgress } from '../types'
 import { Banner } from './Banner'
 
@@ -36,58 +39,127 @@ function TeamsIcon({ className }: { className?: string }) {
   )
 }
 
+/** "Mariamawit Fekadeselase" → "Mariamawit F." for tight spots like the card photo chip. */
+const shortName = (name: string) => {
+  const [first, ...rest] = name.trim().split(/\s+/)
+  return rest.length ? `${first} ${rest[rest.length - 1][0]}.` : first
+}
+
+const FAV_KEY = 'mpesa-learning:favourites'
+
+const FAV_EVENT = 'mpesa-learning:favourites-change'
+
+/** Favourite training ids, kept in sync when a heart is toggled anywhere on the page. */
+export function useFavourites() {
+  const [ids, setIds] = useState(readFavourites)
+  useEffect(() => {
+    const sync = () => setIds(readFavourites())
+    window.addEventListener(FAV_EVENT, sync)
+    return () => window.removeEventListener(FAV_EVENT, sync)
+  }, [])
+  return ids
+}
+
+export function readFavourites(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(scopedKey(FAV_KEY)) ?? '[]')
+  } catch {
+    return []
+  }
+}
+
+/** Heart toggle in the image corner; a per-browser convenience, so storage failures are ignored. */
+function FavouriteButton({ id, title }: { id: string; title: string }) {
+  const [on, setOn] = useState(() => readFavourites().includes(id))
+  const toggle = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const next = on ? readFavourites().filter((x) => x !== id) : [...readFavourites(), id]
+    setOn(!on)
+    try {
+      localStorage.setItem(scopedKey(FAV_KEY), JSON.stringify(next))
+      window.dispatchEvent(new Event(FAV_EVENT))
+    } catch {
+      // Favourites are a convenience only.
+    }
+  }
+  return (
+    <button
+      onClick={toggle}
+      aria-pressed={on}
+      aria-label={on ? `Remove ${title} from favourites` : `Add ${title} to favourites`}
+      className={cn('absolute top-2.5 right-2.5 z-10 grid size-8 place-items-center rounded-full bg-white/95 shadow-sm transition hover:scale-105', on ? 'text-brand-600' : 'text-zinc-600 hover:text-brand-600')}
+    >
+      <Heart className={cn('size-4', on && 'fill-current')} />
+    </button>
+  )
+}
+
 /** The single next step for a training, matching its progress. */
-function CardAction({ training, status, className }: { training: Training; status: ProgressStatus; className?: string }) {
-  const base = 'relative z-10 inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-[13px] font-semibold whitespace-nowrap transition'
+function CardAction({ training, progress, status, className }: { training: Training; progress?: TrainingProgress; status: ProgressStatus; className?: string }) {
+  const base = 'relative z-10 inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition'
   if (status === 'Completed')
     return (
       <Link
         to={`/certificates/${training.id}`}
         className={cn(base, 'border-2 border-mpesa-500/30 bg-mpesa-500/[0.06] text-mpesa-700 hover:border-mpesa-500/50 hover:bg-mpesa-500/10', className)}
       >
-        <Award className="size-4" /> View Certificate <ArrowRight className="size-4" />
+        <Award className="size-3.5" /> Certificate <ArrowRight className="size-3.5" />
+      </Link>
+    )
+  // Only the feedback is missing (D5: it's the final step).
+  if (progress && modulesDone(training, progress) && isPassed(progress) && !progress.feedback)
+    return (
+      <Link
+        to={`/trainings/${training.id}/learn/feedback`}
+        className={cn(base, 'border-2 border-transparent bg-amber-500 text-white shadow-sm shadow-amber-500/30 hover:bg-amber-600', className)}
+      >
+        <MessageSquare className="size-3.5" /> Feedback <ArrowRight className="size-3.5" />
+      </Link>
+    )
+  if (status === 'In Progress')
+    return (
+      <Link to={`/trainings/${training.id}/learn`} className={cn('relative z-10 inline-flex shrink-0 items-center gap-2 text-xs font-semibold whitespace-nowrap text-zinc-800 transition hover:text-brand-600', className)}>
+        <span className="grid size-6 place-items-center rounded-full border-[1.5px] border-brand-600 text-brand-600">
+          <Play className="ml-px size-2.5 fill-current" />
+        </span>
+        Continue <ArrowRight className="size-3.5" />
       </Link>
     )
   return (
-    <Link
-      to={`/trainings/${training.id}`}
-      className={cn(
-        base,
-        'border-2 border-transparent',
-        status === 'In Progress' ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30 hover:bg-brand-700' : 'bg-charcoal text-white hover:bg-charcoal-light',
-        className,
-      )}
-    >
-      {status === 'In Progress' ? 'Continue' : 'Start Learning'} <ArrowRight className="size-4" />
+    <Link to={`/trainings/${training.id}/learn`} className={cn(base, 'border-2 border-transparent bg-charcoal text-white hover:bg-charcoal-light', className)}>
+      Start <ArrowRight className="size-3.5" />
     </Link>
   )
 }
 
-function Meta({ training, stacked = false }: { training: Training; stacked?: boolean }) {
+/** Date and venue side by side on one row; the venue shortens with an ellipsis if space runs out. */
+function Meta({ training }: { training: Training }) {
   const teams = training.venue === 'ONLINE' && !!training.teamsJoinUrl
   return (
-    <div className={cn('flex gap-x-4 gap-y-3', stacked ? 'flex-col' : 'flex-wrap items-center')}>
-      <div className="flex items-center gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
-          <CalendarDays className="size-[18px]" />
+    <div className="flex min-w-0 flex-nowrap items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+          <CalendarDays className="size-3.5" />
         </span>
-        <span className="text-xs leading-snug">
-          <span className="block text-sm font-semibold text-zinc-900">{formatDate(training.date, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-          <span className="text-zinc-500">{timeRange(training)}</span>
+        <span className="leading-tight">
+          <span className="block text-[11px] font-semibold text-zinc-900">{formatDate(training.date, { month: 'short', day: 'numeric' })}</span>
+          <span className="block text-[10px] whitespace-nowrap text-zinc-500">{timeRange(training)}</span>
         </span>
       </div>
-      {!stacked && <span className="hidden h-8 w-px bg-zinc-200 min-[420px]:block" aria-hidden />}
-      <div className="flex min-w-0 items-center gap-3">
-        <span className={cn('grid size-9 shrink-0 place-items-center rounded-xl', teams ? 'bg-[#eef0ff]' : 'bg-zinc-100 text-zinc-700')}>
-          {teams ? <TeamsIcon className="size-[22px]" /> : <MapPin className="size-[18px]" />}
+      <span className="h-6 w-px shrink-0 bg-zinc-200" aria-hidden />
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className={cn('grid size-6 shrink-0 place-items-center rounded-lg', teams ? 'bg-[#eef0ff]' : 'bg-zinc-100 text-zinc-700')}>
+          {teams ? <TeamsIcon className="size-4" /> : <MapPin className="size-3.5" />}
         </span>
-        <span className="min-w-0 truncate text-sm font-medium text-zinc-800">{teams ? 'Microsoft Teams' : training.venue}</span>
+        <span className="min-w-0 truncate text-[11px] font-medium text-zinc-800" title={teams ? 'Microsoft Teams' : training.venue}>{teams ? 'Teams' : training.venue}</span>
       </div>
     </div>
   )
 }
 
-export function TrainingCard({ training, progress, layout = 'grid' }: { training: Training; progress?: TrainingProgress; layout?: 'grid' | 'list' }) {
+/** `barWidth`: grid-card progress meter width in px (home cards are wider, so they use a longer bar). */
+export function TrainingCard({ training, progress, layout = 'grid', barWidth = 88 }: { training: Training; progress?: TrainingProgress; layout?: 'grid' | 'list'; barWidth?: number }) {
   const status = progressStatus(training, progress)
   const live = sessionStatus(training) === 'Active'
   const percent = progressPercent(training, progress)
@@ -95,7 +167,7 @@ export function TrainingCard({ training, progress, layout = 'grid' }: { training
 
   const badges = (
     <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
-      <span className={cn('inline-flex items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-0.5 text-xs font-semibold shadow-md', badge.cls)}>
+      <span className={cn('inline-flex items-center gap-1.5 rounded-full p-1.5 pr-3 text-[11px] font-semibold shadow-md', badge.cls)}>
         <span className={cn('grid size-5 place-items-center rounded-full', badge.iconCls)}>
           <badge.icon className="size-3" strokeWidth={3} />
         </span>
@@ -109,13 +181,13 @@ export function TrainingCard({ training, progress, layout = 'grid' }: { training
     </div>
   )
 
-  // Kept shorter than the full row so the bar reads as a meter, not a divider.
+  // Bar and percentage on one line; the bar stays short so it reads as a meter, not a divider.
   const progressBar = (
-    <div className="w-full max-w-[150px] min-w-[96px] flex-1">
-      <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100">
-        <div className={cn('h-full rounded-full', barColor[status])} style={{ width: `${percent}%` }} />
+    <div className={cn('flex w-full flex-1 items-center gap-2.5', layout === 'grid' ? 'min-w-[60px]' : 'max-w-[190px] md:self-end')} style={layout === 'grid' ? { maxWidth: barWidth } : undefined} role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${training.title}: ${percent}% complete`}>
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/60 ring-inset">
+        <div className={cn('h-full rounded-full transition-[width] duration-500', barColor[status])} style={{ width: `${Math.max(percent, percent ? 4 : 0)}%` }} />
       </div>
-      <p className={cn('mt-1.5 text-xs font-medium whitespace-nowrap', status === 'Completed' ? 'text-mpesa-600' : 'text-zinc-500')}>{percent}% complete</p>
+      <span className={cn('shrink-0 text-xs font-bold tabular-nums', status === 'Completed' ? 'text-mpesa-600' : status === 'In Progress' ? 'text-brand-600' : 'text-zinc-400')}>{percent}%</span>
     </div>
   )
 
@@ -128,44 +200,49 @@ export function TrainingCard({ training, progress, layout = 'grid' }: { training
 
   if (layout === 'list') {
     return (
-      <article className="group relative flex flex-col gap-5 rounded-3xl border border-zinc-200/80 bg-white p-3 shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition focus-within:ring-2 focus-within:ring-brand-500 hover:shadow-xl md:flex-row md:items-center">
-        <div className="relative aspect-[5/2] shrink-0 overflow-hidden rounded-2xl bg-zinc-100 md:w-64">
+      <article className="group relative flex flex-col gap-5 rounded-3xl border border-zinc-200/80 bg-white p-3 transition focus-within:ring-2 focus-within:ring-brand-500 hover:shadow-xl md:flex-row md:items-stretch">
+        {/* The photo fills the card's height so the gap above, below and left of it is the same. */}
+        <div className="relative aspect-[5/2] shrink-0 overflow-hidden rounded-2xl bg-zinc-100 md:aspect-auto md:min-h-36 md:w-64">
           <Banner training={training} className="size-full" />
           {badges}
+          <FavouriteButton id={training.id} title={training.title} />
         </div>
-        <div className="min-w-0 flex-1 px-2 md:px-0">
-          <h3 className="line-clamp-2 text-lg leading-snug font-bold text-zinc-900 group-hover:text-brand-600">{titleLink}</h3>
-          <p className="mt-0.5 text-sm text-zinc-500">Trainer: {training.trainer}</p>
+        <div className="min-w-0 flex-1 px-2 md:self-center md:px-0 md:py-1">
+          <h3 className="line-clamp-2 text-base leading-snug font-bold text-zinc-900 group-hover:text-brand-600">{titleLink}</h3>
+          <p className="mt-0.5 text-[13px] text-zinc-500">Trainer: {training.trainer}</p>
           <div className="mt-4">
-            <Meta training={training} stacked />
+            <Meta training={training} />
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-4 px-2 pb-2 md:w-64 md:flex-col md:items-stretch md:px-0 md:pr-3 md:pb-0">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-2 pb-2 md:w-64 md:flex-col md:items-stretch md:justify-between md:self-stretch md:px-0 md:py-3 md:pr-3 md:pb-3">
           {progressBar}
-          <CardAction training={training} status={status} />
+          <CardAction training={training} progress={progress} status={status} className="md:self-end" />
         </div>
       </article>
     )
   }
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition focus-within:ring-2 focus-within:ring-brand-500 hover:-translate-y-0.5 hover:shadow-xl">
-      <div className="relative aspect-[5/2] overflow-hidden bg-zinc-100">
+    <article className="group relative flex flex-col rounded-3xl border border-zinc-200/80 bg-white p-3 transition focus-within:ring-2 focus-within:ring-brand-500 hover:-translate-y-0.5 hover:shadow-xl">
+      <div className="relative aspect-[16/7] overflow-hidden rounded-2xl bg-zinc-100">
         <Banner training={training} className="size-full transition duration-300 group-hover:scale-[1.03]" />
         {badges}
-        <span className="absolute top-2.5 right-2.5 grid size-8 place-items-center rounded-full bg-white/20 text-white ring-1 ring-white/30 backdrop-blur transition group-hover:bg-white group-hover:text-brand-600">
-          <ArrowRight className="size-4" />
+        <FavouriteButton id={training.id} title={training.title} />
+        {/* Trainer sits on the photo so the title has room to breathe. */}
+        <span className="absolute right-2.5 bottom-2.5 flex max-w-[calc(100%-1.25rem)] items-center gap-1.5 rounded-full bg-black/25 py-0.5 pr-2.5 pl-0.5 text-[11px] font-medium text-white ring-1 ring-white/25 backdrop-blur-md">
+          <UserAvatar name={training.trainer} className="size-5" />
+          <span className="truncate" title={training.trainer}>{shortName(training.trainer)}</span>
         </span>
       </div>
-      <div className="flex flex-1 flex-col px-4 pt-3.5 pb-4">
-        <h3 className="line-clamp-2 text-base leading-snug font-bold text-zinc-900 group-hover:text-brand-600">{titleLink}</h3>
-        <p className="mt-0.5 text-[13px] text-zinc-500">Trainer: {training.trainer}</p>
+      <div className="flex flex-1 flex-col px-1 pt-3.5">
+        <h3 className="line-clamp-2 text-[15px] leading-snug font-bold text-zinc-900 group-hover:text-brand-600">{titleLink}</h3>
         <div className="mt-3.5 flex-1">
           <Meta training={training} />
         </div>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        {/* Progress meter and the next step side by side. */}
+        <div className="mt-4 flex items-center justify-between gap-3">
           {progressBar}
-          <CardAction training={training} status={status} />
+          <CardAction training={training} progress={progress} status={status} />
         </div>
       </div>
     </article>

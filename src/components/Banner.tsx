@@ -19,7 +19,7 @@ function Phone({ x, y, scale = 1, screen = '#39B54A' }: { x: number; y: number; 
       <rect x={4} y={6} width={44} height={84} rx={5} fill="#fff" />
       <rect x={4} y={6} width={44} height={18} rx={5} fill={screen} />
       {[0, 1, 2].map((r) =>
-        [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={9 + c * 13} y={32 + r * 15} width={9} height={9} rx={2} fill={r === 0 && c === 0 ? '#E60A2A' : '#d4d4d8'} />),
+        [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={9 + c * 13} y={32 + r * 15} width={9} height={9} rx={2} fill={r === 0 && c === 0 ? '#d03c3b' : '#d4d4d8'} />),
       )}
       <rect x={9} y={78} width={35} height={6} rx={3} fill={screen} />
     </g>
@@ -43,8 +43,10 @@ export function Banner({ training, className }: { training: Training; className?
     return (
       <>
         <img src={training.cover} alt="" loading="lazy" decoding="async" className={`${className ?? ''} object-cover`} />
-        {/* Darkens the top edge so the status badge and arrow stay readable on bright photos. */}
+        {/* Soft brand tint over the photo, plus darker top and bottom edges so badges and chips stay readable. */}
+        <span className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-brand-700/30 via-brand-600/5 to-transparent" aria-hidden />
         <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-black/35 to-transparent" aria-hidden />
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/25 to-transparent" aria-hidden />
       </>
     )
   }
@@ -69,8 +71,8 @@ export function Banner({ training, className }: { training: Training; className?
           </defs>
           <rect width={W} height={H} fill={`url(#${id}-p)`} />
           <ellipse cx={W / 2} cy={H / 2 + 6} rx={150} ry={70} fill={`url(#${id}-g)`} />
-          <Wordmark x={316} y={30} size={18} color="#39B54A" dash="#E60A2A" />
-          <Title text={title} x={W / 2} y={88} size={22} color="#E60A2A" anchor="middle" />
+          <Wordmark x={316} y={30} size={18} color="#39B54A" dash="#d03c3b" />
+          <Title text={title} x={W / 2} y={88} size={22} color="#d03c3b" anchor="middle" />
         </>
       )
       break
@@ -78,12 +80,12 @@ export function Banner({ training, className }: { training: Training; className?
       art = (
         <>
           <rect width={W} height={H} fill="#39B54A" />
-          <path d={`M180 ${H} C 220 120, 300 150, ${W} 110 L ${W} ${H} Z`} fill="#E60A2A" />
+          <path d={`M180 ${H} C 220 120, 300 150, ${W} 110 L ${W} ${H} Z`} fill="#d03c3b" />
           <path d={`M210 ${H} C 250 140, 320 160, ${W} 135 L ${W} ${H} Z`} fill="#c10522" />
           <Phone x={24} y={40} scale={1.15} screen="#2a9a3a" />
           <Wordmark x={110} y={44} size={18} />
           <rect x={240} y={56} width={140} height={58} rx={6} fill="#fff" />
-          <Title text={title} x={310} y={80} size={15} color="#E60A2A" anchor="middle" />
+          <Title text={title} x={310} y={80} size={15} color="#d03c3b" anchor="middle" />
         </>
       )
       break
@@ -123,7 +125,7 @@ export function Banner({ training, className }: { training: Training; className?
             <rect key={i} x={196 + (i % 4) * 11} y={76 + Math.floor(i / 4) * 11} width={9} height={9} fill={(i * 7) % 3 ? '#111' : '#fff'} />
           ))}
           <Title text={title} x={254} y={92} size={13} color="#fff" />
-          <Wordmark x={254} y={138} size={14} dash="#E60A2A" />
+          <Wordmark x={254} y={138} size={14} dash="#d03c3b" />
         </>
       )
       break
@@ -131,7 +133,7 @@ export function Banner({ training, className }: { training: Training; className?
       art = (
         <>
           <rect width={W} height={H} fill="#111827" />
-          <circle cx={330} cy={40} r={90} fill="#E60A2A" opacity={0.25} />
+          <circle cx={330} cy={40} r={90} fill="#d03c3b" opacity={0.25} />
           <circle cx={60} cy={170} r={70} fill="#39B54A" opacity={0.25} />
           <path d="M300 60l40 16v30c0 22-18 38-40 46-22-8-40-24-40-46V76z" fill="#39B54A" />
           <path d="M285 104l10 10 22-24" stroke="#fff" strokeWidth={6} fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -169,7 +171,7 @@ export function Banner({ training, className }: { training: Training; className?
             <rect x={4} y={5} width={48} height={20} rx={8} fill="#39b54a" />
             <rect x={4} y={17} width={48} height={8} fill="#39b54a" />
             {[0, 1, 2].map((r) =>
-              [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={10 + c * 13} y={33 + r * 15} width={10} height={10} rx={2.5} fill={r === 0 && c === 0 ? '#E60A2A' : '#e4e4e7'} />),
+              [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={10 + c * 13} y={33 + r * 15} width={10} height={10} rx={2.5} fill={r === 0 && c === 0 ? '#d03c3b' : '#e4e4e7'} />),
             )}
             <rect x={10} y={84} width={36} height={7} rx={3.5} fill="#2ea836" />
           </g>

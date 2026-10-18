@@ -33,6 +33,7 @@ export function metricsWithTrend(trainings: Training[], progress: Record<string,
     now,
     delta: {
       total: now.total - prev.total,
+      completed: now.completed - prev.completed,
       averageScore: now.averageScore - prev.averageScore,
       completionRate: now.completionRate - prev.completionRate,
     },

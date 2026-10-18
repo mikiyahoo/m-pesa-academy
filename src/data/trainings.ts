@@ -1,4 +1,5 @@
-import type { QuizQuestion, Training, TrainingProgress, User } from '../types'
+import { SAMPLE_DECK, SAMPLE_DECK_FILE, SAMPLE_VIDEOS } from './materials'
+import type { Module, QuizQuestion, Training, TrainingProgress, User } from '../types'
 
 export const currentUser: User = {
   name: 'Fasil Wolde Gebrewold',
@@ -14,17 +15,48 @@ export const adminUser: User = {
   role: 'Training Administrator',
 }
 
+/** Trainer (matches person s3 in the admin seed); signs in to the trainer portal (D04). */
+export const trainerUser: User = {
+  name: 'Dereje Desta',
+  email: 'dereje.desta@safaricom.et',
+  phone: '0711000003',
+  role: 'Trainer · Learning & Development',
+}
+
+/** Team representative who can request training (matches person s5 in the admin seed). */
+export const requesterUser: User = {
+  name: 'Kalkidan Mekonnen',
+  email: 'kalkidan.mekonnen@safaricom.et',
+  phone: '0711334455',
+  role: 'Requester · Call Center Operations',
+}
+
+/** Groups the demo learner belongs to; used for per-group download rules (D4, C06). */
+export const LEARNER_GROUP_IDS = ['g1']
+
+export const canDownload = (m: Module) => m.kind === 'document' && !!m.deck && (!m.downloadGroupIds || m.downloadGroupIds.some((g) => LEARNER_GROUP_IDS.includes(g)))
+
 /** Demo-only credential for the fake login flow; there is no backend. Both accounts share it. */
 export const DEMO_PASSWORD = 'Mpesa@2026'
 
-const mod = (prefix: string, titles: [string, number][]) =>
-  titles.map(([title, minutes], i) => ({ id: `${prefix}-m${i + 1}`, title, minutes }))
+// Every third module is a video streamed from /public/trainings; the rest are presentations
+// that open in the slide viewer with a minimum reading time before they can be completed.
+const mod = (prefix: string, titles: [string, number][]): Module[] => {
+  let video = 0
+  return titles.map(([title, minutes], i) => {
+    const kind: Module['kind'] = i % 3 === 1 ? 'video' : 'document'
+    const id = `${prefix}-m${i + 1}`
+    return kind === 'video'
+      ? { id, title, minutes, kind, video: SAMPLE_VIDEOS[video++ % SAMPLE_VIDEOS.length] }
+      : { id, title, minutes, kind, deck: SAMPLE_DECK_FILE, slides: SAMPLE_DECK }
+  })
+}
 
 const q = (prefix: string, items: [string, string[], number][]): QuizQuestion[] =>
   items.map(([question, options, answer], i) => ({ id: `${prefix}-q${i + 1}`, question, options, answer }))
 
 /** Placeholder join link; the UI recognises "DEMO" links and doesn't open them. */
-const TEAMS_DEMO = 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_DEMO%40thread.v2/0'
+export const TEAMS_DEMO = 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_DEMO%40thread.v2/0'
 
 export const trainings: Training[] = [
   {
@@ -37,6 +69,7 @@ export const trainings: Training[] = [
     endTime: '03:00',
     venue: 'ONLINE',
     teamsJoinUrl: TEAMS_DEMO,
+    recording: '/trainings/Module (1).mp4',
     category: 'Onboarding',
     banner: 'red',
     description:
@@ -52,6 +85,7 @@ export const trainings: Training[] = [
       ['What should a customer never share with anyone?', ['Their phone number', 'Their M-PESA PIN', 'Their name', 'Their till number'], 1],
       ['Where can a customer withdraw cash?', ['Any M-PESA agent', 'Only at a bank', 'Only at a Safaricom shop', 'Online'], 0],
     ]),
+    quizSettings: { timeLimitMinutes: 10, maxAttempts: 3, shuffle: false },
   },
   {
     id: 'mpesa-training-test',
@@ -77,6 +111,7 @@ export const trainings: Training[] = [
       ['Transaction limits exist mainly to…', ['Slow down customers', 'Comply with regulation and reduce risk', 'Increase fees', 'Limit agents'], 1],
       ['Who sets the M-PESA tariff?', ['Each agent', 'The customer', 'M-PESA (published tariff)', 'The bank'], 2],
     ]),
+    quizSettings: { timeLimitMinutes: 15, maxAttempts: 2, shuffle: true },
   },
   {
     id: 'fayda-integration',
@@ -88,6 +123,7 @@ export const trainings: Training[] = [
     endTime: '23:00',
     venue: 'ONLINE',
     teamsJoinUrl: TEAMS_DEMO,
+    recording: '/trainings/Module (2).mp4',
     category: 'Compliance',
     banner: 'fayda',
     bannerTitle: 'National ID (Fayda)\nFor M-PESA',
@@ -104,6 +140,7 @@ export const trainings: Training[] = [
       ['Fayda verification mainly improves…', ['Airtime sales', 'Customer KYC', 'Network speed', 'Agent commissions'], 1],
       ['If verification fails, the first step is to…', ['Register anyway', 'Re-check the FIN and customer details', 'Close the account', 'Call the police'], 1],
     ]),
+    quizSettings: { timeLimitMinutes: 10, maxAttempts: 3, shuffle: true },
   },
   {
     id: 'b2c-south-radio',
@@ -115,6 +152,7 @@ export const trainings: Training[] = [
     endTime: '17:00',
     venue: 'ONLINE',
     teamsJoinUrl: TEAMS_DEMO,
+    recording: '/trainings/Module (3).mp4',
     category: 'Business',
     banner: 'green',
     bannerTitle: 'M-PESA Bulk\nService',
@@ -131,6 +169,7 @@ export const trainings: Training[] = [
       ['Bulk payments are uploaded via…', ['USSD', 'The organisation portal', 'SMS', 'An agent'], 1],
       ['Reconciliation helps to…', ['Match payments with records', 'Reset PINs', 'Buy airtime', 'Register customers'], 0],
     ]),
+    quizSettings: { timeLimitMinutes: 20, maxAttempts: 2, shuffle: true },
   },
   {
     id: 'account-optimization',
@@ -142,6 +181,7 @@ export const trainings: Training[] = [
     endTime: '18:00',
     venue: 'Addis Ababa HQ — Hall B',
     teamsJoinUrl: TEAMS_DEMO,
+    recording: '/trainings/Module (4).mp4',
     category: 'Agents',
     banner: 'optimization',
     bannerTitle: 'M-PESA ACCOUNT\nOPTIMIZATION',
@@ -158,6 +198,7 @@ export const trainings: Training[] = [
       ['A good way to grow volume is to…', ['Close early', 'Keep sufficient float at peak hours', 'Refuse small transactions', 'Charge extra'], 1],
       ['Disputes should be…', ['Ignored', 'Logged and escalated through official channels', 'Settled in cash', 'Posted online'], 1],
     ]),
+    quizSettings: { timeLimitMinutes: 15, maxAttempts: 3, shuffle: false },
   },
   {
     id: 'merchant-payments',
@@ -183,6 +224,7 @@ export const trainings: Training[] = [
       ['A merchant confirms payment by…', ['Trusting the customer', 'Checking the M-PESA confirmation SMS', 'Waiting a week', 'Asking a neighbour'], 1],
       ['Settlement moves funds…', ['To the merchant’s account', 'To the customer', 'To an agent', 'Nowhere'], 0],
     ]),
+    quizSettings: { timeLimitMinutes: 10, maxAttempts: 2, shuffle: true },
   },
   {
     id: 'fraud-awareness',
@@ -209,6 +251,7 @@ export const trainings: Training[] = [
       ['A sudden SIM swap request should be…', ['Approved instantly', 'Verified carefully with ID', 'Ignored', 'Done by phone'], 1],
       ['Suspected fraud should be…', ['Reported immediately', 'Kept secret', 'Shared on social media', 'Handled with cash'], 0],
     ]),
+    quizSettings: { timeLimitMinutes: 12, maxAttempts: 3, shuffle: true },
   },
   {
     id: 'mpesa-app-features',
@@ -234,8 +277,16 @@ export const trainings: Training[] = [
       ['Mini-apps let customers…', ['Use partner services inside M-PESA', 'Change networks', 'Print money', 'Skip KYC'], 0],
       ['App login is secured by…', ['The customer’s PIN or biometrics', 'Their name', 'Their birthday', 'Nothing'], 0],
     ]),
+    quizSettings: { timeLimitMinutes: 8, maxAttempts: 2, shuffle: false },
   },
 ]
+
+// Fayda decks are downloadable for Enterprise Sales only; other learners read them in the portal (D4).
+trainings
+  .find((t) => t.id === 'fayda-integration')
+  ?.modules.forEach((m) => {
+    if (m.kind === 'document') m.downloadGroupIds = ['g4']
+  })
 
 /** Seed progress so the dashboard starts with realistic history. */
 export const seedProgress: Record<string, TrainingProgress> = {
@@ -243,23 +294,46 @@ export const seedProgress: Record<string, TrainingProgress> = {
     completedModules: trainings[0].modules.map((m) => m.id),
     quizScore: 100,
     attended: true,
+    checkInAt: '2026-06-18T00:44:00',
+    checkInMethod: 'teams',
+    feedback: { likert: [5, 4, 5, 5], recommend: true, comment: 'Clear and well paced.', anonymous: false, submittedAt: '2026-06-18T03:05:00' },
     completedAt: '2026-06-18',
   },
+  // Modules done but the quiz isn't passed yet.
   'fayda-integration': {
     completedModules: trainings[2].modules.map((m) => m.id),
     quizScore: 67,
     attended: true,
+    checkInAt: '2026-06-30T10:22:00',
+    checkInMethod: 'teams',
   },
   'b2c-south-radio': {
     completedModules: trainings[3].modules.map((m) => m.id),
     quizScore: 100,
     attended: true,
+    checkInAt: '2026-07-08T14:03:00',
+    checkInMethod: 'teams',
+    feedback: { likert: [4, 5, 4, 4], recommend: true, comment: '', anonymous: true, submittedAt: '2026-07-08T17:10:00' },
     completedAt: '2026-07-08',
   },
   'account-optimization': {
     completedModules: [trainings[4].modules[0].id],
-    attended: true,
   },
 }
 
 export const PASS_MARK = 70
+
+/** Check-ins after this many minutes count as Late (URS 2.7 example; admins can change it). */
+export const LATE_WINDOW_MINUTES = 15
+
+/** Minimum reading time before a document can be marked complete; shortened for the demo. */
+export const DOCUMENT_MIN_SECONDS = 10
+
+/** Feedback statements: trainer, content, logistics, overall (URS 2.6), answered on a 5-point Likert scale (TA-4.3). */
+export const FEEDBACK_STATEMENTS = [
+  'The trainer explained topics clearly and answered questions well.',
+  'The content was relevant and useful for my role.',
+  'Timing, venue or online tools worked well.',
+  'Overall, the training met my expectations.',
+]
+export const LIKERT = ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree']

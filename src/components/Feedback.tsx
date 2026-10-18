@@ -29,7 +29,7 @@ function ConfirmDialog({ opts, onDone }: { opts: ConfirmOptions; onDone: (ok: bo
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={() => onDone(false)} />
       <div role="alertdialog" aria-modal aria-labelledby="confirm-title" className="relative w-full max-w-sm animate-[slidein_.18s_ease-out] rounded-2xl bg-white p-6 shadow-2xl">
-        <span className={cn('grid size-10 place-items-center rounded-full', opts.danger ? 'bg-red-50 text-red-600' : 'bg-zinc-100 text-zinc-600')}>
+        <span className={cn('grid size-10 place-items-center rounded-full', opts.danger ? 'bg-brand-50 text-brand-600' : 'bg-zinc-100 text-zinc-600')}>
           <AlertTriangle className="size-5" />
         </span>
         <h2 id="confirm-title" className="mt-4 text-base font-semibold text-zinc-900">
@@ -37,13 +37,13 @@ function ConfirmDialog({ opts, onDone }: { opts: ConfirmOptions; onDone: (ok: bo
         </h2>
         {opts.message && <p className="mt-1 text-sm text-zinc-500">{opts.message}</p>}
         <div className="mt-6 flex justify-end gap-2">
-          <button onClick={() => onDone(false)} className="rounded-lg border border-zinc-200 px-3.5 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+          <button onClick={() => onDone(false)} className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
             Cancel
           </button>
           <button
             ref={confirmRef}
             onClick={() => onDone(true)}
-            className={cn('rounded-lg px-3.5 py-2 text-sm font-semibold text-white', opts.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-zinc-900 hover:bg-zinc-800')}
+            className={cn('rounded-xl px-4 py-2 text-sm font-semibold text-white transition', opts.danger ? 'bg-brand-600 hover:bg-brand-700' : 'bg-zinc-900 hover:bg-zinc-800')}
           >
             {opts.confirmLabel ?? 'Confirm'}
           </button>

@@ -5,7 +5,7 @@ import { todayISO } from '../../lib/utils'
 import { useAuth } from '../../store/Auth'
 import { dateTime, shortDate, time12 } from '../helpers'
 import { participantProgress, useAdmin } from '../store'
-import { Badge, Button, Card, CardTitle, PageHeader, trainingStatusTone } from '../ui'
+import { Badge, Button, Card, CardTitle, Empty, PageHeader, StatCard, trainingStatusTone } from '../ui'
 import { NewTrainingModal } from './Trainings'
 
 export function AdminDashboard() {
@@ -41,13 +41,6 @@ export function AdminDashboard() {
   })
   const maxLearners = Math.max(1, ...months.map((m) => m.learners))
 
-  const stats = [
-    { label: 'Total trainings', value: data.trainings.length, icon: GraduationCap, sub: `${upcoming.length} upcoming` },
-    { label: 'Learners enrolled', value: learners, icon: Users, sub: `${data.people.filter((p) => p.role === 'Participant').length} registered users` },
-    { label: 'Avg. completion', value: `${avgCompletion.toFixed(0)}%`, icon: CheckCircle2, sub: 'across active trainings' },
-    { label: 'Avg. feedback', value: avgRating.toFixed(1), icon: Star, sub: `${data.feedbackResponses.length} responses` },
-  ]
-
   return (
     <>
       <PageHeader
@@ -61,24 +54,31 @@ export function AdminDashboard() {
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((s) => (
-          <Card key={s.label} className="p-4">
-            <div className="flex items-start justify-between">
-              <p className="text-sm text-zinc-500">{s.label}</p>
-              <span className="grid size-8 place-items-center rounded-lg bg-brand-50 text-brand-600">
-                <s.icon className="size-4" />
-              </span>
-            </div>
-            <p className="mt-2 text-2xl font-bold tracking-tight text-zinc-900">{s.value}</p>
-            <p className="mt-0.5 text-xs text-zinc-500">{s.sub}</p>
-          </Card>
-        ))}
+        <StatCard icon={GraduationCap} tone="red" label="Total trainings" value={data.trainings.length} hint={`${upcoming.length} upcoming sessions`} />
+        <StatCard icon={Users} tone="zinc" label="Active learners" value={learners} hint={`${data.people.filter((p) => p.role === 'Participant').length} registered in portal`} />
+        <StatCard icon={CheckCircle2} tone="green" label="Avg. completion" value={`${avgCompletion.toFixed(0)}%`} hint="Across active modules" />
+        <StatCard
+          icon={Star}
+          tone="amber"
+          label="Avg. feedback"
+          value={
+            <>
+              {avgRating.toFixed(1)} <span className="text-base font-normal text-zinc-400">/ 5</span>
+            </>
+          }
+          hint={`${data.feedbackResponses.length} total responses`}
+        />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card>
           <CardTitle action={<span className="text-xs text-zinc-500">Learners per month</span>}>Training activity</CardTitle>
-          <div className="flex h-52 items-end gap-3">
+          {/* Visual bars carry a text summary so the chart isn't mouse/eyes-only. */}
+          <div
+            role="img"
+            aria-label={`Learners per month: ${months.map((m) => `${m.label}, ${m.learners} learners in ${m.sessions} sessions`).join('; ')}`}
+            className="flex h-52 items-end gap-3"
+          >
             {months.map((m) => (
               <div key={m.key} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
                 <span className="text-xs font-medium text-zinc-700">{m.learners || ''}</span>
@@ -112,7 +112,7 @@ export function AdminDashboard() {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-zinc-900">{r.topic}</span>
                       <span className="text-xs text-zinc-500">
-                        {r.participants} participants · prefers {shortDate(r.preferredDate)}
+                        {r.team} · {r.participants.length} participants · prefers {shortDate(r.preferredDate)}
                       </span>
                     </span>
                   </Link>
@@ -120,7 +120,7 @@ export function AdminDashboard() {
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">No pending requests. 🎉</p>
+            <Empty icon={CheckCircle2} title="No pending requests" text="You’re all caught up for now." />
           )}
         </Card>
       </div>
@@ -162,7 +162,11 @@ export function AdminDashboard() {
                 </Link>
               </li>
             ))}
-            {!upcoming.length && <li className="py-6 text-center text-sm text-zinc-500">Nothing scheduled.</li>}
+            {!upcoming.length && (
+              <li>
+                <Empty icon={CalendarDays} title="Nothing scheduled" text="Create a training to fill the calendar." />
+              </li>
+            )}
           </ul>
         </Card>
 

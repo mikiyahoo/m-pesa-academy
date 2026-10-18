@@ -27,7 +27,7 @@ export function HeroIllustration({ className }: { className?: string }) {
       <rect x="76" y="200" width="112" height="4" rx="2" fill="#fff" opacity="0.35" />
 
       <g transform="rotate(-7 112 120)">
-        <rect x="104" y="96" width="7" height="62" rx="2" fill="#e60a2a" />
+        <rect x="104" y="96" width="7" height="62" rx="2" fill="#d03c3b" />
         <path d="M104 96l3.5-9 3.5 9z" fill="#3f3f46" />
       </g>
       <g transform="rotate(6 132 120)">
@@ -41,7 +41,7 @@ export function HeroIllustration({ className }: { className?: string }) {
       <rect x="98" y="134" width="56" height="10" rx="5" fill="#3f3f46" />
 
       {/* Right stack: red book under the laptop, with a plant */}
-      <rect x="226" y="228" width="208" height="28" rx="5" fill="#e60a2a" />
+      <rect x="226" y="228" width="208" height="28" rx="5" fill="#d03c3b" />
       <rect x="408" y="232" width="22" height="20" rx="2" fill="#fafaf9" />
       <path d="M412 238h14M412 244h14" stroke="#e7e5e4" strokeWidth="1.5" />
 

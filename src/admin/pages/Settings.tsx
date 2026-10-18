@@ -1,4 +1,5 @@
-import { Award, Check, Download, FileClock, Plus, Settings2 } from 'lucide-react'
+import { Check, Download, FileClock, Plus, Settings2 } from 'lucide-react'
+import { CERTIFICATE_LAYOUTS, CertificateDesign } from '../../components/CertificateDesign'
 import { useState } from 'react'
 import { cn } from '../../lib/utils'
 import { dateTime } from '../helpers'
@@ -8,44 +9,67 @@ import { Badge, Button, Card, downloadCsv, Empty, Field, Input, Modal, PageHeade
 
 /* ---------------------------- Certificate templates --------------------------- */
 
-const accents = {
-  green: { border: 'border-mpesa-600', text: 'text-mpesa-700', seal: 'bg-mpesa-600', bg: 'bg-white' },
-  red: { border: 'border-brand-600', text: 'text-brand-700', seal: 'bg-brand-600', bg: 'bg-white' },
-  dark: { border: 'border-amber-400', text: 'text-amber-300', seal: 'bg-amber-500', bg: 'bg-zinc-900' },
-}
-
-export function CertificatePreview({ template, name = 'Participant Name', course = 'M-PESA Call Center Training' }: { template: CertificateTemplate; name?: string; course?: string }) {
-  const a = accents[template.accent]
-  const dark = template.accent === 'dark'
-  // Fixed light/dark palette: certificates print the same regardless of app theme.
+/** Admin preview of a template, rendered with the same layout learners receive. */
+export function CertificatePreview({
+  template,
+  name = 'Participant Name',
+  course = 'M-PESA Call Center Training',
+  trainer = 'Trainer Name',
+  certificateId = 'MPL-SAMPLE-0001',
+  issued,
+  score,
+}: {
+  template: CertificateTemplate
+  name?: string
+  course?: string
+  trainer?: string
+  certificateId?: string
+  issued?: string
+  score?: number
+}) {
   return (
-    <div className={cn('relative aspect-[1.414] w-full overflow-hidden text-[clamp(0.35rem,1vw,0.6rem)]', a.bg)}>
-      <div className={cn('absolute inset-[4%] border-[0.35em]', a.border)} />
-      <div className="relative flex h-full flex-col items-center justify-center px-[12%] text-center">
-        <p className={cn('text-[2em] font-extrabold', dark ? 'text-white' : 'text-[#e60a2a]')}>
-          m<span className="text-[#39b54a]">-</span>pesa
-        </p>
-        <p className={cn('mt-[0.8em] text-[1em] font-semibold tracking-[0.3em] uppercase', dark ? 'text-[#d4d4d8]' : 'text-[#71717a]')}>{template.title}</p>
-        <p className={cn('mt-[1.4em] text-[2.2em] font-semibold', dark ? 'text-white' : 'text-[#18181b]')}>{name}</p>
-        <p className={cn('mt-[0.6em] text-[1.2em] font-semibold', a.text)}>{course}</p>
-        <span className={cn('mt-[1.6em] grid size-[4em] place-items-center rounded-full text-white', a.seal)}>
-          <Award className="size-[2em]" />
-        </span>
-      </div>
-    </div>
+    <CertificateDesign
+      layout={template.layout ?? 'border'}
+      fields={{ name, course, trainer, certificateId, score, issued: issued ?? new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) }}
+    />
   )
 }
 
 function TemplateModal({ template, onClose }: { template?: CertificateTemplate; onClose: () => void }) {
   const { update } = useAdmin()
-  const [form, setForm] = useState({ name: template?.name ?? '', title: template?.title ?? 'Certificate of Completion', accent: template?.accent ?? ('green' as CertificateTemplate['accent']) })
+  const { data } = useAdmin()
+  const [form, setForm] = useState({
+    name: template?.name ?? '',
+    title: template?.title ?? 'Certificate of Completion',
+    accent: template?.accent ?? ('red' as CertificateTemplate['accent']),
+    layout: template?.layout ?? ('border' as NonNullable<CertificateTemplate['layout']>),
+    assignedTypeIds: template?.assignedTypeIds ?? [],
+  })
   const draft: CertificateTemplate = { id: template?.id ?? uid('ct'), isDefault: template?.isDefault ?? false, ...form }
+  const typeNames = (ids: string[]) => ids.map((id) => data.trainingTypes.find((t) => t.id === id)?.name ?? id).join(', ') || '—'
 
   const save = () => {
-    update((d) => ({ ...d, templates: template ? d.templates.map((t) => (t.id === template.id ? draft : t)) : [...d.templates, draft] }), {
-      action: template ? 'Updated certificate template' : 'Created certificate template',
-      target: draft.name,
-    })
+    // A training type uses one template: assigning it here removes it from the others (X03).
+    update(
+      (d) => ({
+        ...d,
+        templates: (template ? d.templates.map((t) => (t.id === template.id ? draft : t)) : [...d.templates, draft]).map((t) =>
+          t.id === draft.id ? t : { ...t, assignedTypeIds: t.assignedTypeIds?.filter((id) => !draft.assignedTypeIds?.includes(id)) },
+        ),
+      }),
+      {
+        action: template ? 'Updated certificate template' : 'Created certificate template',
+        target: draft.name,
+        changes: template
+          ? [
+              { field: 'Name', from: template.name, to: draft.name },
+              { field: 'Title', from: template.title, to: draft.title },
+              { field: 'Layout', from: template.layout ?? 'border', to: draft.layout ?? 'border' },
+              { field: 'Training types', from: typeNames(template.assignedTypeIds ?? []), to: typeNames(draft.assignedTypeIds ?? []) },
+            ]
+          : undefined,
+      },
+    )
     onClose()
   }
 
@@ -73,17 +97,23 @@ function TemplateModal({ template, onClose }: { template?: CertificateTemplate; 
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           </Field>
           <div>
-            <p className="mb-1.5 text-sm font-medium text-zinc-700">Style</p>
-            <div className="flex gap-2">
-              {(['green', 'red', 'dark'] as const).map((k) => (
+            <p className="mb-1.5 text-sm font-medium text-zinc-700">Layout</p>
+            <div className="space-y-2">
+              {CERTIFICATE_LAYOUTS.map((l) => (
                 <button
-                  key={k}
-                  onClick={() => setForm({ ...form, accent: k })}
-                  className={cn('grid size-9 place-items-center rounded-full ring-2 ring-offset-2 ring-offset-surface', accents[k].seal, form.accent === k ? 'ring-zinc-900' : 'ring-transparent')}
-                  aria-label={k}
-                  aria-pressed={form.accent === k}
+                  key={l.value}
+                  type="button"
+                  onClick={() => setForm({ ...form, layout: l.value })}
+                  aria-pressed={form.layout === l.value}
+                  className={cn('flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition', form.layout === l.value ? 'border-brand-500 bg-brand-50/60' : 'border-zinc-200 hover:bg-zinc-50')}
                 >
-                  {form.accent === k && <Check className="size-4 text-white" />}
+                  <span className={cn('mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border', form.layout === l.value ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-300')}>
+                    {form.layout === l.value && <Check className="size-3" />}
+                  </span>
+                  <span>
+                    <span className="block text-sm font-medium text-zinc-900">{l.label}</span>
+                    <span className="block text-xs text-zinc-500">{l.hint}</span>
+                  </span>
                 </button>
               ))}
             </div>
@@ -91,6 +121,29 @@ function TemplateModal({ template, onClose }: { template?: CertificateTemplate; 
         </div>
         <div className="overflow-hidden rounded-lg border border-zinc-200 shadow-sm">
           <CertificatePreview template={draft} />
+        </div>
+        <div className="md:col-span-2">
+          <p className="mb-1.5 text-sm font-medium text-zinc-700">Use for training types</p>
+          <p className="mb-2 text-xs text-zinc-500">Other types get the default template. Each type can use only one template.</p>
+          <div className="flex flex-wrap gap-2">
+            {data.trainingTypes.map((tt) => {
+              const on = form.assignedTypeIds.includes(tt.id)
+              const elsewhere = data.templates.find((t) => t.id !== draft.id && t.assignedTypeIds?.includes(tt.id))
+              return (
+                <button
+                  key={tt.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setForm({ ...form, assignedTypeIds: on ? form.assignedTypeIds.filter((x) => x !== tt.id) : [...form.assignedTypeIds, tt.id] })}
+                  className={cn('rounded-lg border px-3 py-1.5 text-xs font-medium transition', on ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50')}
+                  title={elsewhere && !on ? 'Currently uses ' + elsewhere.name : undefined}
+                >
+                  {tt.name}
+                  {elsewhere && !on && <span className="ml-1 text-zinc-400">({elsewhere.name})</span>}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
     </Modal>
@@ -108,7 +161,7 @@ export function AdminCertificateTemplates() {
     <>
       <PageHeader
         title="Certificate Templates"
-        description="The default template is issued when a participant completes a training."
+        description="Assign templates to training types; every other type gets the default."
         actions={
           <Button variant="primary" onClick={() => setEditing('new')}>
             <Plus className="size-4" /> New template
@@ -129,6 +182,9 @@ export function AdminCertificateTemplates() {
                   {t.name} {t.isDefault && <Badge tone="green">DEFAULT</Badge>}
                 </p>
                 <p className="truncate text-xs text-zinc-500">{t.title}</p>
+                <p className="mt-0.5 truncate text-xs text-zinc-500">
+                  {t.assignedTypeIds?.length ? 'Used for ' + t.assignedTypeIds.map((id) => data.trainingTypes.find((x) => x.id === id)?.name ?? id).join(', ') : t.isDefault ? 'Used for all other types' : 'Not assigned'}
+                </p>
               </div>
               <div className="flex shrink-0 gap-1">
                 {!t.isDefault && (
@@ -288,9 +344,9 @@ export function AdminAuditLogs() {
     <>
       <PageHeader
         title="Audit Logs"
-        description="A record of every change made in the admin dashboard."
+        description="Every change made in the admin dashboard, with before and after values where a field changed."
         actions={
-          <Button onClick={() => downloadCsv('audit-logs.csv', ['When', 'Actor', 'Action', 'Target'], rows.map((l) => [l.at, l.actor, l.action, l.target]))}>
+          <Button onClick={() => downloadCsv('audit-logs.csv', ['When', 'Actor', 'Action', 'Target', 'Changes (before → after)'], rows.map((l) => [l.at, l.actor, l.action, l.target, (l.changes ?? []).map((c) => c.field + ': ' + (c.from || '—') + ' → ' + (c.to || '—')).join('; ')]))}>
             <Download className="size-4" /> Export
           </Button>
         }
@@ -311,7 +367,21 @@ export function AdminAuditLogs() {
               <td className="px-4 py-3 whitespace-nowrap text-zinc-500">{dateTime(l.at)}</td>
               <td className="px-4 py-3 font-medium text-zinc-900">{l.actor}</td>
               <td className="px-4 py-3 text-zinc-700">{l.action}</td>
-              <td className="px-4 py-3 text-zinc-600">{l.target}</td>
+              <td className="px-4 py-3 text-zinc-600">
+                {l.target}
+                {l.changes && l.changes.length > 0 && (
+                  <ul className="mt-1.5 space-y-0.5 text-xs">
+                    {l.changes.map((c) => (
+                      <li key={c.field} className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-medium text-zinc-700">{c.field}:</span>
+                        <span className="rounded bg-brand-50 px-1.5 text-brand-700 line-through decoration-brand-300">{c.from || '—'}</span>
+                        <span className="text-zinc-400">→</span>
+                        <span className="rounded bg-mpesa-500/10 px-1.5 text-mpesa-700">{c.to || '—'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </td>
             </tr>
           ))}
         </Table>

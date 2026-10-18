@@ -2,13 +2,14 @@ import { Download, MoreHorizontal, Plus, UserRoundPlus, Users as UsersIcon, X } 
 import { useState } from 'react'
 import { cn } from '../../lib/utils'
 import { shortDate } from '../helpers'
+import { isInternalEmail } from '../requests'
 import { uid, useAdmin } from '../store'
 import type { AdminUserRole, Group, Person } from '../types'
 import { Avatar, Badge, Button, Card, downloadCsv, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, Table, Tabs, Textarea } from '../ui'
 
 /* ----------------------------------- Users ----------------------------------- */
 
-type RoleFilter = 'ALL' | AdminUserRole
+type RoleFilter = 'ALL' | AdminUserRole | 'Requester'
 const PAGE_SIZE = 10
 
 function UserModal({ person, onClose }: { person?: Person; onClose: () => void }) {
@@ -40,6 +41,16 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
     update((d) => ({ ...d, people: person ? d.people.map((p) => (p.id === person.id ? next : p)) : [next, ...d.people] }), {
       action: person ? 'Updated user' : 'Added user',
       target: next.name,
+      changes: person
+        ? [
+            { field: 'Name', from: person.name, to: next.name },
+            { field: 'Email', from: person.email, to: next.email },
+            { field: 'Phone', from: person.phone, to: next.phone },
+            { field: 'Role', from: person.role, to: next.role },
+            { field: 'Department', from: person.department, to: next.department },
+            { field: 'Groups', from: String(person.groupIds.length), to: String(next.groupIds.length) },
+          ]
+        : undefined,
     })
     onClose()
   }
@@ -115,18 +126,39 @@ export function AdminUsers() {
   const [menu, setMenu] = useState<string | null>(null)
 
   const filtered = data.people.filter(
-    (p) => (role === 'ALL' || p.role === role) && (!q || `${p.name} ${p.email} ${p.department}`.toLowerCase().includes(q.toLowerCase())),
+    (p) => (role === 'ALL' || (role === 'Requester' ? !!p.isRequester : p.role === role)) && (!q || `${p.name} ${p.email} ${p.department}`.toLowerCase().includes(q.toLowerCase())),
   )
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const current = Math.min(page, pages - 1)
   const rows = filtered.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE)
-  const count = (r: RoleFilter) => (r === 'ALL' ? data.people.length : data.people.filter((p) => p.role === r).length)
+  const count = (r: RoleFilter) => (r === 'ALL' ? data.people.length : data.people.filter((p) => (r === 'Requester' ? p.isRequester : p.role === r)).length)
+
+  // TA-1.7: only admins grant requester rights, and only to internal (permanent) users.
+  const toggleRequester = (p: Person) => {
+    const on = !p.isRequester
+    update((d) => ({ ...d, people: d.people.map((x) => (x.id === p.id ? { ...x, isRequester: on } : x)) }), {
+      action: on ? 'Granted requester rights' : 'Removed requester rights',
+      target: p.name,
+    })
+    setMenu(null)
+  }
+
+  // URS 2.3: admins can let trainers approve training requests.
+  const toggleApprover = (p: Person) => {
+    const on = !p.canApprove
+    update((d) => ({ ...d, people: d.people.map((x) => (x.id === p.id ? { ...x, canApprove: on } : x)) }), {
+      action: on ? 'Allowed trainer to approve requests' : 'Removed approval rights',
+      target: p.name,
+    })
+    setMenu(null)
+  }
 
   const toggleStatus = (p: Person) => {
     const status = p.status === 'Active' ? 'Inactive' : 'Active'
     update((d) => ({ ...d, people: d.people.map((x) => (x.id === p.id ? { ...x, status } : x)) }), {
       action: status === 'Active' ? 'Activated user' : 'Deactivated user',
       target: p.name,
+      changes: [{ field: 'Status', from: p.status, to: status }],
     })
     setMenu(null)
   }
@@ -154,7 +186,7 @@ export function AdminUsers() {
             setRole(r)
             setPage(0)
           }}
-          items={(['ALL', 'Participant', 'Trainer', 'Admin'] as RoleFilter[]).map((v) => ({ value: v, label: v === 'ALL' ? 'All' : `${v}s`, count: count(v) }))}
+          items={(['ALL', 'Participant', 'Trainer', 'Admin', 'Requester'] as RoleFilter[]).map((v) => ({ value: v, label: v === 'ALL' ? 'All' : `${v}s`, count: count(v) }))}
         />
         <SearchInput
           value={q}
@@ -166,59 +198,123 @@ export function AdminUsers() {
           className="w-full sm:w-72"
         />
       </div>
-
       {rows.length ? (
-        <Table head={['Name', 'Role', 'Department', 'Groups', 'Status', 'Joined', '']}>
-          {rows.map((p) => (
-            <tr key={p.id} className="hover:bg-zinc-50">
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <Avatar name={p.name} size="sm" />
-                  <span className="min-w-0">
-                    <span className="block font-medium text-zinc-900">{p.name}</span>
-                    <span className="block truncate text-xs text-zinc-500">{p.email}</span>
-                  </span>
-                </div>
-              </td>
-              <td className="px-4 py-3">
-                <Badge tone={p.role === 'Admin' ? 'red' : p.role === 'Trainer' ? 'blue' : 'zinc'}>{p.role.toUpperCase()}</Badge>
-              </td>
-              <td className="px-4 py-3 text-zinc-600">{p.department || '—'}</td>
-              <td className="px-4 py-3 text-xs text-zinc-600">{p.groupIds.map((g) => data.groups.find((x) => x.id === g)?.name).filter(Boolean).join(', ') || '—'}</td>
-              <td className="px-4 py-3">
-                <span className="flex items-center gap-1.5 text-xs text-zinc-700">
-                  <span className={cn('size-1.5 rounded-full', p.status === 'Active' ? 'bg-mpesa-500' : 'bg-zinc-400')} />
-                  {p.status}
-                </span>
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap text-zinc-600">{shortDate(p.createdAt)}</td>
-              <td className="relative px-4 py-3 text-right">
-                <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100" aria-label={`Actions for ${p.name}`}>
-                  <MoreHorizontal className="size-4" />
-                </button>
-                {menu === p.id && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setMenu(null)} />
-                    <div className="absolute right-4 z-20 mt-1 w-40 rounded-xl border border-zinc-200 bg-surface p-1 text-left text-sm shadow-lg">
-                      <button
-                        onClick={() => {
-                          setEditing(p)
-                          setMenu(null)
-                        }}
-                        className="w-full rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100"
-                      >
-                        Edit
-                      </button>
-                      <button onClick={() => toggleStatus(p)} className="w-full rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">
-                        {p.status === 'Active' ? 'Deactivate' : 'Activate'}
-                      </button>
+        <>
+          {/* Mobile cards (< md) */}
+          <div className="grid grid-cols-1 gap-3 md:hidden">
+            {rows.map((p) => (
+              <Card key={p.id} className="flex flex-col gap-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar name={p.name} size="sm" />
+                    <div className="min-w-0">
+                      <span className="block font-semibold text-zinc-900 truncate">{p.name}</span>
+                      <span className="block text-xs text-zinc-500 truncate">{p.email}</span>
                     </div>
-                  </>
-                )}
-              </td>
-            </tr>
-          ))}
-        </Table>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="flex items-center gap-1 text-xs text-zinc-700">
+                      <span className={cn('size-1.5 rounded-full', p.status === 'Active' ? 'bg-mpesa-500' : 'bg-zinc-400')} />
+                      {p.status}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <Badge tone={p.role === 'Admin' ? 'red' : p.role === 'Trainer' ? 'blue' : 'zinc'}>{p.role.toUpperCase()}</Badge>
+                  {p.isRequester && <Badge tone="amber">REQUESTER</Badge>}
+                  {p.canApprove && <Badge tone="green">APPROVER</Badge>}
+                  {!isInternalEmail(p.email) && <Badge>TEMPORARY</Badge>}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-zinc-600 pt-2 border-t border-zinc-100">
+                  <span className="truncate">Dept: {p.department || '—'}</span>
+                  <span className="truncate">Joined: {shortDate(p.createdAt)}</span>
+                  <span className="col-span-2 truncate">Groups: {p.groupIds.map((g) => data.groups.find((x) => x.id === g)?.name).filter(Boolean).join(', ') || '—'}</span>
+                </div>
+                <div className="flex gap-2 pt-1 border-t border-zinc-100">
+                  <Button size="sm" variant="ghost" onClick={() => { setEditing(p) }}>Edit</Button>
+                  <Button size="sm" variant="ghost" onClick={() => toggleStatus(p)}>{p.status === 'Active' ? 'Deactivate' : 'Activate'}</Button>
+                  {isInternalEmail(p.email) && (
+                    <Button size="sm" variant="ghost" onClick={() => toggleRequester(p)}>{p.isRequester ? 'Remove requester' : 'Make requester'}</Button>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop table (≥ md) */}
+          <div className="hidden md:block">
+            <Table head={['Name', 'Role', 'Department', 'Groups', 'Status', 'Joined', '']}>
+              {rows.map((p) => (
+                <tr key={p.id} className="hover:bg-zinc-50">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={p.name} size="sm" />
+                      <span className="min-w-0">
+                        <span className="block font-medium text-zinc-900">{p.name}</span>
+                        <span className="block truncate text-xs text-zinc-500">{p.email}</span>
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="flex flex-wrap gap-1">
+                      <Badge tone={p.role === 'Admin' ? 'red' : p.role === 'Trainer' ? 'blue' : 'zinc'}>{p.role.toUpperCase()}</Badge>
+                      {p.isRequester && <Badge tone="amber">REQUESTER</Badge>}
+                      {p.canApprove && <Badge tone="green">APPROVER</Badge>}
+                      {!isInternalEmail(p.email) && <Badge>TEMPORARY</Badge>}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-zinc-600">{p.department || '—'}</td>
+                  <td className="px-4 py-3 text-xs text-zinc-600">{p.groupIds.map((g) => data.groups.find((x) => x.id === g)?.name).filter(Boolean).join(', ') || '—'}</td>
+                  <td className="px-4 py-3">
+                    <span className="flex items-center gap-1.5 text-xs text-zinc-700">
+                      <span className={cn('size-1.5 rounded-full', p.status === 'Active' ? 'bg-mpesa-500' : 'bg-zinc-400')} />
+                      {p.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-zinc-600">{shortDate(p.createdAt)}</td>
+                  <td className="relative px-4 py-3 text-right">
+                    <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100" aria-label={`Actions for ${p.name}`}>
+                      <MoreHorizontal className="size-4" />
+                    </button>
+                    {menu === p.id && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setMenu(null)} />
+                        <div className="absolute right-4 z-20 mt-1 w-56 rounded-xl border border-zinc-200 bg-surface p-1 text-left text-sm shadow-lg">
+                          <button
+                            onClick={() => {
+                              setEditing(p)
+                              setMenu(null)
+                            }}
+                            className="w-full rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => toggleRequester(p)}
+                            disabled={!isInternalEmail(p.email)}
+                            title={isInternalEmail(p.email) ? undefined : 'Temporary users cannot be requesters'}
+                            className="w-full rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {p.isRequester ? 'Remove requester rights' : 'Make requester'}
+                            {!isInternalEmail(p.email) && <span className="block text-xs text-zinc-500">Temporary users cannot request</span>}
+                          </button>
+                          {p.role === 'Trainer' && (
+                            <button onClick={() => toggleApprover(p)} className="w-full rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">
+                              {p.canApprove ? 'Stop approving requests' : 'Allow approving requests'}
+                            </button>
+                          )}
+                          <button onClick={() => toggleStatus(p)} className="w-full rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">
+                            {p.status === 'Active' ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          </div>
+        </>
       ) : (
         <Card>
           <Empty icon={UsersIcon} title="No users match" text="Try a different search or role." />
@@ -290,7 +386,27 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
   const { data, update } = useAdmin()
   const [q, setQ] = useState('')
   const members = data.people.filter((p) => p.groupIds.includes(group.id))
-  const others = data.people.filter((p) => !p.groupIds.includes(group.id) && p.role === 'Participant' && (!q || p.name.toLowerCase().includes(q.toLowerCase())))
+  const others = data.people.filter((p) => !p.groupIds.includes(group.id) && p.role === 'Participant' && (!q || `${p.name} ${p.email} ${p.department}`.toLowerCase().includes(q.toLowerCase())))
+  const [paste, setPaste] = useState('')
+  const [pasteResult, setPasteResult] = useState<string | null>(null)
+
+  const addMany = (list: Person[], label: string) => {
+    if (!list.length) return
+    const ids = new Set(list.map((p) => p.id))
+    update(
+      (d) => ({ ...d, people: d.people.map((x) => (ids.has(x.id) && !x.groupIds.includes(group.id) ? { ...x, groupIds: [...x.groupIds, group.id] } : x)) }),
+      { action: `Added ${list.length} ${list.length === 1 ? 'person' : 'people'} to group (${label})`, target: group.name },
+    )
+  }
+
+  const addPasted = () => {
+    const emails = [...new Set(paste.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))]
+    const found = emails.map((e) => data.people.find((p) => p.email.toLowerCase() === e)).filter((p): p is Person => !!p)
+    const unknown = emails.filter((e) => !data.people.some((p) => p.email.toLowerCase() === e))
+    addMany(found.filter((p) => !p.groupIds.includes(group.id)), 'pasted list')
+    setPasteResult(`${found.length} matched${unknown.length ? ` · not found: ${unknown.slice(0, 3).join(', ')}${unknown.length > 3 ? ` +${unknown.length - 3} more` : ''}` : ''}`)
+    if (!unknown.length) setPaste('')
+  }
 
   const setMember = (p: Person, on: boolean) =>
     update(
@@ -302,12 +418,15 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
     <Modal open onClose={onClose} title={group.name} description={`${members.length} members`} wide>
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div>
-          <p className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">Members</p>
-          <ul className="max-h-80 divide-y divide-zinc-100 overflow-y-auto rounded-lg border border-zinc-200 scrollbar-thin">
+          <p className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">Members ({members.length})</p>
+          <ul className="max-h-[min(60vh,520px)] divide-y divide-zinc-100 overflow-y-auto rounded-lg border border-zinc-200 scrollbar-thin">
             {members.map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-3 py-2">
                 <Avatar name={p.name} size="sm" />
-                <span className="min-w-0 flex-1 truncate text-sm text-zinc-900">{p.name}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm text-zinc-900">{p.name}</span>
+                  <span className="block truncate text-xs text-zinc-500">{p.email}</span>
+                </span>
                 <button onClick={() => setMember(p, false)} className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-brand-600" aria-label={`Remove ${p.name}`}>
                   <X className="size-4" />
                 </button>
@@ -317,13 +436,21 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
           </ul>
         </div>
         <div>
-          <p className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">Add people</p>
-          <SearchInput value={q} onChange={setQ} placeholder="Search participants" />
-          <ul className="mt-2 max-h-[276px] divide-y divide-zinc-100 overflow-y-auto rounded-lg border border-zinc-200 scrollbar-thin">
+          <p className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">Add people ({others.length})</p>
+          <div className="flex gap-2">
+            <SearchInput value={q} onChange={setQ} placeholder="Search name, email or department" className="flex-1" />
+            <Button size="sm" disabled={!others.length} onClick={() => addMany(others, q ? `matching “${q}”` : 'all')}>
+              Add all {others.length}
+            </Button>
+          </div>
+          <ul className="mt-2 max-h-[min(50vh,440px)] divide-y divide-zinc-100 overflow-y-auto rounded-lg border border-zinc-200 scrollbar-thin">
             {others.map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-3 py-2">
                 <Avatar name={p.name} size="sm" />
-                <span className="min-w-0 flex-1 truncate text-sm text-zinc-900">{p.name}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm text-zinc-900">{p.name}</span>
+                  <span className="block truncate text-xs text-zinc-500">{p.email}</span>
+                </span>
                 <Button size="sm" onClick={() => setMember(p, true)}>
                   Add
                 </Button>
@@ -331,6 +458,17 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
             ))}
             {!others.length && <li className="p-6 text-center text-sm text-zinc-500">No one else to add.</li>}
           </ul>
+          <div className="mt-4">
+            <Field label="Or paste emails" hint="Separate with commas, spaces or new lines.">
+              <Textarea rows={2} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder="awet.gebrehiwet@partner.safaricom.et, …" />
+            </Field>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="text-xs text-zinc-500">{pasteResult}</span>
+              <Button size="sm" disabled={!paste.trim()} onClick={addPasted}>
+                Add pasted
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </Modal>

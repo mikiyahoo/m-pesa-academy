@@ -1,4 +1,4 @@
-import { ArrowLeft, Loader2, MessageSquareText, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Loader2, ClipboardPaste, MessageSquareText, ShieldCheck } from 'lucide-react'
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../store/Auth'
@@ -86,9 +86,25 @@ export function Otp() {
                 <span className="font-medium text-white">M-PESA</span> now
               </p>
               <p className="mt-0.5 text-sm">
-                Your M-PESA Learning verification code is <b className="tracking-widest">{pending.code}</b>. It expires in 5 minutes.
+                Your M-PESA Academy verification code is <b className="tracking-widest">{pending.code}</b>. It expires in 5 minutes.
               </p>
-              <p className="mt-1 text-[11px] text-white/50">Demo only — no real SMS is sent.</p>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-[11px] text-white/50">Demo only — no real SMS is sent.</p>
+                {/* Like a phone's "fill code from Messages": drops the code into the boxes and signs in. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const code = pending.code.slice(0, LENGTH)
+                    setDigits(Array.from({ length: LENGTH }, (_, i) => code[i] ?? ''))
+                    setShowSms(false)
+                    submit(code)
+                  }}
+                  disabled={loading}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition hover:bg-zinc-100 disabled:opacity-60"
+                >
+                  <ClipboardPaste className="size-3.5" /> Insert code
+                </button>
+              </div>
             </div>
             <button onClick={() => setShowSms(false)} className="text-xs text-white/60 hover:text-white">
               Dismiss

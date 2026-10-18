@@ -1,46 +1,80 @@
-import { Eye, EyeOff, Info, Loader2, Lock, Mail } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
-import { adminUser, currentUser, DEMO_PASSWORD } from '../../data/trainings'
-import { useAuth } from '../../store/Auth'
-import { AuthShell } from './AuthShell'
+import { Eye, EyeOff, Info, Loader2, Lock, Mail, X } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
+import {
+  adminUser,
+  currentUser,
+  DEMO_PASSWORD,
+  requesterUser,
+  trainerUser,
+} from "../../data/trainings";
+import { useAuth } from "../../store/Auth";
+import { AuthShell } from "./AuthShell";
+
+const DEMO_HINT_KEY = "mpesa-learning:demo-hint";
 
 export function Login() {
-  const { login } = useAuth()
-  const [identifier, setIdentifier] = useState('')
-  const [password, setPassword] = useState('')
-  const [show, setShow] = useState(false)
-  const [remember, setRemember] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const { login, notice } = useAuth();
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  // Demo accounts start collapsed; opening them is remembered per browser (storage failures ignored).
+  const [showDemo, setShowDemo] = useState(() => {
+    try {
+      return localStorage.getItem(DEMO_HINT_KEY) === "shown";
+    } catch {
+      return false;
+    }
+  });
+  const toggleDemo = (open: boolean) => {
+    setShowDemo(open);
+    try {
+      localStorage.setItem(DEMO_HINT_KEY, open ? "shown" : "hidden");
+    } catch {
+      // Convenience only.
+    }
+  };
+  const [remember, setRemember] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const submit = (e: FormEvent) => {
-    e.preventDefault()
-    setError(null)
+    e.preventDefault();
+    setError(null);
     if (!identifier.trim() || !password) {
-      setError('Enter your email or phone number and password.')
-      return
+      setError("Enter your email or phone number and password.");
+      return;
     }
-    setLoading(true)
+    setLoading(true);
     // Simulated network latency.
     setTimeout(() => {
-      setError(login(identifier, password))
-      setLoading(false)
-    }, 700)
-  }
+      setError(login(identifier, password));
+      setLoading(false);
+    }, 700);
+  };
 
   return (
     <AuthShell>
       <div className="mb-8 lg:hidden">
-        <p className="text-4xl font-extrabold tracking-tight text-brand-600">
+        <p className="text-[2.5rem] font-extrabold tracking-tight text-brand-600">
           m<span className="text-mpesa-500">-</span>pesa
         </p>
       </div>
       <h2 className="text-2xl font-semibold tracking-tight">Welcome back</h2>
-      <p className="mt-1 text-sm text-zinc-500">Sign in to continue to M-PESA Learning.</p>
+      <p className="mt-1 text-sm text-zinc-500">
+        Sign in to continue to M-PESA Academy.
+      </p>
+      {notice && (
+        <p className="mt-4 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
+          {notice}
+        </p>
+      )}
 
       <form onSubmit={submit} className="mt-8 space-y-4" noValidate>
         <label className="block">
-          <span className="text-sm font-medium text-zinc-700">Email or phone number</span>
+          <span className="text-sm font-medium text-zinc-700">
+            Email or phone number
+          </span>
           <div className="relative mt-1.5">
             <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400" />
             <input
@@ -57,14 +91,17 @@ export function Login() {
         <label className="block">
           <span className="flex items-center justify-between text-sm font-medium text-zinc-700">
             Password
-            <button type="button" className="text-xs font-medium text-brand-600 hover:underline">
+            <button
+              type="button"
+              className="text-xs font-medium text-brand-600 hover:underline"
+            >
               Forgot password?
             </button>
           </span>
           <div className="relative mt-1.5">
             <Lock className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400" />
             <input
-              type={show ? 'text' : 'password'}
+              type={show ? "text" : "password"}
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -75,19 +112,32 @@ export function Login() {
               type="button"
               onClick={() => setShow((s) => !s)}
               className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-zinc-400 hover:text-zinc-600"
-              aria-label={show ? 'Hide password' : 'Show password'}
+              aria-label={show ? "Hide password" : "Show password"}
             >
-              {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              {show ? (
+                <EyeOff className="size-4" />
+              ) : (
+                <Eye className="size-4" />
+              )}
             </button>
           </div>
         </label>
 
         <label className="flex items-center gap-2 text-sm text-zinc-600">
-          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-brand-600" />
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="size-4 accent-brand-600"
+          />
           Remember this device
         </label>
 
-        {error && <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">{error}</p>}
+        {error && (
+          <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
+            {error}
+          </p>
+        )}
 
         <button
           disabled={loading}
@@ -98,32 +148,74 @@ export function Login() {
         </button>
       </form>
 
-      <div className="mt-8 flex gap-3 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-3 text-xs text-zinc-600">
-        <Info className="mt-0.5 size-4 shrink-0 text-zinc-400" />
-        <div className="flex-1">
-          <p className="font-medium text-zinc-700">Demo accounts · password {DEMO_PASSWORD}</p>
-          {[
-            ['Learner', currentUser.email],
-            ['Admin', adminUser.email],
-          ].map(([label, email]) => (
-            <div key={label} className="mt-1.5 flex items-center justify-between gap-2">
-              <span>
-                <span className="font-medium text-zinc-700">{label}:</span> {email}
-              </span>
+      {!showDemo ? (
+        <button
+          type="button"
+          onClick={() => toggleDemo(true)}
+          className="mt-8 inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-800"
+        >
+          <Info className="size-3.5" /> Show demo accounts
+        </button>
+      ) : (
+        <div className="mt-8 flex gap-3 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-3 text-xs text-zinc-600">
+          <Info className="mt-0.5 size-4 shrink-0 text-zinc-400" />
+          <div className="flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-medium text-zinc-700">
+                Demo accounts · password {DEMO_PASSWORD}
+              </p>
               <button
                 type="button"
-                onClick={() => {
-                  setIdentifier(email)
-                  setPassword(DEMO_PASSWORD)
-                }}
-                className="shrink-0 font-medium text-brand-600 hover:underline"
+                onClick={() => toggleDemo(false)}
+                aria-label="Close demo accounts"
+                className="-mt-1 -mr-1 rounded-md p-1 text-zinc-400 hover:bg-zinc-200/60 hover:text-zinc-700"
               >
-                Use
+                <X className="size-3.5" />
               </button>
             </div>
-          ))}
+            {[
+              ["Learner", currentUser.email],
+              ["Admin", adminUser.email],
+              ["Trainer", trainerUser.email],
+              ["Requester", requesterUser.email],
+            ].map(([label, email]) => (
+              <div
+                key={label}
+                className="mt-1.5 flex items-center justify-between gap-2"
+              >
+                <span>
+                  <span className="font-medium text-zinc-700">{label}:</span>{" "}
+                  {email}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIdentifier(email);
+                    setPassword(DEMO_PASSWORD);
+                  }}
+                  className="shrink-0 font-medium text-brand-600 hover:underline"
+                >
+                  Use
+                </button>
+              </div>
+            ))}
+            <div className="mt-1.5 flex items-center justify-between gap-2">
+              <span>
+                <span className="font-medium text-zinc-700">
+                  Temporary trainee:
+                </span>{" "}
+                invite link, no password
+              </span>
+              <Link
+                to="/accept/demo-invite"
+                className="shrink-0 font-medium text-brand-600 hover:underline"
+              >
+                Open
+              </Link>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </AuthShell>
-  )
+  );
 }

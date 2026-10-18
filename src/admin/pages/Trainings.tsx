@@ -1,145 +1,29 @@
-import { CalendarDays, GraduationCap, MapPin, Plus, Users } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, CalendarDays, Eye, GraduationCap, MapPin, Plus, QrCode, Repeat, Users } from 'lucide-react'
+import { RowMenu, type RowMenuItem } from '../../components/RowMenu'
+import { cn } from '../../lib/utils'
+import { loadView, ViewToggle } from '../../pages/Learning'
 import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { todayISO } from '../../lib/utils'
+import { Link } from 'react-router-dom'
 import { shortDate, time12 } from '../helpers'
-import { uid, useAdmin } from '../store'
+import { NewTrainingModal } from '../TrainingForm'
+import { conflictIndex } from '../scheduling'
+import { useScope } from '../scope'
+import { useAdmin } from '../store'
 import type { AdminTraining, TrainingStatus } from '../types'
-import { Badge, Button, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, Table, Tabs, trainingStatusTone } from '../ui'
+import { Avatar, Badge, Button, Empty, PageHeader, SearchInput, Table, Tabs, trainingStatusTone } from '../ui'
 
 type Filter = 'ALL' | TrainingStatus
 
-export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onClose: () => void; preset?: { name?: string; journeyId?: string; date?: string } }) {
-  const { data, update } = useAdmin()
-  const navigate = useNavigate()
-  const trainers = data.people.filter((p) => p.role === 'Trainer')
-  const [form, setForm] = useState(() => ({
-    name: preset?.name ?? '',
-    journeyId: preset?.journeyId ?? data.journeys[0]?.id ?? '',
-    typeId: data.trainingTypes[0]?.id ?? '',
-    trainerId: trainers[0]?.id ?? '',
-    date: preset?.date ?? todayISO(),
-    startTime: '09:00',
-    endTime: '17:00',
-    location: '',
-    recurring: false,
-    groupId: '',
-  }))
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value }))
-
-  const valid = form.name.trim() && form.journeyId && form.date && form.location.trim() && form.startTime < form.endTime
-
-  const create = () => {
-    const participantIds = form.groupId ? data.people.filter((p) => p.groupIds.includes(form.groupId) && p.status === 'Active').map((p) => p.id) : []
-    const t: AdminTraining = {
-      id: uid('t'),
-      name: form.name.trim(),
-      journeyId: form.journeyId,
-      typeId: form.typeId,
-      trainerId: form.trainerId,
-      date: form.date,
-      startTime: form.startTime,
-      endTime: form.endTime,
-      location: form.location.trim(),
-      recurring: form.recurring,
-      status: 'SCHEDULED',
-      participantIds,
-      feedbackFormId: data.feedbackForms[0]?.id,
-      progress: {},
-    }
-    update((d) => ({ ...d, trainings: [t, ...d.trainings] }), { action: 'Created training', target: t.name })
-    onClose()
-    navigate(`/admin/trainings/${t.id}`)
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="New training"
-      description="Schedule a training session from a journey."
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!valid} onClick={create}>
-            Create training
-          </Button>
-        </>
-      }
-    >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Field label="Training name">
-            <Input value={form.name} onChange={set('name')} placeholder="e.g. M-PESA Call Center Training-Batch 60" autoFocus />
-          </Field>
-        </div>
-        <Field label="Journey">
-          <Select value={form.journeyId} onChange={set('journeyId')}>
-            {data.journeys.map((j) => (
-              <option key={j.id} value={j.id}>
-                {j.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Training type">
-          <Select value={form.typeId} onChange={set('typeId')}>
-            {data.trainingTypes.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Trainer">
-          <Select value={form.trainerId} onChange={set('trainerId')}>
-            {trainers.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Date">
-          <Input type="date" value={form.date} onChange={set('date')} />
-        </Field>
-        <Field label="Start time">
-          <Input type="time" value={form.startTime} onChange={set('startTime')} />
-        </Field>
-        <Field label="End time">
-          <Input type="time" value={form.endTime} onChange={set('endTime')} />
-        </Field>
-        <div className="sm:col-span-2">
-          <Field label="Location">
-            <Input value={form.location} onChange={set('location')} placeholder="e.g. ISON Office or ONLINE" />
-          </Field>
-        </div>
-        <Field label="Invite group (optional)">
-          <Select value={form.groupId} onChange={set('groupId')}>
-            <option value="">No group</option>
-            {data.groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <label className="flex items-center gap-2 self-end pb-2 text-sm text-zinc-700">
-          <input type="checkbox" checked={form.recurring} onChange={set('recurring')} className="size-4 accent-brand-600" />
-          Recurring training
-        </label>
-      </div>
-      {form.startTime >= form.endTime && <p className="mt-3 text-xs text-brand-600">End time must be after start time.</p>}
-    </Modal>
-  )
-}
+export { NewTrainingModal, type TrainingPreset } from '../TrainingForm'
 
 export function AdminTrainings() {
   const { data } = useAdmin()
+  const scope = useScope()
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('ALL')
   const [creating, setCreating] = useState(false)
+  const [view, setView] = useState<'grid' | 'list'>(loadView)
+  const conflicts = useMemo(() => conflictIndex(data.trainings, data.people), [data.trainings, data.people])
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { ALL: data.trainings.length }
@@ -155,12 +39,14 @@ export function AdminTrainings() {
   return (
     <>
       <PageHeader
-        title="Trainings"
-        description="Schedule, manage and track every training session."
+        title={scope.trainerId ? 'My sessions' : 'Trainings'}
+        description={scope.trainerId ? 'Sessions you conduct. The training team schedules new ones.' : 'Schedule, manage and track every training session.'}
         actions={
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            <Plus className="size-4" /> New training
-          </Button>
+          !scope.trainerId && (
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              <Plus className="size-4" /> New training
+            </Button>
+          )
         }
       />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -169,49 +55,157 @@ export function AdminTrainings() {
           onChange={setFilter}
           items={(['ALL', 'SCHEDULED', 'ONGOING', 'COMPLETED', 'CANCELLED'] as Filter[]).map((v) => ({ value: v, label: v === 'ALL' ? 'All' : v[0] + v.slice(1).toLowerCase(), count: counts[v] ?? 0 }))}
         />
-        <SearchInput value={q} onChange={setQ} placeholder="Search trainings…" className="w-full sm:w-64" />
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <SearchInput value={q} onChange={setQ} placeholder="Search trainings…" className="flex-1 sm:w-64" />
+          <span className="hidden md:block">
+            <ViewToggle view={view} onChange={setView} />
+          </span>
+        </div>
       </div>
       {rows.length ? (
-        <Table head={['Training', 'Journey', 'Date', 'Location', 'Participants', 'Status']}>
-          {rows.map((t) => (
-            <tr key={t.id} className="hover:bg-zinc-50">
-              <td className="px-4 py-3">
-                <Link to={`/admin/trainings/${t.id}`} className="font-medium text-zinc-900 hover:text-brand-600">
-                  {t.name}
-                </Link>
-                <p className="text-xs text-zinc-500">{data.people.find((p) => p.id === t.trainerId)?.name}</p>
-              </td>
-              <td className="px-4 py-3 text-zinc-600">{data.journeys.find((j) => j.id === t.journeyId)?.name}</td>
-              <td className="px-4 py-3 whitespace-nowrap text-zinc-600">
-                <span className="flex items-center gap-1.5">
-                  <CalendarDays className="size-3.5" /> {shortDate(t.date)}
-                </span>
-                <span className="text-xs text-zinc-500">
-                  {time12(t.startTime)} – {time12(t.endTime)}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-zinc-600">
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="size-3.5 shrink-0" /> {t.location}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-zinc-600">
-                <span className="flex items-center gap-1.5">
-                  <Users className="size-3.5" /> {t.participantIds.length}
-                </span>
-              </td>
-              <td className="px-4 py-3">
-                <Badge tone={trainingStatusTone[t.status]}>{t.status}</Badge>
-              </td>
-            </tr>
-          ))}
-        </Table>
+        <>
+          {/* Learner-style cards: phones always, desktop in grid view. */}
+          <div className={cn('grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3', view === 'list' && 'md:hidden')}>
+            {rows.map((t) => (
+              <TrainingTile key={t.id} t={t} conflict={conflicts.has(t.id)} />
+            ))}
+          </div>
+          {/* Table on desktop in list view. */}
+          <div className={cn('hidden', view === 'list' && 'md:block')}>
+            <Table head={['Training', 'Journey', 'Date', 'Location', 'Participants', 'Status', '']}>
+              {rows.map((t) => (
+                <tr key={t.id} className="hover:bg-zinc-50">
+                  <td className="px-4 py-3">
+                    <Link to={`/admin/trainings/${t.id}`} className="font-medium text-zinc-900 hover:text-brand-600">
+                      {t.name}
+                    </Link>
+                    {(t.seriesId || conflicts.has(t.id)) && (
+                      <span className="mt-1 flex flex-wrap gap-1.5">
+                        {t.seriesId && (
+                          <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600">
+                            <Repeat className="size-3" /> Series
+                          </span>
+                        )}
+                        {conflicts.has(t.id) && (
+                          <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-700" title="Trainer or trainees are booked elsewhere at the same time">
+                            <AlertTriangle className="size-3" /> Conflict
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    <p className="text-xs text-zinc-500">{data.people.find((p) => p.id === t.trainerId)?.name}</p>
+                  </td>
+                  <td className="px-4 py-3 text-zinc-600">{data.journeys.find((j) => j.id === t.journeyId)?.name}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-zinc-600">
+                    <span className="flex items-center gap-1.5">
+                      <CalendarDays className="size-3.5" /> {shortDate(t.date)}
+                    </span>
+                    <span className="text-xs text-zinc-500">
+                      {time12(t.startTime)} – {time12(t.endTime)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-zinc-600">
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="size-3.5 shrink-0" /> {t.location}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-zinc-600">
+                    <span className="flex items-center gap-1.5">
+                      <Users className="size-3.5" /> {t.participantIds.length}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge tone={trainingStatusTone[t.status]}>{statusLabel(t.status)}</Badge>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <RowMenu label={`Actions for ${t.name}`} items={trainingMenu(t.id, !!scope.trainerId)} />
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          </div>
+        </>
       ) : (
-        <div className="rounded-xl border border-dashed border-zinc-300">
+        <div className="rounded-2xl border border-zinc-200/80 bg-surface">
           <Empty icon={GraduationCap} title="No trainings found" text="Try another filter or create a new training." />
         </div>
       )}
       {creating && <NewTrainingModal open onClose={() => setCreating(false)} />}
     </>
+  )
+}
+
+const statusLabel = (s: TrainingStatus) => s[0] + s.slice(1).toLowerCase()
+
+const trainingMenu = (id: string, trainer: boolean): RowMenuItem[] => [
+  { label: 'Open training', icon: Eye, to: `/admin/trainings/${id}`, primary: true },
+  { label: 'Attendance & check-in', icon: QrCode, to: `/admin/trainings/${id}#attendance` },
+  { label: 'Certificates', icon: BadgeCheck, to: '/admin/certificates' },
+  ...(trainer ? [] : [{ label: 'Calendar', icon: CalendarDays, to: '/admin/calendar' }]),
+]
+
+/** Training as a learner-style card: banner with status and trainer, title, journey, when/where, participants. */
+function TrainingTile({ t, conflict }: { t: AdminTraining; conflict: boolean }) {
+  const { data } = useAdmin()
+  const trainer = data.people.find((p) => p.id === t.trainerId)
+  const journey = data.journeys.find((j) => j.id === t.journeyId)
+  const [first, ...rest] = (trainer?.name ?? '').split(' ')
+  return (
+    <article className="group relative flex flex-col rounded-3xl border border-zinc-200/80 bg-surface p-3 transition hover:-translate-y-0.5 hover:shadow-xl focus-within:ring-2 focus-within:ring-brand-500">
+      <div className="relative aspect-[16/7] overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 via-[#b3302f] to-[#6e1a15]">
+        <img src="/M-PESA Pattern.svg" alt="" className="absolute -right-6 -bottom-8 h-[150%] opacity-25 transition duration-300 group-hover:scale-105" aria-hidden />
+        <GraduationCap className="absolute top-1/2 left-5 size-10 -translate-y-1/2 text-white/25" aria-hidden />
+        <span className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+          <Badge tone={trainingStatusTone[t.status]} className="bg-white/95 backdrop-blur">
+            {statusLabel(t.status)}
+          </Badge>
+          {t.seriesId && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-black/25 px-2 py-0.5 text-[11px] font-medium text-white ring-1 ring-white/25 backdrop-blur-md">
+              <Repeat className="size-3" /> Series
+            </span>
+          )}
+        </span>
+        {conflict && (
+          <span className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 rounded-full bg-amber-400 px-2 py-0.5 text-[11px] font-semibold text-amber-950" title="Trainer or trainees are booked elsewhere at the same time">
+            <AlertTriangle className="size-3" /> Conflict
+          </span>
+        )}
+        {trainer && (
+          <span className="absolute right-2.5 bottom-2.5 flex max-w-[calc(100%-1.25rem)] items-center gap-1.5 rounded-full bg-black/25 py-0.5 pr-2.5 pl-0.5 text-[11px] font-medium text-white ring-1 ring-white/25 backdrop-blur-md">
+            <Avatar name={trainer.name} size="sm" />
+            <span className="truncate">{rest.length ? `${first} ${rest[rest.length - 1][0]}.` : first}</span>
+          </span>
+        )}
+      </div>
+      <div className="flex flex-1 flex-col px-1 pt-3.5">
+        <h3 className="line-clamp-2 text-[15px] leading-snug font-bold text-zinc-900 group-hover:text-brand-600">
+          <Link to={`/admin/trainings/${t.id}`} className="after:absolute after:inset-0 focus:outline-none">
+            {t.name}
+          </Link>
+        </h3>
+        <p className="mt-0.5 truncate text-xs text-zinc-500">{journey?.name ?? 'No journey'}</p>
+        <div className="mt-3 flex items-center gap-3 text-xs text-zinc-600">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <CalendarDays className="size-3.5 shrink-0 text-brand-600" />
+            <span className="truncate">
+              {shortDate(t.date)} · {time12(t.startTime)}
+            </span>
+          </span>
+          <span className="h-4 w-px shrink-0 bg-zinc-200" />
+          <span className="flex min-w-0 items-center gap-1.5">
+            <MapPin className="size-3.5 shrink-0 text-zinc-400" />
+            <span className="truncate">{t.location}</span>
+          </span>
+        </div>
+        <div className="mt-auto flex items-center justify-between gap-3 pt-4">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-600">
+            <Users className="size-3.5" /> {t.participantIds.length} enrolled
+          </span>
+          <span className="relative z-10">
+            <RowMenu label={`Actions for ${t.name}`} items={trainingMenu(t.id, false)} />
+          </span>
+        </div>
+      </div>
+    </article>
   )
 }

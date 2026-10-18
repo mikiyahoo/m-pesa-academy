@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  BarChart3,
   CalendarDays,
   ChevronDown,
   ChevronUp,
@@ -10,7 +11,10 @@ import {
   MoreHorizontal,
   PlayCircle,
   Plus,
+  Link2,
+  Layers,
   RefreshCw,
+  UserCog,
   UserPlus,
   Users,
   X,
@@ -18,134 +22,18 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { cn } from '../../lib/utils'
+import { useFeedback } from '../../components/Feedback'
+import { CancelModal, ChangeTrainerModal, ConflictList, InviteModal, RescheduleModal, ScheduleHistory } from '../ScheduleModals'
+import { describeRecurrence, findConflicts } from '../scheduling'
+import { InviteTemporaryModal } from './TemporaryAccess'
 import { MaterialPreview } from '../MaterialPreview'
 import { AttendancePanel } from '../teams/AttendancePanel'
+import { CheckInPanel } from '../checkin/CheckInPanel'
+import { TrainingCertificates } from '../TrainingCertificates'
 import { longDate, shortDate, time12 } from '../helpers'
 import { classProgress, participantProgress, useAdmin } from '../store'
 import type { AdminTraining, AssessmentKind, Material, TrainingStatus } from '../types'
-import { Avatar, Badge, Button, Card, CardTitle, Empty, Field, Input, Modal, ProgressBar, SearchInput, Select, trainingStatusTone } from '../ui'
-
-function RescheduleModal({ training, onClose }: { training: AdminTraining; onClose: () => void }) {
-  const { update } = useAdmin()
-  const [form, setForm] = useState({ date: training.date, startTime: training.startTime, endTime: training.endTime, location: training.location, recurring: training.recurring })
-  const valid = form.date && form.location.trim() && form.startTime < form.endTime
-
-  const save = () => {
-    update((d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, ...form, location: form.location.trim() } : t)) }), {
-      action: `Rescheduled to ${shortDate(form.date)}`,
-      target: training.name,
-    })
-    onClose()
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Reschedule training"
-      description="Participants will see the updated schedule."
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!valid} onClick={save}>
-            Save changes
-          </Button>
-        </>
-      }
-    >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Field label="Training date">
-            <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-          </Field>
-        </div>
-        <Field label="Start time">
-          <Input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
-        </Field>
-        <Field label="End time">
-          <Input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
-        </Field>
-        <div className="sm:col-span-2">
-          <Field label="Location">
-            <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
-          </Field>
-        </div>
-        <label className="flex items-center gap-2 text-sm text-zinc-700">
-          <input type="checkbox" checked={form.recurring} onChange={(e) => setForm({ ...form, recurring: e.target.checked })} className="size-4 accent-brand-600" />
-          Recurring training
-        </label>
-      </div>
-      {form.startTime >= form.endTime && <p className="mt-3 text-xs text-brand-600">End time must be after start time.</p>}
-    </Modal>
-  )
-}
-
-function InviteModal({ training, onClose }: { training: AdminTraining; onClose: () => void }) {
-  const { data, update } = useAdmin()
-  const [q, setQ] = useState('')
-  const [selected, setSelected] = useState<string[]>([])
-  const candidates = data.people.filter((p) => p.role === 'Participant' && p.status === 'Active' && !training.participantIds.includes(p.id))
-  const visible = candidates.filter((p) => !q || `${p.name} ${p.email} ${p.department}`.toLowerCase().includes(q.toLowerCase()))
-  const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
-
-  const addGroup = (groupId: string) => {
-    const ids = candidates.filter((p) => p.groupIds.includes(groupId)).map((p) => p.id)
-    setSelected((s) => [...new Set([...s, ...ids])])
-  }
-
-  const invite = () => {
-    update((d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, participantIds: [...t.participantIds, ...selected] } : t)) }), {
-      action: `Invited ${selected.length} participant${selected.length === 1 ? '' : 's'}`,
-      target: training.name,
-    })
-    onClose()
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Invite participants"
-      description={`${training.participantIds.length} already invited`}
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!selected.length} onClick={invite}>
-            <UserPlus className="size-4" /> Invite {selected.length || ''}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <span className="self-center text-xs text-zinc-500">Add a group:</span>
-          {data.groups.map((g) => (
-            <button key={g.id} onClick={() => addGroup(g.id)} className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-700 hover:bg-zinc-100">
-              + {g.name}
-            </button>
-          ))}
-        </div>
-        <SearchInput value={q} onChange={setQ} placeholder="Search by name, email or department" />
-        <ul className="max-h-80 divide-y divide-zinc-100 overflow-y-auto rounded-lg border border-zinc-200 scrollbar-thin">
-          {visible.map((p) => (
-            <li key={p.id}>
-              <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-zinc-50">
-                <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} className="size-4 accent-brand-600" />
-                <Avatar name={p.name} size="sm" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-zinc-900">{p.name}</span>
-                  <span className="block truncate text-xs text-zinc-500">{p.email}</span>
-                </span>
-                <span className="text-xs text-zinc-500">{p.department}</span>
-              </label>
-            </li>
-          ))}
-          {!visible.length && <li className="p-6 text-center text-sm text-zinc-500">Everyone matching is already invited.</li>}
-        </ul>
-      </div>
-    </Modal>
-  )
-}
+import { Avatar, Badge, Button, Card, CardTitle, Empty, Field, Modal, ProgressBar, Select, trainingStatusTone } from '../ui'
 
 function AttachAssessmentModal({ training, kind, onClose }: { training: AdminTraining; kind: AssessmentKind; onClose: () => void }) {
   const { data, update } = useAdmin()
@@ -199,7 +87,7 @@ function AttachAssessmentModal({ training, kind, onClose }: { training: AdminTra
   )
 }
 
-function StatusMenu({ training }: { training: AdminTraining }) {
+function StatusMenu({ training, onCancel }: { training: AdminTraining; onCancel: () => void }) {
   const { update } = useAdmin()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -211,6 +99,11 @@ function StatusMenu({ training }: { training: AdminTraining }) {
     return () => document.removeEventListener('mousedown', close)
   }, [])
   const setStatus = (status: TrainingStatus) => {
+    if (status === 'CANCELLED') {
+      setOpen(false)
+      onCancel()
+      return
+    }
     update((d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, status } : t)) }), {
       action: `Marked as ${status.toLowerCase()}`,
       target: training.name,
@@ -232,7 +125,7 @@ function StatusMenu({ training }: { training: AdminTraining }) {
               onClick={() => setStatus(s)}
               className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100 disabled:opacity-50"
             >
-              {s[0] + s.slice(1).toLowerCase()}
+              {s === 'CANCELLED' ? 'Cancel…' : s[0] + s.slice(1).toLowerCase()}
               {s === training.status && <span className="text-xs text-zinc-400">current</span>}
             </button>
           ))}
@@ -247,8 +140,15 @@ export function AdminTrainingDetail() {
   const { data, update } = useAdmin()
   const training = data.trainings.find((t) => t.id === id)
   const [openModules, setOpenModules] = useState<string[]>([])
+  // Deep link from list menus: /admin/trainings/:id#attendance scrolls to check-in and attendance.
+  useEffect(() => {
+    if (window.location.hash !== '#attendance') return
+    const t = window.setTimeout(() => document.getElementById('attendance')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
+    return () => window.clearTimeout(t)
+  }, [id])
   const [preview, setPreview] = useState<Material | null>(null)
-  const [modal, setModal] = useState<null | 'reschedule' | 'invite' | 'PRE' | 'POST'>(null)
+  const [modal, setModal] = useState<null | 'reschedule' | 'invite' | 'invite-new' | 'cancel' | 'trainer' | 'PRE' | 'POST'>(null)
+  const { toast } = useFeedback()
 
   const journey = data.journeys.find((j) => j.id === training?.journeyId)
   useEffect(() => {
@@ -267,6 +167,10 @@ export function AdminTrainingDetail() {
   const responses = data.feedbackResponses.filter((r) => r.trainingId === training.id)
   const participants = training.participantIds.map((pid) => data.people.find((p) => p.id === pid)).filter((p) => !!p)
   const editable = training.status !== 'COMPLETED' && training.status !== 'CANCELLED'
+  const conflicts = training.status === 'CANCELLED' ? [] : findConflicts(training, data.trainings, data.people)
+  const category = data.categories.find((c) => c.id === training.categoryId)
+  const subcategory = category?.subcategories.find((s) => s.id === training.subcategoryId)
+  const seriesSessions = training.seriesId ? data.trainings.filter((t) => t.seriesId === training.seriesId).sort((a, b) => a.date.localeCompare(b.date)) : []
 
   const toggleModule = (mid: string) => setOpenModules((o) => (o.includes(mid) ? o.filter((x) => x !== mid) : [...o, mid]))
 
@@ -287,7 +191,7 @@ export function AdminTrainingDetail() {
     <>
       <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="flex flex-wrap items-center gap-3 text-2xl font-bold tracking-tight text-zinc-900">
+          <h1 className="flex flex-wrap items-center gap-3 text-2xl leading-tight font-bold tracking-tight text-zinc-900">
             {training.name}
             <Badge tone={trainingStatusTone[training.status]}>{training.status}</Badge>
           </h1>
@@ -298,18 +202,43 @@ export function AdminTrainingDetail() {
             <span className="flex items-center gap-1.5">
               <Users className="size-4" /> {training.participantIds.length} Participants
             </span>
+            {training.seriesId && (
+              <span className="flex items-center gap-1.5">
+                <Layers className="size-4" /> Session {seriesSessions.findIndex((t) => t.id === training.id) + 1} of {seriesSessions.length}
+              </span>
+            )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {training.inviteLink && editable && (
+            <Button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(training.inviteLink!)
+                  toast('Invite link copied')
+                } catch {
+                  toast('Copy failed', { tone: 'error' })
+                }
+              }}
+            >
+              <Link2 className="size-4" /> Copy invite link
+            </Button>
+          )}
           <Button onClick={() => setModal('reschedule')} disabled={!editable}>
             <CalendarDays className="size-4" /> Reschedule
           </Button>
           <Button variant="primary" onClick={() => setModal('invite')} disabled={!editable}>
             <UserPlus className="size-4" /> Invite
           </Button>
-          <StatusMenu training={training} />
+          <StatusMenu training={training} onCancel={() => setModal('cancel')} />
         </div>
       </div>
+
+      {conflicts.length > 0 && (
+        <div className="mb-5">
+          <ConflictList conflicts={conflicts} data={data} trainerId={training.trainerId} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]">
         <div className="space-y-5">
@@ -375,8 +304,10 @@ export function AdminTrainingDetail() {
               {[
                 [CalendarDays, 'Training Date', shortDate(training.date)],
                 [Clock, 'Training Time', `${time12(training.startTime)} - ${time12(training.endTime)}`],
-                [MapPin, 'Location', training.location],
-                [RefreshCw, 'Recurring', training.recurring ? 'YES' : 'NO'],
+                [MapPin, training.delivery === 'Online' || training.location === 'ONLINE' ? 'Delivery' : 'Location', training.location === 'ONLINE' ? 'Online · Microsoft Teams' : training.location],
+                [RefreshCw, 'Recurring', training.recurrence ? describeRecurrence(training.recurrence, seriesSessions[0]?.date) : 'No'],
+                [Layers, 'Category', category ? `${category.name}${subcategory ? ` › ${subcategory.name}` : ''}` : '—'],
+                [BarChart3, 'Level', training.level ?? '—'],
               ].map(([Icon, label, value]) => {
                 const I = Icon as typeof Clock
                 return (
@@ -390,10 +321,21 @@ export function AdminTrainingDetail() {
                 )
               })}
             </dl>
+            {training.description && <p className="mt-5 border-t border-zinc-100 pt-4 text-sm text-zinc-600">{training.description}</p>}
           </Card>
 
           <Card>
-            <CardTitle>Trainer</CardTitle>
+            <CardTitle
+              action={
+                editable && (
+                  <Button size="sm" variant="ghost" onClick={() => setModal('trainer')}>
+                    <UserCog className="size-3.5" /> Change
+                  </Button>
+                )
+              }
+            >
+              Trainer
+            </CardTitle>
             {trainer ? (
               <div className="flex items-center gap-3">
                 <Avatar name={trainer.name} />
@@ -406,6 +348,7 @@ export function AdminTrainingDetail() {
               <p className="text-sm text-zinc-500">No trainer assigned.</p>
             )}
           </Card>
+          <ScheduleHistory training={training} />
         </div>
 
         <div className="space-y-5">
@@ -444,7 +387,7 @@ export function AdminTrainingDetail() {
             <CardTitle>Feedback</CardTitle>
             {form ? (
               <Link to={`/admin/feedback/responses?training=${training.id}`} className="flex items-center gap-3 rounded-lg border border-zinc-200 p-3 transition hover:bg-zinc-50">
-                <MessageSquare className="size-5 text-violet-500" />
+                <MessageSquare className="size-5 text-brand-600" />
                 <span className="flex-1">
                   <span className="block text-sm font-semibold text-zinc-900">{form.title}</span>
                   <span className="text-xs text-zinc-500">
@@ -485,13 +428,18 @@ export function AdminTrainingDetail() {
         </div>
       </div>
 
-      <div className="mt-5">
+      <div id="attendance" className="mt-5 scroll-mt-6 space-y-5">
+        <CheckInPanel training={training} />
         <AttendancePanel training={training} />
+        {training.status !== 'CANCELLED' && <TrainingCertificates training={training} />}
       </div>
 
       <MaterialPreview material={preview} onClose={() => setPreview(null)} />
       {modal === 'reschedule' && <RescheduleModal training={training} onClose={() => setModal(null)} />}
-      {modal === 'invite' && <InviteModal training={training} onClose={() => setModal(null)} />}
+      {modal === 'cancel' && <CancelModal training={training} onClose={() => setModal(null)} />}
+      {modal === 'trainer' && <ChangeTrainerModal training={training} onClose={() => setModal(null)} />}
+      {modal === 'invite' && <InviteModal training={training} onClose={() => setModal(null)} onInviteNew={() => setModal('invite-new')} />}
+      {modal === 'invite-new' && <InviteTemporaryModal trainingId={training.id} onClose={() => setModal(null)} />}
       {(modal === 'PRE' || modal === 'POST') && <AttachAssessmentModal training={training} kind={modal} onClose={() => setModal(null)} />}
     </>
   )

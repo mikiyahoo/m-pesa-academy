@@ -10,7 +10,7 @@ import { attendanceRows, type AttendanceStatus, formatClock, formatDuration, get
 export const attendanceStyle: Record<AttendanceStatus, { icon: typeof CheckCircle2; cls: string; dot: string }> = {
   Present: { icon: CheckCircle2, cls: 'bg-mpesa-500/10 text-mpesa-700 ring-mpesa-500/20 dark:text-mpesa-500', dot: 'bg-mpesa-500' },
   Late: { icon: AlertTriangle, cls: 'bg-amber-500/10 text-amber-700 ring-amber-500/20 dark:text-amber-400', dot: 'bg-amber-500' },
-  Incomplete: { icon: XCircle, cls: 'bg-orange-500/10 text-orange-700 ring-orange-500/20 dark:text-orange-400', dot: 'bg-orange-500' },
+  Incomplete: { icon: XCircle, cls: 'bg-zinc-100 text-zinc-700 ring-zinc-200 dark:text-zinc-300', dot: 'bg-zinc-400' },
   Absent: { icon: UserX, cls: 'bg-brand-50 text-brand-700 ring-brand-200 dark:text-brand-500', dot: 'bg-brand-600' },
 }
 
@@ -34,7 +34,8 @@ const ago = (iso: string) => {
 function RulesModal({ onClose }: { onClose: () => void }) {
   const { data, update } = useAdmin()
   const [r, setR] = useState<AttendanceRules>(data.attendanceRules)
-  const valid = r.absentBelowPct >= 0 && r.absentBelowPct < r.presentPct && r.presentPct <= 100 && r.lateMinutes >= 0
+  const [alerts, setAlerts] = useState(data.alertRules)
+  const valid = r.absentBelowPct >= 0 && r.absentBelowPct < r.presentPct && r.presentPct <= 100 && r.lateMinutes >= 0 && alerts.feedbackBelow >= 1 && alerts.feedbackBelow <= 5 && alerts.attendanceBelow >= 0 && alerts.attendanceBelow <= 100
   const num = (k: keyof AttendanceRules) => (e: React.ChangeEvent<HTMLInputElement>) => setR({ ...r, [k]: Number(e.target.value) })
 
   return (
@@ -50,7 +51,19 @@ function RulesModal({ onClose }: { onClose: () => void }) {
             variant="primary"
             disabled={!valid}
             onClick={() => {
-              update((d) => ({ ...d, attendanceRules: r }), { action: 'Updated attendance rules', target: `Present ≥ ${r.presentPct}%, late > ${r.lateMinutes} min, absent < ${r.absentBelowPct}%` })
+              const was = data.attendanceRules
+              const wasAlerts = data.alertRules
+              update((d) => ({ ...d, attendanceRules: r, alertRules: alerts }), {
+                action: 'Updated attendance rules',
+                target: `Present ≥ ${r.presentPct}%, late > ${r.lateMinutes} min, absent < ${r.absentBelowPct}%`,
+                changes: [
+                  { field: 'Present at %', from: String(was.presentPct), to: String(r.presentPct) },
+                  { field: 'Late after min', from: String(was.lateMinutes), to: String(r.lateMinutes) },
+                  { field: 'Absent below %', from: String(was.absentBelowPct), to: String(r.absentBelowPct) },
+                  { field: 'Feedback alert below', from: String(wasAlerts.feedbackBelow), to: String(alerts.feedbackBelow) },
+                  { field: 'Attendance alert below %', from: String(wasAlerts.attendanceBelow), to: String(alerts.attendanceBelow) },
+                ],
+              })
               onClose()
             }}
           >
@@ -70,7 +83,16 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           <Input type="number" min={0} max={99} value={r.absentBelowPct} onChange={num('absentBelowPct')} />
         </Field>
       </div>
-      {!valid && <p className="mt-3 text-xs text-brand-600">“Absent below” must be lower than “Present at”, and values must be 0–100.</p>}
+      <p className="mt-5 mb-2 text-sm font-semibold text-zinc-900">Alerts to the training manager</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="Feedback below (1–5)" hint="any single response (F04)">
+          <Input type="number" min={1} max={5} step={0.1} value={alerts.feedbackBelow} onChange={(e) => setAlerts({ ...alerts, feedbackBelow: Number(e.target.value) })} />
+        </Field>
+        <Field label="Group attendance below (%)" hint="per team, per session (T06)">
+          <Input type="number" min={0} max={100} value={alerts.attendanceBelow} onChange={(e) => setAlerts({ ...alerts, attendanceBelow: Number(e.target.value) })} />
+        </Field>
+      </div>
+      {!valid && <p className="mt-3 text-xs text-brand-600">“Absent below” must be lower than “Present at”, percentages must be 0–100 and the feedback threshold 1–5.</p>}
       <ul className="mt-5 space-y-2 rounded-lg bg-zinc-50 p-4 text-sm text-zinc-700">
         <li className="flex items-center gap-2">
           <AttendanceBadge status="Present" /> attended ≥ {r.presentPct}% and joined on time
