@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, BookOpen, Calendar, Download, ExternalLink, Eye, FileText, Layers, Pencil, PlayCircle, Plus, RefreshCw, Trash2, UserPlus, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Calendar, Check, Download, ExternalLink, Eye, FileText, Layers, Pencil, PlayCircle, Plus, RefreshCw, Trash2, UserPlus, Users, X } from 'lucide-react'
 import { RowMenu } from '../../components/RowMenu'
 import { canDownloadFile, countDownload, downloadMaterial, formatBytes, materialFileName } from '../materialFiles'
 import { assignedPeople } from '../../lib/assignments'
@@ -12,6 +12,7 @@ import { videoSource } from '../embeds'
 import { uid, useAdmin } from '../store'
 import type { Journey, Material, MaterialType, TrainingLevel } from '../types'
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, Table, Tabs, Textarea } from '../ui'
+import { Wizard, WizardCard, type WizardStep } from '../Wizard'
 
 const LEVELS: TrainingLevel[] = ['Novice', 'Beginner', 'Intermediate', 'Advanced']
 const THUMBNAILS = ['red', 'fayda', 'green', 'blue', 'amber', 'zinc'] as const
@@ -85,11 +86,11 @@ export function AdminJourneys() {
           const minutes = [...materials].reduce((s, id) => s + (data.materials.find((m) => m.id === id)?.minutes ?? 0), 0)
           const used = data.trainings.filter((t) => t.journeyId === j.id).length
           return (
-            <Link key={j.id} to={`/admin/journeys/${j.id}`} className="group rounded-xl border border-zinc-200 bg-surface p-5 transition hover:border-zinc-300 hover:shadow-md">
-              <span className="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
+            <Link key={j.id} to={`/admin/journeys/${j.id}`} className="group rounded-2xl border border-zinc-200/80 bg-surface p-5 transition hover:border-zinc-300 hover:shadow-md">
+              <span className="grid size-10 place-items-center rounded-xl bg-brand-50 text-brand-600">
                 <BookOpen className="size-5" />
               </span>
-              <h3 className="mt-4 font-semibold text-zinc-900 group-hover:text-brand-600">{j.name}</h3>
+              <h3 className="mt-4 font-bold text-zinc-900 group-hover:text-brand-600">{j.name}</h3>
               <p className="mt-1 line-clamp-2 text-sm text-zinc-500">{j.description || 'No description.'}</p>
               <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
                 <span className="flex items-center gap-1">
@@ -195,7 +196,7 @@ export function AdminJourneyDetail() {
                   if (!mat) return null
                   const Icon = materialIcon[mat.type]
                   return (
-                    <div key={mid} className="flex items-center gap-3 rounded-lg bg-zinc-50 px-3 py-2">
+                    <div key={mid} className="flex items-center gap-3 rounded-xl bg-zinc-50 px-3 py-2">
                       <Icon className="size-4 text-zinc-500" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-zinc-900">{mat.title}</span>
@@ -266,7 +267,7 @@ function GroupPicker({ label, hint, selected, onChange }: { label: string; hint?
       <Field label={label} hint={hint}>
         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {data.groups.map((g) => (
-            <label key={g.id} className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm">
+            <label key={g.id} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
               <input
                 type="checkbox"
                 className="accent-mpesa-600"
@@ -286,6 +287,8 @@ function GroupPicker({ label, hint, selected, onChange }: { label: string; hint?
     </div>
   )
 }
+
+type MaterialStep = 'details' | 'access' | 'review'
 
 function MaterialModal({ material, onClose }: { material?: Material; onClose: () => void }) {
   const { data, update } = useAdmin()
@@ -307,6 +310,7 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
   // A trainer adding material is tagged on it automatically so they can keep editing it.
   const [trainers, setTrainers] = useState<Set<string>>(new Set(material?.taggedTrainerIds ?? (scope.trainerId ? [scope.trainerId] : [])))
   const valid = form.title.trim() && Number(form.minutes) > 0
+  const [step, setStep] = useState<MaterialStep>('details')
 
   const save = () => {
     const now = localISO()
@@ -352,120 +356,145 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
     onClose()
   }
 
+  const groupNames = (ids: Set<string>, empty: string) => (ids.size ? data.groups.filter((g) => ids.has(g.id)).map((g) => g.name).join(', ') : empty)
+  const steps: WizardStep<MaterialStep>[] = [
+    { id: 'details', title: 'Details', problems: valid ? 0 : 1 },
+    { id: 'access', title: 'Access & downloads' },
+    { id: 'review', title: 'Review' },
+  ]
+
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title={material ? 'Edit material' : 'Add material'}
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!valid} onClick={save}>
-            Save
-          </Button>
-        </>
-      }
-    >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Field label="Title">
-            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus />
-          </Field>
-        </div>
-        <Field label="Type">
-          <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as MaterialType })}>
-            {(['DOCUMENT', 'VIDEO', 'PRESENTATION', 'LINK'] as MaterialType[]).map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Duration (minutes)">
-          <Input type="number" min={1} value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} />
-        </Field>
-        <Field label="Difficulty level">
-          <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value as TrainingLevel })}>
-            {LEVELS.map((l) => (
-              <option key={l}>{l}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Thumbnail">
-          <Select value={form.thumbnail} onChange={(e) => setForm({ ...form, thumbnail: e.target.value as (typeof THUMBNAILS)[number] })}>
-            {THUMBNAILS.map((t) => (
-              <option key={t} value={t}>
-                {t[0].toUpperCase() + t.slice(1)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <div className="sm:col-span-2">
-          <Field label="Skills" hint="Comma-separated, used for filtering">
-            <Input value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} placeholder="KYC, Customer registration" />
-          </Field>
-        </div>
-        {(form.type === 'LINK' || form.type === 'VIDEO') && (
-          <div className="sm:col-span-2">
-            <Field label={form.type === 'VIDEO' ? 'Stream URL' : 'External URL'} hint={form.type === 'VIDEO' ? 'YouTube, Vimeo or SharePoint / Stream link — videos always stream, never download (D4)' : undefined}>
-              <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder={form.type === 'VIDEO' ? 'https://www.youtube.com/watch?v=…' : 'https://…'} />
+    <Wizard title={material ? 'Edit material' : 'Add material'} steps={steps} step={step} onStep={setStep} onClose={onClose} onSave={save} canSave={!!valid} saveLabel={material ? 'Save changes' : 'Add material'}>
+      {step === 'details' && (
+        <WizardCard icon={FileText} title="Details">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Field label="Title">
+                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus />
+              </Field>
+            </div>
+            <Field label="Type">
+              <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as MaterialType })}>
+                {(['DOCUMENT', 'VIDEO', 'PRESENTATION', 'LINK'] as MaterialType[]).map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </Select>
             </Field>
-            {form.type === 'VIDEO' && form.url.trim() && (
-              <p className={'mt-1.5 text-xs ' + (videoSource(form.url).kind === 'none' ? 'text-brand-600' : 'text-mpesa-700')}>
-                {(() => {
-                  const v = videoSource(form.url)
-                  return v.kind === 'none' ? 'Not a recognised video link — use YouTube, Vimeo, SharePoint / Stream or an .mp4 file.' : 'Plays as an embedded ' + v.label + ' video.'
-                })()}
-              </p>
+            <Field label="Duration (minutes)">
+              <Input type="number" min={1} value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} />
+            </Field>
+            <Field label="Difficulty level">
+              <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value as TrainingLevel })}>
+                {LEVELS.map((l) => (
+                  <option key={l}>{l}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Thumbnail">
+              <Select value={form.thumbnail} onChange={(e) => setForm({ ...form, thumbnail: e.target.value as (typeof THUMBNAILS)[number] })}>
+                {THUMBNAILS.map((t) => (
+                  <option key={t} value={t}>
+                    {t[0].toUpperCase() + t.slice(1)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Skills" hint="Comma-separated, used for filtering">
+                <Input value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} placeholder="KYC, Customer registration" />
+              </Field>
+            </div>
+            {(form.type === 'LINK' || form.type === 'VIDEO') && (
+              <div className="sm:col-span-2">
+                <Field label={form.type === 'VIDEO' ? 'Stream URL' : 'External URL'} hint={form.type === 'VIDEO' ? 'YouTube, Vimeo or SharePoint / Stream link — videos always stream, never download (D4)' : undefined}>
+                  <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder={form.type === 'VIDEO' ? 'https://www.youtube.com/watch?v=…' : 'https://…'} />
+                </Field>
+                {form.type === 'VIDEO' && form.url.trim() && (
+                  <p className={'mt-1.5 text-xs ' + (videoSource(form.url).kind === 'none' ? 'text-brand-600' : 'text-mpesa-700')}>
+                    {(() => {
+                      const v = videoSource(form.url)
+                      return v.kind === 'none' ? 'Not a recognised video link — use YouTube, Vimeo, SharePoint / Stream or an .mp4 file.' : 'Plays as an embedded ' + v.label + ' video.'
+                    })()}
+                  </p>
+                )}
+              </div>
+            )}
+            {form.type === 'DOCUMENT' && (
+              <Field label="Minimum reading time (seconds)" hint="Learner must wait this long before completing">
+                <Input type="number" min={0} value={form.minViewSeconds} onChange={(e) => setForm({ ...form, minViewSeconds: e.target.value })} />
+              </Field>
+            )}
+            <div className="sm:col-span-2">
+              <Field label="Description">
+                <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              </Field>
+            </div>
+            {!material && (
+              <div className="rounded-xl border border-dashed border-zinc-300 p-4 text-center text-xs text-zinc-500 sm:col-span-2">
+                File upload is simulated in this demo — only the details above are saved.
+              </div>
             )}
           </div>
-        )}
-        {form.type === 'DOCUMENT' && (
-          <Field label="Minimum reading time (seconds)" hint="Learner must wait this long before completing">
-            <Input type="number" min={0} value={form.minViewSeconds} onChange={(e) => setForm({ ...form, minViewSeconds: e.target.value })} />
-          </Field>
-        )}
-        <GroupPicker label="Visible to groups" hint="Empty = everyone enrolled" selected={visible} onChange={setVisible} />
-        <GroupPicker
-          label="Downloadable by groups"
-          hint={form.type === 'VIDEO' ? 'Not available for videos' : 'Empty = no downloads'}
-          selected={downloadable}
-          onChange={setDownloadable}
-        />
-        <div className="sm:col-span-2">
-          <Field label="Tagged trainers">
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {data.people
-                .filter((p) => p.role === 'Trainer')
-                .map((p) => (
-                  <label key={p.id} className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="accent-mpesa-600"
-                      checked={trainers.has(p.id)}
-                      onChange={(e) => {
-                        const next = new Set(trainers)
-                        if (e.target.checked) next.add(p.id)
-                        else next.delete(p.id)
-                        setTrainers(next)
-                      }}
-                    />
-                    {p.name}
-                  </label>
-                ))}
+        </WizardCard>
+      )}
+
+      {step === 'access' && (
+        <WizardCard icon={Users} title="Access & downloads">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <GroupPicker label="Visible to groups" hint="Empty = everyone enrolled" selected={visible} onChange={setVisible} />
+            <GroupPicker label="Downloadable by groups" hint={form.type === 'VIDEO' ? 'Not available for videos' : 'Empty = no downloads'} selected={downloadable} onChange={setDownloadable} />
+            <div className="sm:col-span-2">
+              <Field label="Tagged trainers">
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {data.people
+                    .filter((p) => p.role === 'Trainer')
+                    .map((p) => (
+                      <label key={p.id} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="accent-mpesa-600"
+                          checked={trainers.has(p.id)}
+                          onChange={(e) => {
+                            const next = new Set(trainers)
+                            if (e.target.checked) next.add(p.id)
+                            else next.delete(p.id)
+                            setTrainers(next)
+                          }}
+                        />
+                        {p.name}
+                      </label>
+                    ))}
+                </div>
+              </Field>
             </div>
-          </Field>
-        </div>
-        <div className="sm:col-span-2">
-          <Field label="Description">
-            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-          </Field>
-        </div>
-        {!material && (
-          <div className="rounded-lg border border-dashed border-zinc-300 p-4 text-center text-xs text-zinc-500 sm:col-span-2">
-            File upload is simulated in this demo — only the details above are saved.
           </div>
-        )}
-      </div>
-    </Modal>
+        </WizardCard>
+      )}
+
+      {step === 'review' && (
+        <WizardCard icon={Check} title="Review">
+          <dl className="divide-y divide-zinc-100 text-sm">
+            {[
+              ['Title', form.title.trim() || '—'],
+              ['Type', form.type],
+              ['Duration', `${form.minutes || 0} min`],
+              ['Level', form.level],
+              ['Skills', form.skills.trim() || '—'],
+              ...(form.url.trim() ? [['Link', form.url.trim()]] : []),
+              ['Visible to', groupNames(visible, 'Everyone enrolled')],
+              ['Downloads', form.type === 'VIDEO' ? 'Not available for videos' : groupNames(downloadable, 'No downloads')],
+              ['Trainers', data.people.filter((p) => trainers.has(p.id)).map((p) => p.name).join(', ') || '—'],
+            ].map(([k, v]) => (
+              <div key={k} className="grid gap-1 py-2.5 sm:grid-cols-[180px_minmax(0,1fr)]">
+                <dt className="font-medium text-zinc-500">{k}</dt>
+                <dd className="break-words text-zinc-900">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          {!valid && <p className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">Add a title and a duration before saving.</p>}
+        </WizardCard>
+      )}
+    </Wizard>
   )
 }
 
@@ -740,7 +769,7 @@ export function AdminMaterials() {
             <tr key={m.id} className="hover:bg-zinc-50">
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-zinc-100 text-zinc-600">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-zinc-100 text-zinc-600">
                     <Icon className="size-4" />
                   </span>
                   <span className="min-w-0">

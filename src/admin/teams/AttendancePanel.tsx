@@ -17,7 +17,7 @@ export const attendanceStyle: Record<AttendanceStatus, { icon: typeof CheckCircl
 export function AttendanceBadge({ status }: { status: AttendanceStatus }) {
   const s = attendanceStyle[status]
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset', s.cls)}>
+    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', s.cls)}>
       <s.icon className="size-3.5" /> {status}
     </span>
   )
@@ -93,7 +93,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
         </Field>
       </div>
       {!valid && <p className="mt-3 text-xs text-brand-600">“Absent below” must be lower than “Present at”, percentages must be 0–100 and the feedback threshold 1–5.</p>}
-      <ul className="mt-5 space-y-2 rounded-lg bg-zinc-50 p-4 text-sm text-zinc-700">
+      <ul className="mt-5 space-y-2 rounded-xl bg-zinc-50 p-4 text-sm text-zinc-700">
         <li className="flex items-center gap-2">
           <AttendanceBadge status="Present" /> attended ≥ {r.presentPct}% and joined on time
         </li>
@@ -222,9 +222,9 @@ export function AttendancePanel({ training }: { training: AdminTraining }) {
     <Card className="p-0">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 p-5">
         <div>
-          <h2 className="flex items-center gap-2 font-semibold text-zinc-900">
+          <h2 className="flex items-center gap-2 font-bold text-zinc-900">
             Attendance
-            <span className="inline-flex items-center gap-1 rounded-md bg-[#5b5fc7]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#5b5fc7] dark:text-[#9ea2ff]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#5b5fc7]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#5b5fc7] dark:text-[#9ea2ff]">
               <Video className="size-3" /> Microsoft Teams
             </span>
           </h2>
@@ -284,7 +284,7 @@ export function AttendancePanel({ training }: { training: AdminTraining }) {
           <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-5">
             <button
               onClick={() => setFilter('All')}
-              className={cn('rounded-lg border p-3 text-left transition', filter === 'All' ? 'border-zinc-900 dark:border-zinc-500' : 'border-zinc-200 hover:bg-zinc-50')}
+              className={cn('rounded-xl border p-3 text-left transition', filter === 'All' ? 'border-zinc-900 dark:border-zinc-500' : 'border-zinc-200 hover:bg-zinc-50')}
             >
               <p className="text-xs text-zinc-500">Attendance rate</p>
               <p className="mt-0.5 text-xl font-bold text-zinc-900">{rows.length ? Math.round((attended / rows.length) * 100) : 0}%</p>
@@ -293,7 +293,7 @@ export function AttendancePanel({ training }: { training: AdminTraining }) {
               <button
                 key={s}
                 onClick={() => setFilter(filter === s ? 'All' : s)}
-                className={cn('rounded-lg border p-3 text-left transition', filter === s ? 'border-zinc-900 dark:border-zinc-500' : 'border-zinc-200 hover:bg-zinc-50')}
+                className={cn('rounded-xl border p-3 text-left transition', filter === s ? 'border-zinc-900 dark:border-zinc-500' : 'border-zinc-200 hover:bg-zinc-50')}
                 aria-pressed={filter === s}
               >
                 <p className="flex items-center gap-1.5 text-xs text-zinc-500">

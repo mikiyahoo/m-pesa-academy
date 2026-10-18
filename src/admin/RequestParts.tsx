@@ -1,5 +1,6 @@
 import { AlertTriangle, Check, Copy, FileText, Link2, MapPin, Paperclip, Users, Video, X } from 'lucide-react'
 import { useFeedback } from '../components/Feedback'
+import { Empty } from './ui'
 import { cn } from '../lib/utils'
 import { dateTime, shortDate, time12 } from './helpers'
 import { isInternalEmail } from './requests'
@@ -70,7 +71,7 @@ export function JoinLink({ link }: { link: string }) {
             toast('Copy failed — select the link and copy it manually', { tone: 'error' })
           }
         }}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-mpesa-700 shadow-sm ring-1 ring-mpesa-500/30 hover:bg-mpesa-500/10"
+        className="inline-flex items-center gap-1.5 rounded-xl bg-surface px-3 py-1.5 text-xs font-semibold text-mpesa-700 shadow-sm ring-1 ring-mpesa-500/30 hover:bg-mpesa-500/10"
       >
         <Copy className="size-3.5" /> Copy link
       </button>
@@ -153,7 +154,11 @@ export function RequestDetails({ request, data }: { request: TrainingRequest; da
               {!isInternalEmail(p.email) && <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">Temporary</span>}
             </li>
           ))}
-          {!request.participants.length && <li className="px-3 py-4 text-center text-sm text-zinc-500">No participants added</li>}
+          {!request.participants.length && (
+            <li>
+              <Empty compact icon={Users} title="No participants added" />
+            </li>
+          )}
         </ul>
       </div>
       {request.attachments.length > 0 && (
@@ -163,7 +168,7 @@ export function RequestDetails({ request, data }: { request: TrainingRequest; da
           </h4>
           <ul className="mt-2 flex flex-wrap gap-2">
             {request.attachments.map((a) => (
-              <li key={a.name} className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs text-zinc-700">
+              <li key={a.name} className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-2.5 py-1.5 text-xs text-zinc-700">
                 <FileText className="size-3.5 text-zinc-500" /> {a.name} <span className="text-zinc-400">{fmtSize(a.size)}</span>
               </li>
             ))}

@@ -1,6 +1,8 @@
-import { ChevronLeft, ChevronRight, Loader2, Presentation } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronLeft, ChevronRight, Download, Loader2, Presentation, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '../lib/utils'
+import { useDialogFocus } from '../lib/useDialogFocus'
 
 /**
  * In-app PowerPoint viewer. Reads the .pptx (a zip of XML) in the browser and draws each slide's
@@ -104,7 +106,7 @@ function SlideCanvas({ slide, deck, small = false }: { slide: Slide; deck: Deck;
 }
 
 /** Slide viewer with previous / next, a counter and thumbnails. Arrow keys move between slides. */
-export function PptxViewer({ url, title }: { url: string; title?: string }) {
+export function PptxViewer({ url, title, globalKeys = false }: { url: string; title?: string; globalKeys?: boolean }) {
   const [deck, setDeck] = useState<Deck | null>(null)
   const [error, setError] = useState(false)
   const [i, setI] = useState(0)
@@ -122,6 +124,17 @@ export function PptxViewer({ url, title }: { url: string; title?: string }) {
   const count = deck?.slides.length ?? 0
   const go = (n: number) => setI((cur) => Math.min(Math.max(cur + n, 0), Math.max(count - 1, 0)))
 
+  // In the pop-up, arrow keys move slides wherever focus is.
+  useEffect(() => {
+    if (!globalKeys) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') setI((cur) => Math.min(cur + 1, Math.max(count - 1, 0)))
+      if (e.key === 'ArrowLeft') setI((cur) => Math.max(cur - 1, 0))
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [globalKeys, count])
+
   if (error) return <p className="rounded-xl bg-zinc-50 p-6 text-center text-sm text-zinc-500">This presentation couldn’t be opened in the browser.</p>
   if (!deck)
     return (
@@ -136,13 +149,14 @@ export function PptxViewer({ url, title }: { url: string; title?: string }) {
     <div
       tabIndex={0}
       onKeyDown={(e) => {
+        if (globalKeys) return
         if (e.key === 'ArrowRight') go(1)
         if (e.key === 'ArrowLeft') go(-1)
       }}
       className="space-y-3 outline-none"
       aria-label={title ? `${title} slides` : 'Slides'}
     >
-      <div className="overflow-hidden rounded-xl border border-zinc-200 shadow-sm">
+      <div className={cn('overflow-hidden rounded-xl border border-zinc-200 shadow-sm', globalKeys && 'mx-auto')} style={globalKeys ? { maxWidth: `calc((100dvh - 19.5rem) * ${deck.width / deck.height})` } : undefined}>
         <SlideCanvas slide={deck.slides[i]} deck={deck} />
       </div>
       <div className="flex items-center justify-between gap-3">
@@ -171,5 +185,44 @@ export function PptxViewer({ url, title }: { url: string; title?: string }) {
         ))}
       </div>
     </div>
+  )
+}
+
+/** Pop-up slide viewer: dark backdrop, title bar with download and close, slides fitted to the screen. */
+export function SlidesDialog({ url, title, downloadable, onClose }: { url: string; title: string; downloadable?: boolean; onClose: () => void }) {
+  const panel = useRef<HTMLDivElement>(null)
+  useDialogFocus(panel, onClose)
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
+      <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm" onClick={onClose} aria-hidden />
+      <div ref={panel} role="dialog" aria-modal aria-label={`${title} slides`} className="relative flex max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl">
+        <header className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3 sm:px-6">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+            <Presentation className="size-4" />
+          </span>
+          <h2 className="min-w-0 flex-1 truncate text-base font-bold text-zinc-900">{title}</h2>
+          {downloadable && (
+            <a href={url} download className="hidden items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 sm:inline-flex">
+              <Download className="size-3.5" /> Download
+            </a>
+          )}
+          <button type="button" onClick={onClose} aria-label="Close slides" className="grid size-9 shrink-0 place-items-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900">
+            <X className="size-5" />
+          </button>
+        </header>
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-zinc-50/60 p-4 sm:p-6">
+          <PptxViewer url={url} title={title} globalKeys />
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }

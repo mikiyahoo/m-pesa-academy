@@ -1,4 +1,4 @@
-import { ArrowRight, Award, BookOpen, Briefcase, ChartNoAxesColumn, ChevronDown, CircleHelp, ChevronLeft, ClipboardList, FilePlus2, Home, LogOut, PanelLeft, RotateCcw, Search, UserRound, X, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Award, BookOpen, Briefcase, ChartNoAxesColumn, ChevronDown, ChevronLeft, CircleHelp, ClipboardList, FilePlus2, Home, LogOut, Menu, RotateCcw, Search, type LucideIcon, UserRound, X } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { cn, progressStatus } from '../lib/utils'
@@ -66,7 +66,7 @@ function HeaderSearch() {
   }
 
   return (
-    <form onSubmit={submit} role="search" className="relative w-44 sm:w-64 lg:w-80">
+    <form onSubmit={submit} role="search" className="relative min-w-0 flex-1 md:w-64 md:flex-none lg:w-80">
       <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-zinc-500" />
       <input
         value={value}
@@ -221,7 +221,7 @@ function UserMenu({ reset }: { reset: DemoReset }) {
             </span>
           </div>
           <div className="p-1 text-sm">
-            <Link to="/profile" onClick={() => setOpen(false)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-zinc-700 hover:bg-zinc-50">
+            <Link to="/profile" onClick={() => setOpen(false)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-50">
               <UserRound className="size-4" /> Profile
             </Link>
             <button
@@ -232,11 +232,11 @@ function UserMenu({ reset }: { reset: DemoReset }) {
                   toast(reset.done)
                 }
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-zinc-700 hover:bg-zinc-50"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-50"
             >
               <RotateCcw className="size-4" /> {reset.label}
             </button>
-            <button onClick={() => logout()} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-brand-700 hover:bg-brand-50">
+            <button onClick={() => logout()} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-brand-700 hover:bg-brand-50">
               <LogOut className="size-4" /> Sign out
             </button>
           </div>
@@ -281,8 +281,8 @@ export function Layout({ variant = 'learner', reset }: { variant?: LayoutVariant
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-64 bg-gradient-to-b from-brand-600 via-[#8e2118] to-[#5e1914] shadow-xl relative isolate before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:-z-10 before:h-56 before:bg-gradient-to-b before:from-black/45 before:to-transparent">
-            <button onClick={() => setMobileOpen(false)} className="absolute top-6 right-3 rounded-md p-1 text-white/80 hover:bg-white/10" aria-label="Close menu">
+          <aside className="absolute inset-y-0 left-0 w-[min(20rem,85vw)] overflow-y-auto bg-gradient-to-b from-brand-600 via-[#8e2118] to-[#5e1914] shadow-xl isolate before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:-z-10 before:h-56 before:bg-gradient-to-b before:from-black/45 before:to-transparent">
+            <button onClick={() => setMobileOpen(false)} className="absolute top-6 right-3 rounded-full p-1 text-white/80 hover:bg-white/10" aria-label="Close menu">
               <X className="size-5" />
             </button>
             <Sidebar collapsed={false} variant={variant} onNavigate={() => setMobileOpen(false)} />
@@ -291,12 +291,12 @@ export function Layout({ variant = 'learner', reset }: { variant?: LayoutVariant
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-zinc-200/70 bg-white/90 px-4 backdrop-blur sm:px-6">
-          <button onClick={() => setMobileOpen(true)} className="rounded-full p-2 text-zinc-600 hover:bg-zinc-100 lg:hidden" aria-label="Open menu">
-            <PanelLeft className="size-4" />
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-2.5 border-b border-zinc-200/70 bg-white/90 px-4 backdrop-blur sm:px-6">
+          <button onClick={() => setMobileOpen(true)} className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-600 text-white shadow-sm shadow-brand-600/30 transition hover:bg-brand-700 lg:hidden" aria-label="Open menu">
+            <Menu className="size-[18px]" />
           </button>
           <HeaderWelcome />
-          <div className="ml-auto flex min-w-0 items-center gap-3">
+          <div className="ml-auto flex min-w-0 flex-1 items-center gap-2 sm:gap-3 md:flex-none">
             <HeaderSearch />
             <NotificationBell />
             <UserMenu reset={demoReset} />

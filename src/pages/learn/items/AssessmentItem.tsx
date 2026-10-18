@@ -156,7 +156,7 @@ export function AssessmentItem({ training, progress: p, onSubmit, onFocusChange,
                       <span className="block text-[15px] font-semibold text-zinc-900">{q.question}</span>
                       {done && !open && <span className="mt-0.5 block truncate text-xs text-zinc-500">Your answer: {q.options[chosen]}</span>}
                     </span>
-                    <span className="shrink-0 rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-600">1 point</span>
+                    <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-600">1 point</span>
                     <ChevronDown className={cn('size-4 shrink-0 text-zinc-400 transition', open && 'rotate-180')} />
                   </button>
                   {open && (

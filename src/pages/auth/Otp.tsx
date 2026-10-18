@@ -100,7 +100,7 @@ export function Otp() {
                     submit(code)
                   }}
                   disabled={loading}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition hover:bg-zinc-100 disabled:opacity-60"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition hover:bg-zinc-100 disabled:opacity-60"
                 >
                   <ClipboardPaste className="size-3.5" /> Insert code
                 </button>
@@ -120,7 +120,7 @@ export function Otp() {
       <span className="grid size-12 place-items-center rounded-xl bg-mpesa-500/10 text-mpesa-600">
         <ShieldCheck className="size-6" />
       </span>
-      <h2 className="mt-5 text-2xl font-semibold tracking-tight">Verify it’s you</h2>
+      <h2 className="mt-5 text-2xl font-bold tracking-tight">Verify it’s you</h2>
       <p className="mt-1 text-sm text-zinc-500">
         We sent a 6-digit code to <span className="font-medium text-zinc-800">{maskPhone(pending?.phone ?? '')}</span>. Enter it below to continue.
       </p>
@@ -142,7 +142,7 @@ export function Otp() {
             onKeyDown={(e) => onKeyDown(i, e)}
             onFocus={(e) => e.target.select()}
             className={cn(
-              'size-12 rounded-lg border text-center text-lg font-semibold outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 sm:size-13',
+              'size-12 rounded-xl border text-center text-lg font-semibold outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 sm:size-13',
               error ? 'border-brand-500' : 'border-zinc-200',
             )}
           />
@@ -150,15 +150,15 @@ export function Otp() {
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">{error}</p>
+        <p className="mt-4 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">{error}</p>
       ) : (
-        resent && <p className="mt-4 rounded-lg bg-mpesa-500/10 px-3 py-2 text-sm text-mpesa-700">A new code has been sent. Previous codes no longer work.</p>
+        resent && <p className="mt-4 rounded-xl bg-mpesa-500/10 px-3 py-2 text-sm text-mpesa-700">A new code has been sent. Previous codes no longer work.</p>
       )}
 
       <button
         onClick={() => submit(digits.join(''))}
         disabled={loading || digits.some((d) => !d)}
-        className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
+        className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
       >
         {loading && <Loader2 className="size-4 animate-spin" />}
         Verify & continue

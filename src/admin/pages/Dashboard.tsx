@@ -107,7 +107,7 @@ export function AdminDashboard() {
             <ul className="space-y-2">
               {pending.map((r) => (
                 <li key={r.id}>
-                  <Link to="/admin/requests" className="flex items-center gap-3 rounded-lg border border-zinc-200 p-3 hover:bg-zinc-50">
+                  <Link to="/admin/requests" className="flex items-center gap-3 rounded-xl border border-zinc-200 p-3 hover:bg-zinc-50">
                     <FileQuestion className="size-4 shrink-0 text-amber-500" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-zinc-900">{r.topic}</span>
@@ -140,7 +140,7 @@ export function AdminDashboard() {
             {upcoming.map((t) => (
               <li key={t.id}>
                 <Link to={`/admin/trainings/${t.id}`} className="flex items-center gap-4 py-3 hover:opacity-80">
-                  <span className="flex w-12 shrink-0 flex-col items-center rounded-lg bg-zinc-100 py-1.5">
+                  <span className="flex w-12 shrink-0 flex-col items-center rounded-xl bg-zinc-100 py-1.5">
                     <span className="text-[10px] font-semibold text-brand-600 uppercase">{new Date(t.date).toLocaleDateString('en-US', { month: 'short' })}</span>
                     <span className="text-lg leading-none font-bold text-zinc-900">{Number(t.date.slice(8))}</span>
                   </span>

@@ -32,7 +32,7 @@ function ConfirmDialog({ opts, onDone }: { opts: ConfirmOptions; onDone: (ok: bo
         <span className={cn('grid size-10 place-items-center rounded-full', opts.danger ? 'bg-brand-50 text-brand-600' : 'bg-zinc-100 text-zinc-600')}>
           <AlertTriangle className="size-5" />
         </span>
-        <h2 id="confirm-title" className="mt-4 text-base font-semibold text-zinc-900">
+        <h2 id="confirm-title" className="mt-4 text-base font-bold text-zinc-900">
           {opts.title}
         </h2>
         {opts.message && <p className="mt-1 text-sm text-zinc-500">{opts.message}</p>}

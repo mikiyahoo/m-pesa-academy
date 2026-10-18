@@ -1,7 +1,8 @@
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Check, CheckCircle2, Pencil, FileText, Loader2, MapPin, Paperclip, Plus, Save, Send, Upload, UserPlus, Users, Video, Target, X, type LucideIcon } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Check, CheckCircle2, FileText, Loader2, MapPin, Paperclip, Pencil, Plus, Save, Send, Target, type LucideIcon, Upload, UserPlus, Users, Video, X } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useFeedback } from '../components/Feedback'
+import { EmptyState } from '../components/EmptyState'
 import { DuplicateWarning } from '../admin/RequestParts'
 import { shortDate } from '../admin/helpers'
 import {
@@ -633,10 +634,10 @@ export function RequestForm() {
               className={cn(inputCls, 'border-zinc-200 font-mono text-xs')}
             />
             <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={!paste.trim()} onClick={() => (importText(paste), setPaste(''))} className="rounded-lg bg-charcoal px-3 py-2 text-xs font-semibold text-white hover:bg-charcoal-light disabled:opacity-40">
+              <button type="button" disabled={!paste.trim()} onClick={() => (importText(paste), setPaste(''))} className="rounded-xl bg-charcoal px-3 py-2 text-xs font-semibold text-white hover:bg-charcoal-light disabled:opacity-40">
                 Add pasted list
               </button>
-              <button type="button" onClick={() => listInput.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50">
+              <button type="button" onClick={() => listInput.current?.click()} className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50">
                 <Upload className="size-3.5" /> Upload CSV
               </button>
               <input ref={listInput} type="file" accept=".csv,.txt" className="hidden" onChange={(e) => (onListFile(e.target.files?.[0]), (e.target.value = ''))} />
@@ -690,7 +691,11 @@ export function RequestForm() {
                 </li>
               )
             })}
-            {!form.participants.length && <li className="px-3 py-6 text-center text-sm text-zinc-400">No participants yet</li>}
+            {!form.participants.length && (
+            <li>
+              <EmptyState compact icon={Users} title="No participants yet" text="Add people by email above." />
+            </li>
+          )}
           </ul>
           <Err id="rq-part-err" msg={show('participants')} />
         </div>
@@ -780,7 +785,7 @@ export function RequestForm() {
           {form.attachments.length > 0 && (
             <ul className="mt-3 flex flex-wrap gap-2">
               {form.attachments.map((a) => (
-                <li key={a.name} className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white py-1.5 pr-1.5 pl-2.5 text-xs text-zinc-700">
+                <li key={a.name} className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white py-1.5 pr-1.5 pl-2.5 text-xs text-zinc-700">
                   <FileText className="size-3.5 text-zinc-500" /> {a.name}
                   <button type="button" onClick={() => set('attachments', form.attachments.filter((x) => x.name !== a.name))} className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-brand-600" aria-label={`Remove ${a.name}`}>
                     <X className="size-3.5" />
@@ -864,7 +869,7 @@ function ReviewStep({
         return (
           <div key={r.step} className={cn('rounded-2xl border bg-white p-5', bad ? 'border-brand-200' : 'border-zinc-200/80')}>
             <div className="flex items-center justify-between gap-3">
-              <h3 className="flex items-center gap-2 font-semibold text-zinc-900">
+              <h3 className="flex items-center gap-2 font-bold text-zinc-900">
                 {bad ? <AlertCircle className="size-4 text-brand-600" /> : <CheckCircle2 className="size-4 text-mpesa-600" />}
                 {r.title}
               </h3>

@@ -40,7 +40,7 @@ export function RequestDetail() {
         <section className="flex gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/[0.07] p-5">
           <Clock className="mt-0.5 size-5 shrink-0 text-amber-600" />
           <div>
-            <h2 className="font-semibold text-zinc-900">Waiting for the training team</h2>
+            <h2 className="font-bold text-zinc-900">Waiting for the training team</h2>
             <p className="mt-0.5 text-sm text-zinc-600">You’ll see the decision here and get an email as soon as your request is approved or rejected.</p>
           </div>
         </section>
@@ -50,7 +50,7 @@ export function RequestDetail() {
         <section className="flex gap-3 rounded-2xl border border-brand-200 bg-brand-50 p-5">
           <XCircle className="mt-0.5 size-5 shrink-0 text-brand-600" />
           <div>
-            <h2 className="font-semibold text-zinc-900">Request rejected</h2>
+            <h2 className="font-bold text-zinc-900">Request rejected</h2>
             <p className="mt-1 text-sm font-medium text-brand-800">{request.rejection.reason}</p>
             {request.rejection.comment && <p className="mt-1 text-sm text-zinc-700">“{request.rejection.comment}”</p>}
             <Link to="/requests/new" className="mt-3 inline-block text-sm font-semibold text-brand-600 hover:underline">
@@ -65,7 +65,7 @@ export function RequestDetail() {
           <div className="flex gap-3">
             <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-mpesa-600" />
             <div>
-              <h2 className="font-semibold text-zinc-900">Approved</h2>
+              <h2 className="font-bold text-zinc-900">Approved</h2>
               <p className="mt-0.5 text-sm text-zinc-600">
                 {trainer ? (
                   <>
@@ -107,7 +107,7 @@ export function RequestDetail() {
 
           {request.joinLink && (
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-zinc-900">Join link for your team</h3>
+              <h3 className="mb-2 text-sm font-bold text-zinc-900">Join link for your team</h3>
               <JoinLink link={request.joinLink} />
               <p className="mt-2 flex items-start gap-2 text-xs text-zinc-500">
                 <UserRound className="mt-0.5 size-3.5 shrink-0" />

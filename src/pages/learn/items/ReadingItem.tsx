@@ -1,5 +1,5 @@
-import { BookOpen, Check, Download, FileText, Presentation, Timer } from "lucide-react";
-import { PptxViewer } from "../../../components/PptxViewer";
+import { BookOpen, Check, ChevronDown, Download, FileText, Presentation, Timer } from "lucide-react";
+import { SlidesDialog } from "../../../components/PptxViewer";
 import { useEffect, useState } from "react";
 import { canDownload, DOCUMENT_MIN_SECONDS } from "../../../data/trainings";
 import { cn } from "../../../lib/utils";
@@ -75,7 +75,7 @@ export function ReadingItem({
   const pct = done ? 100 : (elapsed / DOCUMENT_MIN_SECONDS) * 100;
 
   return (
-    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-6 sm:px-8 sm:py-10 xl:grid-cols-[minmax(0,1fr)_220px] 2xl:gap-10">
+    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-6 sm:px-8 sm:py-10 xl:grid-cols-[minmax(0,1fr)_260px] 2xl:gap-10">
       <article className="relative min-w-0">
         <Watermark text={watermark} />
         <ItemTitle
@@ -139,7 +139,7 @@ export function ReadingItem({
                 const i = Number(e.target.value);
                 if (!Number.isNaN(i)) document.getElementById(sectionId(i))?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
-              className="min-w-0 flex-1 bg-transparent text-sm font-medium text-zinc-900 outline-none"
+              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-sm font-medium text-zinc-900 outline-none"
               aria-label="Jump to section"
             >
               <option value="" disabled>
@@ -151,6 +151,7 @@ export function ReadingItem({
                 </option>
               ))}
             </select>
+            <ChevronDown className="pointer-events-none size-4 shrink-0 text-zinc-500" aria-hidden />
           </label>
         )}
 
@@ -212,7 +213,7 @@ export function ReadingItem({
           )}
 
           {m.deck && (
-            <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-200 p-4">
+            <div className={cn("flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-200 p-4", slides.length > 1 && "xl:hidden")}>
               <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
                 <FileText className="size-5" />
               </span>
@@ -228,28 +229,28 @@ export function ReadingItem({
               </div>
               <button
                 type="button"
-                onClick={() => setShowDeck((v) => !v)}
-                aria-expanded={showDeck}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand-700"
+                onClick={() => setShowDeck(true)}
+                aria-haspopup="dialog"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand-700"
               >
-                <Presentation className="size-3.5" /> {showDeck ? "Hide slides" : "View slides"}
+                <Presentation className="size-3.5" /> View slides
               </button>
               {canDownload(m) ? (
                 <a
                   href={m.deck}
                   download
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
                 >
                   <Download className="size-3.5" /> Download
                 </a>
               ) : (
-                <span className="rounded-lg bg-zinc-100 px-3 py-2 text-xs font-medium text-zinc-500">
+                <span className="rounded-xl bg-zinc-100 px-3 py-2 text-xs font-medium text-zinc-500">
                   View only
                 </span>
               )}
             </div>
           )}
-          {m.deck && showDeck && <PptxViewer url={m.deck} title={m.title} />}
+          {m.deck && showDeck && <SlidesDialog url={m.deck} title={m.title} downloadable={canDownload(m)} onClose={() => setShowDeck(false)} />}
         </div>
 
         <CompletionRow done={done} canUndo={canUndo} onUndo={onUndo}>
@@ -266,39 +267,78 @@ export function ReadingItem({
 
       {slides.length > 1 && (
         <aside className="hidden xl:block">
-          <nav
-            aria-label="On this page"
-            className="sticky top-6 rounded-2xl border border-zinc-200/80 bg-white p-3"
-          >
-            <p className="px-2 pt-1 pb-2 text-sm font-semibold text-zinc-900">
-              On this page
-            </p>
-            <ol className="space-y-0.5">
-              {slides.map((s, i) => (
-                <li key={s.title}>
-                  <button
-                    onClick={() =>
-                      document
-                        .getElementById(sectionId(i))
-                        ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                    }
-                    aria-current={active === i ? "true" : undefined}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-lg border-l-2 px-2.5 py-2 text-left text-xs transition",
-                      active === i
-                        ? "border-brand-600 bg-brand-50 font-semibold text-brand-700"
-                        : "border-transparent text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900",
-                    )}
-                  >
-                    <span className="tabular-nums">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span className="min-w-0 truncate">{s.title}</span>
-                  </button>
-                </li>
-              ))}
+          <div className="sticky top-6 space-y-4">
+          <nav aria-label="On this page" className="rounded-2xl border border-zinc-200/80 bg-white p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-bold text-zinc-900">On this page</p>
+              <span className="text-xs font-semibold text-zinc-500 tabular-nums">
+                {active + 1} / {slides.length}
+              </span>
+            </div>
+            <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-zinc-100" aria-hidden>
+              <div className="h-full rounded-full bg-brand-600 transition-all duration-300" style={{ width: `${((active + 1) / slides.length) * 100}%` }} />
+            </div>
+            <ol className={cn("scrollbar-thin -mx-1 mt-3 overflow-y-auto px-1", m.deck ? "max-h-[calc(100vh-24rem)]" : "max-h-[calc(100vh-12rem)]")}>
+              {slides.map((s, i) => {
+                const current = active === i;
+                const read = i < active;
+                return (
+                  <li key={s.title} className="relative">
+                    {/* Rail joining the step dots. */}
+                    {i < slides.length - 1 && <span aria-hidden className={cn("absolute top-8 bottom-0 left-[1.3rem] w-px", read ? "bg-brand-200" : "bg-zinc-200")} />}
+                    <button
+                      onClick={() => document.getElementById(sectionId(i))?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                      aria-current={current ? "true" : undefined}
+                      title={s.title}
+                      className={cn(
+                        "relative flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left text-xs leading-snug transition",
+                        current ? "bg-brand-50 text-brand-700" : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "grid size-[1.375rem] shrink-0 place-items-center rounded-full text-[10px] font-bold tabular-nums",
+                          current ? "bg-brand-600 text-white" : read ? "bg-brand-100 text-brand-700" : "border border-zinc-200 bg-white text-zinc-500",
+                        )}
+                      >
+                        {read ? <Check className="size-3" strokeWidth={3} /> : i + 1}
+                      </span>
+                      <span className={cn("line-clamp-2 min-w-0 pt-0.5", current && "font-semibold")}>{s.title}</span>
+                    </button>
+                  </li>
+                );
+              })}
             </ol>
           </nav>
+          {m.deck && (
+            <section aria-label="Presentation slides" className="rounded-2xl border border-zinc-200/80 bg-white p-4">
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+                  <FileText className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-zinc-900">Presentation slides</p>
+                  <p className="text-xs text-zinc-500">{canDownload(m) ? "PowerPoint • downloadable" : "View in the portal only"}</p>
+                </div>
+              </div>
+              <div className="mt-3.5 grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeck(true)}
+                  aria-haspopup="dialog"
+                  className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-brand-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+                >
+                  <Presentation className="size-3.5" /> View slides
+                </button>
+                {canDownload(m) && (
+                  <a href={m.deck} download className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-zinc-200 px-3 py-2.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
+                    <Download className="size-3.5" /> Download
+                  </a>
+                )}
+              </div>
+            </section>
+          )}
+          </div>
         </aside>
       )}
     </div>

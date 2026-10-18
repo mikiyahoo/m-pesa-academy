@@ -37,7 +37,10 @@ export function SplashIntro() {
       onClick={() => setShow(false)}
       className="splash fixed inset-0 z-[100] grid place-items-center overflow-hidden bg-gradient-to-br from-brand-600 via-[#8e2118] to-[#5e1914]"
     >
-      <img src="/M-PESA Pattern.svg" alt="" className="splash-pattern pointer-events-none absolute -right-24 -bottom-24 h-[120%] opacity-10" />
+      {/* Centred on the right edge so half the pattern sits off-screen. */}
+      <div className="pointer-events-none absolute top-1/2 right-0 aspect-square h-[160%] translate-x-1/2 -translate-y-1/2">
+        <img src="/M-PESA Pattern.svg" alt="" className="splash-pattern size-full opacity-10" />
+      </div>
       <div className="relative flex flex-col items-center">
         <svg viewBox="0 0 32 32" className="splash-tile relative size-28 drop-shadow-2xl sm:size-32">
           <rect width="32" height="32" rx="8" ry="8" fill="#fff" />

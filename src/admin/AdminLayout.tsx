@@ -1,32 +1,4 @@
-import {
-  ArrowRight,
-  Award,
-  Bell,
-  BadgeCheck,
-  BarChart3,
-  CalendarDays,
-  ChevronDown,
-  ChevronRight,
-  Briefcase,
-  ClipboardList,
-  FileClock,
-  FileQuestion,
-  KeyRound,
-  GraduationCap,
-  LayoutDashboard,
-  LogOut,
-  MessageSquare,
-  Moon,
-  Search,
-  PanelLeft,
-  RotateCcw,
-  Settings2,
-  Sun,
-  UserRoundPlus,
-  Users,
-  X,
-  type LucideIcon,
-} from 'lucide-react'
+import { ArrowRight, Award, BadgeCheck, BarChart3, Bell, BellOff, Briefcase, CalendarDays, ChevronDown, ChevronRight, ClipboardList, FileClock, FileQuestion, GraduationCap, KeyRound, LayoutDashboard, LogOut, MessageSquare, Moon, PanelLeft, RotateCcw, Search, Settings2, Sun, type LucideIcon, UserRoundPlus, Users, X } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '../lib/utils'
@@ -37,6 +9,7 @@ import { TrainerScope, useAdmin } from './store'
 import { ScopeContext } from './scope'
 import { dateTime } from './helpers'
 import { UserAvatar } from '../components/UserAvatar'
+import { Empty } from './ui'
 
 type NavItem = { label: string; icon: LucideIcon; to?: string; end?: boolean; children?: { label: string; to: string }[] }
 
@@ -157,7 +130,7 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex items-center gap-2.5 rounded-full py-1 pr-2 pl-1 transition hover:bg-zinc-100">
         <UserAvatar name={user.name} className="size-9 ring-1 ring-zinc-200" />
         <span className="hidden max-w-[12rem] truncate text-sm font-medium whitespace-nowrap text-zinc-900 lg:block">{user.name}</span>
-        <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-brand-700 uppercase ring-1 ring-brand-200">{role}</span>
+        <span className="rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-brand-700 uppercase ring-1 ring-brand-200">{role}</span>
         <ChevronDown className="size-4 text-zinc-500" />
       </button>
       {open && (
@@ -172,7 +145,7 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
             </span>
           </div>
           <div className="p-1 text-sm">
-            <button onClick={() => setDark(!dark)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-zinc-700 hover:bg-zinc-100">
+            <button onClick={() => setDark(!dark)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
               {dark ? <Sun className="size-4" /> : <Moon className="size-4" />} {dark ? 'Light mode' : 'Dark mode'}
             </button>
             <button
@@ -183,11 +156,11 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
                   toast('Demo data restored')
                 }
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-zinc-700 hover:bg-zinc-100"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"
             >
               <RotateCcw className="size-4" /> Reset demo data
             </button>
-            <button onClick={() => logout()} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-brand-700 hover:bg-brand-50">
+            <button onClick={() => logout()} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-brand-700 hover:bg-brand-50">
               <LogOut className="size-4" /> Sign out
             </button>
           </div>
@@ -343,7 +316,7 @@ function AlertsBell() {
         {unread > 0 && <span className="absolute top-1.5 right-1.5 grid min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[10px] leading-4 font-bold text-white ring-2 ring-white">{unread}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-zinc-200 bg-surface shadow-xl">
+        <div className="absolute right-0 z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl max-sm:fixed max-sm:inset-x-4 max-sm:top-16 max-sm:mt-0 max-sm:w-auto border border-zinc-200 bg-surface shadow-xl">
           <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
             <p className="text-sm font-semibold text-zinc-900">Alerts</p>
             {unread > 0 && (
@@ -353,7 +326,11 @@ function AlertsBell() {
             )}
           </div>
           <ul className="max-h-96 divide-y divide-zinc-100 overflow-y-auto scrollbar-thin">
-            {alerts.length === 0 && <li className="px-4 py-6 text-center text-sm text-zinc-500">No alerts.</li>}
+            {alerts.length === 0 && (
+              <li>
+                <Empty compact icon={BellOff} title="You're all caught up" text="New requests and reminders show here." />
+              </li>
+            )}
             {alerts.map((a) => (
               <li key={a.id} className={cn('px-4 py-3', !a.read && 'bg-brand-50/50')}>
                 <Link
@@ -446,7 +423,7 @@ export function AdminLayout({ variant = 'admin', trainerId }: { variant?: 'admin
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-64 shadow-xl bg-gradient-to-b from-brand-600 via-[#8e2118] to-[#5e1914] dark:from-[#a8302f] dark:via-[#6e1a15] dark:to-[#3d100d] isolate before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:-z-10 before:h-56 before:bg-gradient-to-b before:from-black/45 before:to-transparent">
-            <button onClick={() => setMobileOpen(false)} className="absolute top-4 right-3 z-10 rounded-md p-1 text-white/80 hover:bg-white/10" aria-label="Close menu">
+            <button onClick={() => setMobileOpen(false)} className="absolute top-4 right-3 z-10 rounded-full p-1 text-white/80 hover:bg-white/10" aria-label="Close menu">
               <X className="size-5" />
             </button>
             <Sidebar onNavigate={() => setMobileOpen(false)} items={items} promo={variant === 'admin' ? <SidebarPromo onNavigate={() => setMobileOpen(false)} /> : undefined} />

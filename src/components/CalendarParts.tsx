@@ -98,5 +98,5 @@ export function Legend({ items }: { items: { label: string; tone: Tone }[] }) {
 }
 
 export function StatusPill({ tone, children }: { tone: Tone; children: ReactNode }) {
-  return <span className={cn('inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold', TONE[tone].pill)}>{children}</span>
+  return <span className={cn('inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold', TONE[tone].pill)}>{children}</span>
 }

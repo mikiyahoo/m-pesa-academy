@@ -93,7 +93,7 @@ export function RequesterDashboard() {
                       <span className="block truncate text-sm font-semibold text-zinc-900">{d.topic || 'Untitled request'}</span>
                       <span className="text-xs text-amber-700">{draftTimeLeft(d)}</span>
                     </span>
-                    <Link to={`/requests/${d.id}/edit`} className="rounded-lg bg-charcoal px-3 py-2 text-xs font-semibold text-white hover:bg-charcoal-light">
+                    <Link to={`/requests/${d.id}/edit`} className="rounded-xl bg-charcoal px-3 py-2 text-xs font-semibold text-white hover:bg-charcoal-light">
                       Continue editing
                     </Link>
                     <button
@@ -102,7 +102,7 @@ export function RequesterDashboard() {
                         if (await confirm({ title: 'Delete this draft?', message: `“${d.topic || 'Untitled request'}” will be removed.`, confirmLabel: 'Delete', danger: true }))
                           update((x) => ({ ...x, requests: x.requests.filter((r) => r.id !== d.id) }), { action: 'Deleted draft request', target: d.topic || 'Untitled request' })
                       }}
-                      className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-brand-600"
+                      className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-brand-600"
                       aria-label={`Delete draft ${d.topic}`}
                     >
                       <Trash2 className="size-4" />

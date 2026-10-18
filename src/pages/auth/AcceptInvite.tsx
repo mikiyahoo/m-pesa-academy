@@ -39,7 +39,7 @@ export function AcceptInvite({ token }: { token: string }) {
         <span className="grid size-12 place-items-center rounded-xl bg-brand-50 text-brand-600">
           <AlertCircle className="size-6" />
         </span>
-        <h2 className="mt-5 text-2xl font-semibold tracking-tight">{person ? 'You can’t sign in right now' : 'This invite link isn’t valid'}</h2>
+        <h2 className="mt-5 text-2xl font-bold tracking-tight">{person ? 'You can’t sign in right now' : 'This invite link isn’t valid'}</h2>
         <p className="mt-2 text-sm text-zinc-600">{blocked ?? 'Check that you opened the whole link from your invite email, or ask the trainer to send a new invite.'}</p>
         <Link to="/" className="mt-8 inline-block text-sm font-semibold text-brand-600 hover:underline">
           Go to the sign-in page
@@ -53,7 +53,7 @@ export function AcceptInvite({ token }: { token: string }) {
       <span className="grid size-12 place-items-center rounded-xl bg-mpesa-500/10 text-mpesa-600">
         <MailCheck className="size-6" />
       </span>
-      <h2 className="mt-5 text-2xl font-semibold tracking-tight">Welcome, {person.name.split(' ')[0]}</h2>
+      <h2 className="mt-5 text-2xl font-bold tracking-tight">Welcome, {person.name.split(' ')[0]}</h2>
       <p className="mt-1 text-sm text-zinc-600">
         {inviter ? `${inviter} invited you` : 'You’ve been invited'} to M-PESA Academy{person.organization ? ` as part of ${person.organization}` : ''}.
       </p>
@@ -79,12 +79,12 @@ export function AcceptInvite({ token }: { token: string }) {
         Your access runs {person.accessStart ? `from ${shortDate(person.accessStart)} ` : ''}until {person.accessEnd ? shortDate(person.accessEnd) : 'your trainer removes it'}. Use this same link whenever you want to sign in.
       </p>
 
-      {error && <p className="mt-4 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">{error}</p>}
+      {error && <p className="mt-4 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">{error}</p>}
 
       <button
         onClick={go}
         disabled={loading}
-        className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-70"
+        className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-70"
       >
         {loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
         Send me a verification code

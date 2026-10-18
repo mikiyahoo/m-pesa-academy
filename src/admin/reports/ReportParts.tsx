@@ -31,7 +31,7 @@ export function FilterBar({
     <Card className="mb-5 p-3 print:hidden">
       <div className="flex flex-wrap items-center gap-2">
         <DateRangePicker value={{ from: filters.from, to: filters.to }} onChange={(r) => set({ from: r.from, to: r.to })} />
-        <button onClick={() => setOpen((o) => !o)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 sm:hidden">
+        <button onClick={() => setOpen((o) => !o)} className="inline-flex items-center gap-1 rounded-xl px-2 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 sm:hidden">
           More <ChevronDown className={cn('size-3.5 transition', open && 'rotate-180')} />
         </button>
         <div className={cn('w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap', open ? 'grid' : 'hidden')}>
@@ -92,7 +92,7 @@ export function FilterBar({
           )}
         </div>
         {active > 0 && (
-          <button onClick={clear} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50">
+          <button onClick={clear} className="ml-auto inline-flex items-center gap-1 rounded-xl px-2 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50">
             <X className="size-3.5" /> Clear {active}
           </button>
         )}
@@ -113,7 +113,7 @@ export function ExportMenu({ filename, title, sheets, personal = false }: { file
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [])
-  const item = 'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100'
+  const item = 'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100'
   return (
     <div ref={ref} className="relative print:hidden">
       <Button variant="primary" onClick={() => setOpen((o) => !o)}>

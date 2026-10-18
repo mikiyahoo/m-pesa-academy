@@ -123,7 +123,7 @@ function StatusMenu({ training, onCancel }: { training: AdminTraining; onCancel:
               key={s}
               disabled={s === training.status}
               onClick={() => setStatus(s)}
-              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100 disabled:opacity-50"
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100 disabled:opacity-50"
             >
               {s === 'CANCELLED' ? 'Cancel…' : s[0] + s.slice(1).toLowerCase()}
               {s === training.status && <span className="text-xs text-zinc-400">current</span>}
@@ -244,8 +244,8 @@ export function AdminTrainingDetail() {
         <div className="space-y-5">
           <Card>
             <div className="mb-5 flex items-center gap-2">
-              <h2 className="font-semibold text-zinc-900">{journey?.name ?? 'No journey'}</h2>
-              <span className="rounded-md border border-zinc-200 px-1.5 py-0.5 text-[11px] font-medium text-zinc-700">Journey</span>
+              <h2 className="font-bold text-zinc-900">{journey?.name ?? 'No journey'}</h2>
+              <span className="rounded-full border border-zinc-200 px-1.5 py-0.5 text-[11px] font-medium text-zinc-700">Journey</span>
             </div>
             <div className="space-y-2">
               {journey?.modules.map((m, i) => {
@@ -276,14 +276,14 @@ export function AdminTrainingDetail() {
                             const mat = data.materials.find((x) => x.id === mid)
                             if (!mat) return null
                             return (
-                              <div key={mid} className="flex items-center justify-between gap-3 rounded-lg bg-zinc-50 px-3 py-2.5">
+                              <div key={mid} className="flex items-center justify-between gap-3 rounded-xl bg-zinc-50 px-3 py-2.5">
                                 <div className="min-w-0">
                                   <p className="truncate text-sm font-medium text-zinc-900">{mat.title}</p>
                                   <p className="text-[10px] tracking-wide text-zinc-500 uppercase">
                                     {mat.type} · {mat.minutes} mins
                                   </p>
                                 </div>
-                                <button onClick={() => setPreview(mat)} className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-zinc-800 hover:bg-zinc-200/60">
+                                <button onClick={() => setPreview(mat)} className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-zinc-800 hover:bg-zinc-200/60">
                                   <PlayCircle className="size-4" /> Preview
                                 </button>
                               </div>
@@ -362,7 +362,7 @@ export function AdminTrainingDetail() {
                 ] as const
               ).map(([kind, label, a]) =>
                 a ? (
-                  <div key={kind} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2.5">
+                  <div key={kind} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 px-3 py-2.5">
                     <div className="min-w-0">
                       <p className="text-xs text-zinc-500">{label}</p>
                       <p className="truncate font-medium text-zinc-900">{a.title}</p>
@@ -386,7 +386,7 @@ export function AdminTrainingDetail() {
           <Card>
             <CardTitle>Feedback</CardTitle>
             {form ? (
-              <Link to={`/admin/feedback/responses?training=${training.id}`} className="flex items-center gap-3 rounded-lg border border-zinc-200 p-3 transition hover:bg-zinc-50">
+              <Link to={`/admin/feedback/responses?training=${training.id}`} className="flex items-center gap-3 rounded-xl border border-zinc-200 p-3 transition hover:bg-zinc-50">
                 <MessageSquare className="size-5 text-brand-600" />
                 <span className="flex-1">
                   <span className="block text-sm font-semibold text-zinc-900">{form.title}</span>
@@ -406,7 +406,7 @@ export function AdminTrainingDetail() {
             {participants.length ? (
               <ul className="-mr-2 max-h-[420px] space-y-1 overflow-y-auto pr-2 scrollbar-thin">
                 {participants.map((p) => (
-                  <li key={p.id} className="group flex items-center gap-3 rounded-lg py-1.5">
+                  <li key={p.id} className="group flex items-center gap-3 rounded-xl py-1.5">
                     <Avatar name={p.name} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-zinc-900">{p.name}</p>

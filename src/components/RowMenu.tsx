@@ -58,7 +58,7 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
         <div ref={menu} role="menu" className="fixed z-50 w-48 rounded-xl border border-zinc-200 bg-surface p-1.5 shadow-xl" style={{ top: pos.top, right: pos.right }}>
           {items.map((i) => {
             const cls = cn(
-              'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-100',
+              'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-100',
               i.danger ? 'text-brand-700 hover:bg-brand-50' : i.primary ? 'text-brand-600' : 'text-zinc-700',
             )
             const body = (

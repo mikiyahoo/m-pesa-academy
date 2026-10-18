@@ -203,7 +203,11 @@ function PeopleModal({ material: m, onClose, onRemind }: { material: Material; o
             </li>
           )
         })}
-        {!people.length && <li className="py-8 text-center text-sm text-zinc-500">No active people in the assigned groups.</li>}
+        {!people.length && (
+          <li>
+            <Empty compact icon={Users} title="No one to show" text="There are no active people in the assigned groups." />
+          </li>
+        )}
       </ul>
     </Modal>
   )

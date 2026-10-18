@@ -500,7 +500,7 @@ export function TrainingDetail() {
             <div className="mt-5 flex gap-3 rounded-xl bg-zinc-50 p-4">
               <Star className="mt-0.5 size-5 shrink-0 text-brand-600" />
               <div>
-                <h3 className="text-sm font-semibold text-zinc-900">Recommended experience</h3>
+                <h3 className="text-sm font-bold text-zinc-900">Recommended experience</h3>
                 <p className="mt-0.5 text-sm text-zinc-500">Basic familiarity with M-PESA services and a smartphone.</p>
               </div>
             </div>

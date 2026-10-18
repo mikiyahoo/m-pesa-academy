@@ -82,7 +82,7 @@ export function RequesterReports() {
       </div>
 
       <section className="rounded-2xl border border-zinc-200/80 bg-white">
-        <h2 className="border-b border-zinc-100 px-5 py-4 font-semibold text-zinc-900">Sessions</h2>
+        <h2 className="border-b border-zinc-100 px-5 py-4 font-bold text-zinc-900">Sessions</h2>
         {rows.length ? (
           <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full min-w-[720px] text-left text-sm">
@@ -132,7 +132,7 @@ export function RequesterReports() {
 
       {people.length > 0 && (
         <section className="rounded-2xl border border-zinc-200/80 bg-white p-5">
-          <h2 className="mb-4 font-semibold text-zinc-900">Team attendance</h2>
+          <h2 className="mb-4 font-bold text-zinc-900">Team attendance</h2>
           <ul className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
             {people
               .sort((a, b) => pct(a.attendedN, a.settled) - pct(b.attendedN, b.settled))

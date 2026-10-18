@@ -1,4 +1,5 @@
-import { Check, ChevronDown, CircleDot, Flag, Route, Search } from 'lucide-react'
+import { EmptyState } from './EmptyState'
+import { Check, ChevronDown, CircleDot, Flag, Route, Search, SearchX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { journeys } from '../data/journeys'
@@ -106,7 +107,11 @@ export function JourneyTimeline() {
             </li>
           )
         })}
-        {!visible.length && <li className="px-4 py-8 text-center text-sm text-zinc-500">No journeys match “{q}”.</li>}
+        {!visible.length && (
+          <li>
+            <EmptyState compact icon={SearchX} title={`No journeys match “${q}”`} text="Try another name." />
+          </li>
+        )}
       </ul>
 
       {!q && filtered.length > JOURNEYS_SHOWN && (

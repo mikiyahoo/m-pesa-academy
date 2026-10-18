@@ -150,7 +150,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
                 </div>
                 <ul className="mt-4 grid grid-cols-2 gap-2 text-sm">
                   {byStatus.map(({ s, n }) => (
-                    <li key={s} className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2">
+                    <li key={s} className="flex items-center justify-between rounded-xl bg-zinc-50 px-3 py-2">
                       <span className="flex items-center gap-2 text-zinc-700">
                         <span className={`size-2.5 rounded-full ${statusColor[s]}`} /> {s[0] + s.slice(1).toLowerCase()}
                       </span>
@@ -158,7 +158,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
                     </li>
                   ))}
                 </ul>
-                <h3 className="mt-5 mb-3 text-sm font-semibold text-zinc-900">Enrolments by department</h3>
+                <h3 className="mt-5 mb-3 text-sm font-bold text-zinc-900">Enrolments by department</h3>
                 <Bars items={dept.map(([label, value]) => ({ label, value }))} />
               </Card>
             </div>
@@ -243,7 +243,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
                 <Bars tone="amber" max={100} format={fmtPct} items={people.slice(0, 6).map((r) => ({ label: name(r.pid), value: r.rate, hint: `${r.attendedN} of ${r.sessions}` }))} />
               </Card>
             </div>
-            <h3 className="mt-6 mb-3 font-semibold text-zinc-900">By training</h3>
+            <h3 className="mt-6 mb-3 font-bold text-zinc-900">By training</h3>
             <Table head={['Training', 'Date', 'Invited', 'Present', 'Late', 'Incomplete', 'Absent', 'Not yet', 'Rate']} minWidth={860}>
               {byTraining.map((r) => (
                 <tr key={r.t.id} className="hover:bg-zinc-50">
@@ -263,7 +263,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
                 </tr>
               ))}
             </Table>
-            <h3 className="mt-6 mb-3 font-semibold text-zinc-900">By date</h3>
+            <h3 className="mt-6 mb-3 font-bold text-zinc-900">By date</h3>
             <Table head={['Date', 'Sessions', 'Invited', 'Attended', 'Rate']} minWidth={560}>
               {dates.map((r) => (
                 <tr key={r.d}>

@@ -346,7 +346,7 @@ export function InviteModal({ training, onClose, onInviteNew }: { training: Admi
           ))}
         </div>
         <SearchInput value={q} onChange={setQ} placeholder="Search by name, email or department" />
-        <ul className="max-h-72 divide-y divide-zinc-100 overflow-y-auto rounded-lg border border-zinc-200 scrollbar-thin">
+        <ul className="max-h-72 divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 scrollbar-thin">
           {visible.map((p) => (
             <li key={p.id}>
               <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-zinc-50">

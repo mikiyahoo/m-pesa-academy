@@ -105,7 +105,7 @@ function TemplateModal({ template, onClose }: { template?: CertificateTemplate; 
                   type="button"
                   onClick={() => setForm({ ...form, layout: l.value })}
                   aria-pressed={form.layout === l.value}
-                  className={cn('flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition', form.layout === l.value ? 'border-brand-500 bg-brand-50/60' : 'border-zinc-200 hover:bg-zinc-50')}
+                  className={cn('flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition', form.layout === l.value ? 'border-brand-500 bg-brand-50/60' : 'border-zinc-200 hover:bg-zinc-50')}
                 >
                   <span className={cn('mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border', form.layout === l.value ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-300')}>
                     {form.layout === l.value && <Check className="size-3" />}
@@ -119,7 +119,7 @@ function TemplateModal({ template, onClose }: { template?: CertificateTemplate; 
             </div>
           </div>
         </div>
-        <div className="overflow-hidden rounded-lg border border-zinc-200 shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-zinc-200 shadow-sm">
           <CertificatePreview template={draft} />
         </div>
         <div className="md:col-span-2">
@@ -135,7 +135,7 @@ function TemplateModal({ template, onClose }: { template?: CertificateTemplate; 
                   type="button"
                   aria-pressed={on}
                   onClick={() => setForm({ ...form, assignedTypeIds: on ? form.assignedTypeIds.filter((x) => x !== tt.id) : [...form.assignedTypeIds, tt.id] })}
-                  className={cn('rounded-lg border px-3 py-1.5 text-xs font-medium transition', on ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50')}
+                  className={cn('rounded-xl border px-3 py-1.5 text-xs font-medium transition', on ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50')}
                   title={elsewhere && !on ? 'Currently uses ' + elsewhere.name : undefined}
                 >
                   {tt.name}
@@ -277,7 +277,7 @@ export function AdminTrainingTypes({ byCategory = false }: { byCategory?: boolea
   const card = (t: TrainingType) => (
     <Card key={t.id} className="flex flex-col">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="font-semibold text-zinc-900">{t.name}</h3>
+        <h3 className="font-bold text-zinc-900">{t.name}</h3>
         <Badge tone={levelTone[t.level]}>{t.level.toUpperCase()}</Badge>
       </div>
       <p className="mt-1 flex-1 text-sm text-zinc-500">{t.description || 'No description.'}</p>
@@ -309,7 +309,7 @@ export function AdminTrainingTypes({ byCategory = false }: { byCategory?: boolea
             const items = data.trainingTypes.filter((t) => t.category === c)
             return (
               <section key={c}>
-                <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-900">
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-900">
                   {c} <span className="font-normal text-zinc-500">{items.length}</span>
                 </h2>
                 {items.length ? <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{items.map(card)}</div> : <p className="text-sm text-zinc-500">No types in this category.</p>}

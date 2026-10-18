@@ -26,7 +26,7 @@ export function MaterialPreview({ material, onClose }: { material: Material | nu
 
   return (
     <Modal open onClose={onClose} title={material.title} description={`${material.type} · ${material.minutes} mins · version ${material.version}`} wide>
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-xs text-zinc-500">
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-zinc-100 px-3 py-2 text-xs text-zinc-500">
         <ShieldCheck className="size-3.5" />
         <span>Protected material · M-PESA Training Portal</span>
         {downloadable ? (
@@ -66,7 +66,7 @@ export function MaterialPreview({ material, onClose }: { material: Material | nu
         // The prototype keeps no files, so every presentation opens the bundled sample deck.
         <PptxViewer url="/trainings/Sample Training.pptx" title={material.title} />
       ) : material.type === 'LINK' ? (
-        <div className="rounded-xl border border-zinc-200 p-5">
+        <div className="rounded-2xl border border-zinc-200/80 p-5">
           <p className="text-sm text-zinc-600">{material.description}</p>
           <a href={material.url ?? '#'} onClick={(e) => e.preventDefault()} className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline">
             Open external resource <ExternalLink className="size-3.5" />
@@ -80,7 +80,7 @@ export function MaterialPreview({ material, onClose }: { material: Material | nu
             </span>
             <Badge>{material.type}</Badge>
           </div>
-          <h3 className="mt-6 text-xl font-semibold text-zinc-900">{material.title}</h3>
+          <h3 className="mt-6 text-xl font-bold text-zinc-900">{material.title}</h3>
           <p className="mt-2 text-sm leading-relaxed text-zinc-600">{material.description}</p>
           <h4 className="mt-6 text-sm font-semibold text-zinc-900">Steps</h4>
           <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-zinc-600">

@@ -1,4 +1,4 @@
-import { Download, MoreHorizontal, Plus, UserRoundPlus, Users as UsersIcon, X } from 'lucide-react'
+import { Download, MoreHorizontal, Plus, UserCheck, UserRoundPlus, Users, Users as UsersIcon, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '../../lib/utils'
 import { shortDate } from '../helpers'
@@ -273,7 +273,7 @@ export function AdminUsers() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-zinc-600">{shortDate(p.createdAt)}</td>
                   <td className="relative px-4 py-3 text-right">
-                    <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100" aria-label={`Actions for ${p.name}`}>
+                    <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-full p-1 text-zinc-500 hover:bg-zinc-100" aria-label={`Actions for ${p.name}`}>
                       <MoreHorizontal className="size-4" />
                     </button>
                     {menu === p.id && (
@@ -285,7 +285,7 @@ export function AdminUsers() {
                               setEditing(p)
                               setMenu(null)
                             }}
-                            className="w-full rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100"
+                            className="w-full rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100"
                           >
                             Edit
                           </button>
@@ -293,17 +293,17 @@ export function AdminUsers() {
                             onClick={() => toggleRequester(p)}
                             disabled={!isInternalEmail(p.email)}
                             title={isInternalEmail(p.email) ? undefined : 'Temporary users cannot be requesters'}
-                            className="w-full rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="w-full rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {p.isRequester ? 'Remove requester rights' : 'Make requester'}
                             {!isInternalEmail(p.email) && <span className="block text-xs text-zinc-500">Temporary users cannot request</span>}
                           </button>
                           {p.role === 'Trainer' && (
-                            <button onClick={() => toggleApprover(p)} className="w-full rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">
+                            <button onClick={() => toggleApprover(p)} className="w-full rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">
                               {p.canApprove ? 'Stop approving requests' : 'Allow approving requests'}
                             </button>
                           )}
-                          <button onClick={() => toggleStatus(p)} className="w-full rounded-lg px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">
+                          <button onClick={() => toggleStatus(p)} className="w-full rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">
                             {p.status === 'Active' ? 'Deactivate' : 'Activate'}
                           </button>
                         </div>
@@ -419,7 +419,7 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div>
           <p className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">Members ({members.length})</p>
-          <ul className="max-h-[min(60vh,520px)] divide-y divide-zinc-100 overflow-y-auto rounded-lg border border-zinc-200 scrollbar-thin">
+          <ul className="max-h-[min(60vh,520px)] divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 scrollbar-thin">
             {members.map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-3 py-2">
                 <Avatar name={p.name} size="sm" />
@@ -432,7 +432,11 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
                 </button>
               </li>
             ))}
-            {!members.length && <li className="p-6 text-center text-sm text-zinc-500">No members yet.</li>}
+            {!members.length && (
+              <li>
+                <Empty compact icon={Users} title="No members yet" />
+              </li>
+            )}
           </ul>
         </div>
         <div>
@@ -443,7 +447,7 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
               Add all {others.length}
             </Button>
           </div>
-          <ul className="mt-2 max-h-[min(50vh,440px)] divide-y divide-zinc-100 overflow-y-auto rounded-lg border border-zinc-200 scrollbar-thin">
+          <ul className="mt-2 max-h-[min(50vh,440px)] divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 scrollbar-thin">
             {others.map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-3 py-2">
                 <Avatar name={p.name} size="sm" />
@@ -456,7 +460,11 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
                 </Button>
               </li>
             ))}
-            {!others.length && <li className="p-6 text-center text-sm text-zinc-500">No one else to add.</li>}
+            {!others.length && (
+              <li>
+                <Empty compact icon={UserCheck} title="Everyone is already in" />
+              </li>
+            )}
           </ul>
           <div className="mt-4">
             <Field label="Or paste emails" hint="Separate with commas, spaces or new lines.">
@@ -497,14 +505,14 @@ export function AdminGroups() {
           return (
             <Card key={g.id} className="flex flex-col">
               <div className="flex items-start justify-between gap-3">
-                <span className="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                <span className="grid size-10 place-items-center rounded-xl bg-brand-50 text-brand-600">
                   <UserRoundPlus className="size-5" />
                 </span>
                 <Button size="sm" variant="ghost" onClick={() => setEditing(g)}>
                   Edit
                 </Button>
               </div>
-              <h3 className="mt-3 font-semibold text-zinc-900">{g.name}</h3>
+              <h3 className="mt-3 font-bold text-zinc-900">{g.name}</h3>
               <p className="mt-1 flex-1 text-sm text-zinc-500">{g.description || 'No description.'}</p>
               <div className="mt-4 flex items-center justify-between">
                 <div className="flex -space-x-2">

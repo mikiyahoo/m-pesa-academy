@@ -1,4 +1,5 @@
-import { BookOpen, CornerDownLeft, FileText, GraduationCap, LayoutGrid, Search, User } from 'lucide-react'
+import { Empty } from './ui'
+import { BookOpen, CornerDownLeft, FileText, GraduationCap, LayoutGrid, Search, SearchX, User } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '../lib/utils'
@@ -98,7 +99,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               <button
                 onMouseEnter={() => setActive(i)}
                 onClick={() => go(item)}
-                className={cn('flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm', i === active ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-700')}
+                className={cn('flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm', i === active ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-700')}
               >
                 <item.icon className="size-4 shrink-0 text-zinc-500" />
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -107,7 +108,11 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               </button>
             </li>
           ))}
-          {!items.length && <li className="py-8 text-center text-sm text-zinc-500">No results for “{q}”</li>}
+          {!items.length && (
+            <li>
+              <Empty compact icon={SearchX} title={`No results for “${q}”`} text="Try a training, person or page name." />
+            </li>
+          )}
         </ul>
       </div>
     </div>

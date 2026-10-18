@@ -114,7 +114,7 @@ export function AdminCalendar() {
   const selectedEntries = selected ? (byDate.get(selected) ?? []) : []
 
   const entryRow = (e: Entry) => (
-    <Link key={e.key} to={e.to} className="flex items-start gap-3 rounded-lg p-2.5 transition hover:bg-zinc-50">
+    <Link key={e.key} to={e.to} className="flex items-start gap-3 rounded-xl p-2.5 transition hover:bg-zinc-50">
       <span className={cn('mt-1.5 size-2 shrink-0 rounded-full', KIND[e.kind].dot)} />
       <span className="min-w-0 flex-1">
         <span className={cn('block text-sm font-medium text-zinc-900', e.kind === 'cancelled' && 'line-through opacity-70')}>{e.title}</span>
@@ -191,14 +191,14 @@ export function AdminCalendar() {
               </option>
             ))}
           </Select>
-          <div className="flex rounded-lg border border-zinc-200 p-0.5">
+          <div className="flex rounded-xl border border-zinc-200 p-0.5">
             {(
               [
                 ['month', CalendarDays, 'Month view'],
                 ['agenda', List, 'Agenda view'],
               ] as const
             ).map(([v, Icon, label]) => (
-              <button key={v} onClick={() => setView(v)} aria-label={label} aria-pressed={view === v} className={cn('rounded-md p-1.5', view === v ? 'bg-charcoal text-white' : 'text-zinc-500 hover:bg-zinc-100')}>
+              <button key={v} onClick={() => setView(v)} aria-label={label} aria-pressed={view === v} className={cn('rounded-lg p-1.5', view === v ? 'bg-charcoal text-white' : 'text-zinc-500 hover:bg-zinc-100')}>
                 <Icon className="size-4" />
               </button>
             ))}
@@ -326,7 +326,7 @@ export function AdminCalendar() {
                 <h3 className="font-bold text-zinc-900">This month</h3>
                 <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
                   {(Object.keys(KIND) as Kind[]).map((k) => (
-                    <div key={k} className="rounded-lg bg-zinc-50 p-3">
+                    <div key={k} className="rounded-xl bg-zinc-50 p-3">
                       <dt className="flex items-center gap-1.5 text-xs text-zinc-500">
                         <span className={cn('size-2 rounded-full', KIND[k].dot)} /> {KIND[k].label}
                       </dt>

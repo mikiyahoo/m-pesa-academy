@@ -11,7 +11,7 @@ export function Card({ className, children }: { className?: string; children: Re
 export function CardTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-4 flex items-center justify-between gap-3">
-      <h2 className="font-semibold text-zinc-900">{children}</h2>
+      <h2 className="text-base font-bold text-zinc-900">{children}</h2>
       {action}
     </div>
   )
@@ -24,7 +24,7 @@ export function Button({ variant = 'outline', size = 'md', className, ...props }
     <button
       {...props}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50',
+        'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50',
         size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm',
         variant === 'primary' && 'bg-brand-600 text-white shadow-xs hover:bg-brand-700 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-brand-500/20',
         variant === 'outline' && 'border border-zinc-200 bg-surface text-zinc-800 shadow-xs hover:bg-zinc-50 hover:border-zinc-300',
@@ -231,31 +231,31 @@ export function Modal({ open, onClose, title, description, children, footer, wid
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className={cn('relative flex max-h-[92vh] w-full flex-col rounded-t-2xl bg-surface shadow-2xl outline-none sm:rounded-2xl', wide ? 'sm:max-w-3xl' : 'sm:max-w-lg')}
+        className={cn('relative flex max-h-[92vh] w-full flex-col rounded-t-3xl bg-surface shadow-2xl outline-none sm:rounded-3xl', wide ? 'sm:max-w-3xl' : 'sm:max-w-lg')}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-zinc-200 p-5">
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-100 p-5 sm:px-6">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold text-zinc-900">{title}</h2>
+            <h2 id={titleId} className="text-lg leading-tight font-bold text-zinc-900">{title}</h2>
             {description && <p id={descId} className="mt-0.5 text-sm text-zinc-500">{description}</p>}
           </div>
           <button onClick={onClose} className="rounded-full p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900" aria-label="Close">
             <X className="size-5" />
           </button>
         </div>
-        <div className="overflow-y-auto p-5 scrollbar-thin">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-zinc-200 p-4">{footer}</div>}
+        <div className="overflow-y-auto p-5 scrollbar-thin sm:px-6">{children}</div>
+        {footer && <div className="flex justify-end gap-2 border-t border-zinc-100 p-4 sm:px-6">{footer}</div>}
       </div>
     </div>
   )
 }
 
-export function Empty({ icon: Icon, title, text, action }: { icon: React.ComponentType<{ className?: string }>; title: string; text?: string; action?: ReactNode }) {
+export function Empty({ icon: Icon, title, text, action, compact = false }: { icon: React.ComponentType<{ className?: string }>; title: string; text?: string; action?: ReactNode; compact?: boolean }) {
   return (
-    <div className="flex flex-col items-center px-6 py-12 text-center">
-      <span className="grid size-14 place-items-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/15">
-        <Icon className="size-7" />
+    <div className={cn('flex flex-col items-center px-6 text-center', compact ? 'py-8' : 'py-12')}>
+      <span className={cn('grid place-items-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/15', compact ? 'size-11' : 'size-14')}>
+        <Icon className={compact ? 'size-5' : 'size-7'} />
       </span>
-      <p className="mt-4 text-base font-bold text-zinc-900">{title}</p>
+      <p className={cn('font-bold text-zinc-900', compact ? 'mt-3 text-sm' : 'mt-4 text-base')}>{title}</p>
       {text && <p className="mt-1 max-w-sm text-sm text-zinc-500">{text}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>

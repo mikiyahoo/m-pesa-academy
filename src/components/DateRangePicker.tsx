@@ -71,7 +71,7 @@ export function DateRangePicker({ value, onChange, className }: { value: Range; 
                     onChange(p.range)
                     setOpen(false)
                   }}
-                  className={cn('flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition', current?.label === p.label ? 'bg-brand-50 font-semibold text-brand-700' : 'text-zinc-700 hover:bg-zinc-100')}
+                  className={cn('flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-sm transition', current?.label === p.label ? 'bg-brand-50 font-semibold text-brand-700' : 'text-zinc-700 hover:bg-zinc-100')}
                 >
                   {p.label}
                   {current?.label === p.label && <Check className="size-4" />}

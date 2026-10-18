@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils'
 import { attended, bestScore, eligibility, type AttendanceMark } from '../insights'
 import type { AdminData, AdminTraining } from '../types'
 import { useAdmin } from '../store'
-import { Avatar, Button, Card, CardTitle, ProgressBar, StatCard, Table, Tabs } from '../ui'
+import { Avatar, Button, Card, CardTitle, Empty, ProgressBar, StatCard, Table, Tabs } from '../ui'
 import { AppreciationModal, type Recipient } from './AppreciationModal'
 import type { Sheet } from './export'
 
@@ -237,7 +237,11 @@ export function TopTraineesView({ rows }: { rows: TraineeRow[] }) {
                 </span>
               </li>
             ))}
-            {!ranks.length && <li className="py-8 text-center text-sm text-zinc-500">No teams for these filters.</li>}
+            {!ranks.length && (
+              <li>
+                <Empty compact icon={Users} title="No teams for these filters" />
+              </li>
+            )}
           </ol>
         </Card>
       </div>

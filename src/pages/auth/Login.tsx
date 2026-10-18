@@ -55,17 +55,12 @@ export function Login() {
 
   return (
     <AuthShell>
-      <div className="mb-8 lg:hidden">
-        <p className="text-[2.5rem] font-extrabold tracking-tight text-brand-600">
-          m<span className="text-mpesa-500">-</span>pesa
-        </p>
-      </div>
-      <h2 className="text-2xl font-semibold tracking-tight">Welcome back</h2>
+      <h2 className="text-2xl font-bold tracking-tight">Welcome back</h2>
       <p className="mt-1 text-sm text-zinc-500">
         Sign in to continue to M-PESA Academy.
       </p>
       {notice && (
-        <p className="mt-4 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
+        <p className="mt-4 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
           {notice}
         </p>
       )}
@@ -83,7 +78,7 @@ export function Login() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="name@mpesa.et"
-              className="w-full rounded-lg border border-zinc-200 py-2.5 pr-3 pl-9 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="w-full rounded-xl border border-zinc-200 py-2.5 pr-3 pl-9 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
           </div>
         </label>
@@ -106,7 +101,7 @@ export function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full rounded-lg border border-zinc-200 py-2.5 pr-10 pl-9 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="w-full rounded-xl border border-zinc-200 py-2.5 pr-10 pl-9 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
             <button
               type="button"
@@ -134,14 +129,14 @@ export function Login() {
         </label>
 
         {error && (
-          <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
+          <p className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">
             {error}
           </p>
         )}
 
         <button
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-70"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-70"
         >
           {loading && <Loader2 className="size-4 animate-spin" />}
           Sign in
@@ -157,7 +152,7 @@ export function Login() {
           <Info className="size-3.5" /> Show demo accounts
         </button>
       ) : (
-        <div className="mt-8 flex gap-3 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-3 text-xs text-zinc-600">
+        <div className="mt-8 flex gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-3 text-xs text-zinc-600">
           <Info className="mt-0.5 size-4 shrink-0 text-zinc-400" />
           <div className="flex-1">
             <div className="flex items-start justify-between gap-2">
@@ -168,7 +163,7 @@ export function Login() {
                 type="button"
                 onClick={() => toggleDemo(false)}
                 aria-label="Close demo accounts"
-                className="-mt-1 -mr-1 rounded-md p-1 text-zinc-400 hover:bg-zinc-200/60 hover:text-zinc-700"
+                className="-mt-1 -mr-1 rounded-full p-1 text-zinc-400 hover:bg-zinc-200/60 hover:text-zinc-700"
               >
                 <X className="size-3.5" />
               </button>

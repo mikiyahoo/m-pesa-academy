@@ -85,7 +85,7 @@ export function AdminCategories() {
               <Card key={c.id} className="flex flex-col gap-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="font-semibold text-zinc-900">{c.name}</h3>
+                    <h3 className="font-bold text-zinc-900">{c.name}</h3>
                     <p className="mt-0.5 text-sm text-zinc-500">{c.description || 'No description.'}</p>
                     <p className="mt-1 text-xs text-zinc-400">
                       Used by {used} training{used === 1 ? '' : 's'} or request{used === 1 ? '' : 's'}

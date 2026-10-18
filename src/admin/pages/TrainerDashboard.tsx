@@ -93,13 +93,13 @@ export function TrainerDashboard() {
             <CardTitle>To do</CardTitle>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link to="/admin/submissions" className="flex items-center gap-3 rounded-lg bg-zinc-50 px-3 py-2.5 hover:bg-zinc-100">
+                <Link to="/admin/submissions" className="flex items-center gap-3 rounded-xl bg-zinc-50 px-3 py-2.5 hover:bg-zinc-100">
                   <ClipboardCheck className="size-4 text-amber-600" />
                   <span className="flex-1">Answers to grade</span>
                   <span className="font-semibold">{needsGrading}</span>
                 </Link>
               </li>
-              <li className="flex items-center gap-3 rounded-lg bg-zinc-50 px-3 py-2.5">
+              <li className="flex items-center gap-3 rounded-xl bg-zinc-50 px-3 py-2.5">
                 <FileQuestion className="size-4 text-brand-600" />
                 <span className="flex-1">Requests assigned to you, not yet scheduled</span>
                 <span className="font-semibold">{pendingRequests.length}</span>
@@ -127,7 +127,7 @@ export function TrainerDashboard() {
         </div>
       </div>
 
-      <h2 className="mt-6 mb-3 font-semibold text-zinc-900">Past sessions</h2>
+      <h2 className="mt-6 mb-3 font-bold text-zinc-900">Past sessions</h2>
       <Table head={['Session', 'Date', 'Attendance', 'Feedback', 'Avg score', 'Certificates']} minWidth={760}>
         {past.map((t) => {
           const subs = data.submissions.filter((s) => s.trainingId === t.id && s.score !== undefined)

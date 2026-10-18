@@ -1,4 +1,4 @@
-import { Ban, CalendarPlus, Copy, Download, Mail, MoreHorizontal, Pencil, RotateCcw, Upload, UserPlus, Users } from 'lucide-react'
+import { Ban, CalendarPlus, Copy, Download, GraduationCap, Mail, MoreHorizontal, Pencil, RotateCcw, Upload, UserPlus, Users } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
@@ -9,6 +9,7 @@ import { uid, useAdmin } from '../store'
 import { acceptLink, accessLabel, accessState, addDays, DEFAULT_GRACE_DAYS, daysLeft, isTemporary, makeInviteToken, trainingsFor, type AccessState } from '../temporary'
 import type { Person, RequestParticipant } from '../types'
 import { Avatar, Badge, Button, Card, downloadCsv, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, Table, Tabs } from '../ui'
+import { FullPageDialog } from '../Wizard'
 
 const stateTone: Record<AccessState, 'zinc' | 'green' | 'red' | 'amber' | 'blue'> = {
   pending: 'blue',
@@ -104,15 +105,13 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
   }
 
   return (
-    <Modal
-      open
-      wide
+    <FullPageDialog
       onClose={onClose}
       title="Invite temporary users"
-      description="External trainees get an email with a personal sign-in link. They verify with a code — no password."
+      subtitle={`${toInvite.length} to invite`}
       footer={
         <>
-          <span className="mr-auto self-center text-xs text-zinc-500">{problems[0] ?? `${toInvite.length} to invite`}</span>
+          <span className="mr-auto self-center text-xs text-zinc-500">{problems[0] ?? 'Each person gets a personal sign-in link and verifies with a code.'}</span>
           <Button onClick={onClose}>Cancel</Button>
           <Button variant="primary" disabled={problems.length > 0} onClick={invite}>
             <UserPlus className="size-4" /> Invite {toInvite.length || ''}
@@ -120,9 +119,14 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
         </>
       }
     >
-      <div className="space-y-6">
-        <section className="space-y-3">
-          <h3 className="text-sm font-semibold text-zinc-900">People</h3>
+      <div className="divide-y divide-zinc-100 [&>section]:py-6 [&>section:first-child]:pt-0">
+        <section className="space-y-4">
+          <h3 className="flex items-center gap-3 text-base font-bold text-zinc-900">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+              <Users className="size-4" />
+            </span>
+            People
+          </h3>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1.2fr_auto]">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" aria-label="Name" />
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addOne())} placeholder="name@company.com" aria-label="Email" />
@@ -139,7 +143,7 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
                 rows={4}
                 aria-label="Paste list"
                 placeholder={'name,email\nLiya Bekele,liya.bekele@gmail.com'}
-                className="w-full rounded-lg border border-zinc-200 bg-surface px-3 py-2 font-mono text-xs text-zinc-900 outline-none focus:border-brand-500"
+                className="w-full rounded-xl border border-zinc-200 bg-surface px-3 py-2 font-mono text-xs text-zinc-900 outline-none focus:border-brand-500"
               />
               <div className="flex gap-2">
                 <Button size="sm" disabled={!paste.trim()} onClick={() => (importText(paste), setPaste(''))}>
@@ -188,7 +192,7 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
                     placeholder="Name required"
                     aria-label={`Name for ${r.email}`}
                     disabled={!!r.known || r.internal}
-                    className={cn('w-40 min-w-0 rounded border bg-transparent px-2 py-1 text-sm text-zinc-900 outline-none focus:border-brand-500', !r.name.trim() && !r.known && !r.internal ? 'border-amber-500' : 'border-transparent')}
+                    className={cn('w-40 min-w-0 rounded-lg border bg-transparent px-2 py-1 text-sm text-zinc-900 outline-none focus:border-brand-500', !r.name.trim() && !r.known && !r.internal ? 'border-amber-500' : 'border-transparent')}
                   />
                   <span className="min-w-0 flex-1 truncate text-zinc-600">{r.email}</span>
                   {r.known ? (
@@ -218,8 +222,13 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <h3 className="text-sm font-semibold text-zinc-900 sm:col-span-2">Access window</h3>
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <h3 className="flex items-center gap-3 text-base font-bold text-zinc-900 sm:col-span-2">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+              <CalendarPlus className="size-4" />
+            </span>
+            Access window
+          </h3>
           <Field label="Access starts">
             <Input type="date" min={today} value={start} onChange={(e) => setStart(e.target.value)} />
           </Field>
@@ -228,8 +237,13 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
           </Field>
         </section>
 
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <h3 className="text-sm font-semibold text-zinc-900 sm:col-span-2">Add them to</h3>
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <h3 className="flex items-center gap-3 text-base font-bold text-zinc-900 sm:col-span-2">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+              <GraduationCap className="size-4" />
+            </span>
+            Add them to
+          </h3>
           <Field label="Training (optional)">
             <Select
               value={addTo}
@@ -252,12 +266,14 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
           </Field>
         </section>
 
-        <label className="flex items-center gap-2 text-sm text-zinc-700">
-          <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="size-4 accent-brand-600" />
-          <Mail className="size-4 text-zinc-500" /> Email each person their sign-in link
-        </label>
+        <section>
+          <label className="flex items-center gap-2 text-sm text-zinc-700">
+            <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="size-4 accent-brand-600" />
+            <Mail className="size-4 text-zinc-500" /> Email each person their sign-in link
+          </label>
+        </section>
       </div>
-    </Modal>
+    </FullPageDialog>
   )
 }
 
@@ -532,20 +548,20 @@ export function AdminTemporaryAccess() {
                 <td className="px-4 py-3 text-zinc-600">{trainingsFor(p.id, data.trainings).length}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-zinc-600">{p.lastSignInAt ? dateTime(p.lastSignInAt) : p.acceptedAt ? dateTime(p.acceptedAt) : 'Never'}</td>
                 <td className="relative px-4 py-3 text-right">
-                  <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100" aria-label={`Actions for ${p.name}`}>
+                  <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-full p-1 text-zinc-500 hover:bg-zinc-100" aria-label={`Actions for ${p.name}`}>
                     <MoreHorizontal className="size-4" />
                   </button>
                   {menu === p.id && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setMenu(null)} />
                       <div className="absolute right-4 z-20 mt-1 w-52 rounded-xl border border-zinc-200 bg-surface p-1 text-left text-sm shadow-lg">
-                        <button onClick={() => (setEditingPerson(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-zinc-700 hover:bg-zinc-100">
+                        <button onClick={() => (setEditingPerson(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
                           <Pencil className="size-4" /> Edit invite
                         </button>
-                        <button onClick={() => (setExtending(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-zinc-700 hover:bg-zinc-100">
+                        <button onClick={() => (setExtending(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
                           <CalendarPlus className="size-4" /> Extend access
                         </button>
-                        <button onClick={() => copy(p)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-zinc-700 hover:bg-zinc-100">
+                        <button onClick={() => copy(p)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
                           <Copy className="size-4" /> Copy sign-in link
                         </button>
                         <button
@@ -554,16 +570,16 @@ export function AdminTemporaryAccess() {
                             update((d) => d, { action: 'Resent invite email', target: p.name, silent: true })
                             toast(`Invite email resent to ${p.email}`)
                           }}
-                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-zinc-700 hover:bg-zinc-100"
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"
                         >
                           <Mail className="size-4" /> Resend invite
                         </button>
                         {state === 'revoked' ? (
-                          <button onClick={() => setRevoked(p, false)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-zinc-700 hover:bg-zinc-100">
+                          <button onClick={() => setRevoked(p, false)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
                             <RotateCcw className="size-4" /> Restore access
                           </button>
                         ) : (
-                          <button onClick={() => setRevoked(p, true)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-brand-700 hover:bg-brand-50">
+                          <button onClick={() => setRevoked(p, true)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-brand-700 hover:bg-brand-50">
                             <Ban className="size-4" /> Revoke access
                           </button>
                         )}

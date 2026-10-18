@@ -258,7 +258,7 @@ export function CalendarSidebar({
           {selected !== today && (
             <button
               onClick={goToday}
-              className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+              className="rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
             >
               Today
             </button>

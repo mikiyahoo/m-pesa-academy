@@ -170,7 +170,7 @@ export function AdminRequests() {
               <Card key={r.id} className="flex flex-col gap-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="font-semibold text-zinc-900">{r.topic}</h3>
+                    <h3 className="font-bold text-zinc-900">{r.topic}</h3>
                     <p className="mt-0.5 text-xs text-zinc-500">
                       {type?.name} · {r.categories.join(', ')}
                     </p>
@@ -204,12 +204,12 @@ export function AdminRequests() {
                 <p className="line-clamp-2 text-sm text-zinc-600">{r.objectives}</p>
 
                 {dupes.length > 0 && (
-                  <p className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-800">
+                  <p className="flex items-center gap-2 rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-800">
                     <AlertTriangle className="size-3.5 shrink-0" /> Possible duplicate of “{dupes[0].topic}”
                   </p>
                 )}
                 {r.status === 'REJECTED' && r.rejection && (
-                  <p className="rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
+                  <p className="rounded-xl bg-brand-50 px-3 py-2 text-xs text-brand-800">
                     <span className="font-semibold">{r.rejection.reason}</span>
                     {r.rejection.comment && ` — ${r.rejection.comment}`}
                   </p>

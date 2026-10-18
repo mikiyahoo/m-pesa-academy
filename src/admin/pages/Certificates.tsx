@@ -127,7 +127,7 @@ export function AdminCertificates() {
           </p>
           <ul className="mt-3 space-y-2">
             {notTriggered.map((r) => (
-              <li key={r.t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-sm">
+              <li key={r.t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface px-3 py-2 text-sm">
                 <span>
                   <span className="font-medium">{r.t.name}</span> <span className="text-zinc-500">· {shortDate(r.t.date)} · {r.pending} eligible</span>
                 </span>
@@ -177,7 +177,7 @@ export function AdminCertificates() {
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <SearchInput value={query} onChange={setQuery} placeholder="Search trainees…" className="w-full sm:w-64" />
                       <div className="flex gap-2">
-                        <Link to={`/admin/trainings/${r.t.id}`} className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100">
+                        <Link to={`/admin/trainings/${r.t.id}`} className="inline-flex items-center rounded-xl px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100">
                           Open session
                         </Link>
                         <Button variant="primary" onClick={() => run(r.t)} disabled={!r.pending}>
@@ -266,7 +266,7 @@ export function AdminCertificates() {
             </>
           }
         >
-          <div ref={previewArt} className="overflow-hidden rounded-lg border border-zinc-200">
+          <div ref={previewArt} className="overflow-hidden rounded-xl border border-zinc-200">
             <CertificatePreview
               template={data.templates.find((t) => t.id === preview.c.templateId) ?? templateFor(data, preview.t)}
               name={name(preview.c.personId)}

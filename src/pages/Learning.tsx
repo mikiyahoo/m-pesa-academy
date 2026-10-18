@@ -58,42 +58,50 @@ export function ViewToggle<V extends TrainingsView>({
   onChange: (v: V) => void;
   calendar?: boolean;
 }) {
+  const options = [
+    ["grid", LayoutGrid, "Grid view"],
+    ["list", List, "List view"],
+    ...(calendar ? ([["calendar", CalendarDays, "Calendar view"]] as const) : []),
+  ] as const;
+  const choose = (v: TrainingsView) => {
+    onChange(v as V);
+    // The calendar is a per-visit choice; grid / list is remembered.
+    if (v === "calendar") return;
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // Remembering the view is a convenience only.
+    }
+  };
+  const index = Math.max(0, options.findIndex(([v]) => v === view));
+  const [, CurrentIcon, currentLabel] = options[index];
+  const [nextView, , nextLabel] = options[(index + 1) % options.length];
   return (
-    <div className="flex rounded-xl border border-zinc-200 p-0.5">
-      {(
-        [
-          ["grid", LayoutGrid, "Grid view"],
-          ["list", List, "List view"],
-          ...(calendar
-            ? ([["calendar", CalendarDays, "Calendar view"]] as const)
-            : []),
-        ] as const
-      ).map(([v, Icon, label]) => (
-        <button
-          key={v}
-          onClick={() => {
-            onChange(v as V);
-            // The calendar is a per-visit choice; grid / list is remembered.
-            if (v === "calendar") return;
-            try {
-              localStorage.setItem(VIEW_KEY, v);
-            } catch {
-              // Remembering the view is a convenience only.
-            }
-          }}
-          aria-label={label}
-          aria-pressed={view === v}
-          className={cn(
-            "rounded-lg p-1.5 transition",
-            view === v
-              ? "bg-charcoal text-white"
-              : "text-zinc-500 hover:bg-zinc-100",
-          )}
-        >
-          <Icon className="size-4" />
-        </button>
-      ))}
-    </div>
+    <>
+      {/* Phones: one button showing the current view; each tap moves to the next. */}
+      <button
+        type="button"
+        onClick={() => choose(nextView)}
+        aria-label={`${currentLabel} — switch to ${nextLabel.toLowerCase()}`}
+        title={`Switch to ${nextLabel.toLowerCase()}`}
+        className="grid size-10 shrink-0 place-items-center rounded-xl bg-charcoal text-white transition hover:bg-charcoal-light sm:hidden"
+      >
+        <CurrentIcon className="size-4" />
+      </button>
+      <div className="hidden rounded-xl border border-zinc-200 p-0.5 sm:flex">
+        {options.map(([v, Icon, label]) => (
+          <button
+            key={v}
+            onClick={() => choose(v)}
+            aria-label={label}
+            aria-pressed={view === v}
+            className={cn("rounded-lg p-1.5 transition", view === v ? "bg-charcoal text-white" : "text-zinc-500 hover:bg-zinc-100")}
+          >
+            <Icon className="size-4" />
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -199,8 +207,24 @@ export function Learning() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200/80 bg-white p-2.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200/80 bg-white p-2.5 sm:gap-3">
+        {/* Phones: status and category dropdowns plus one view button, all in a row. */}
+        <label className="relative min-w-0 flex-[1.1] sm:hidden">
+          <span className="sr-only">Show</span>
+          <select
+            value={tab}
+            onChange={(e) => setTab(e.target.value as Tab)}
+            className="h-10 w-full appearance-none rounded-xl bg-brand-600 pr-7 pl-3 text-xs font-semibold text-white shadow-sm shadow-brand-600/30 outline-none focus:ring-2 focus:ring-brand-200"
+          >
+            {tabs.map((t) => (
+              <option key={t.value} value={t.value} className="bg-white text-zinc-900">
+                {t.label} ({counts[t.value] ?? 0})
+              </option>
+            ))}
+          </select>
+          <ChevronRight className="pointer-events-none absolute top-1/2 right-2 size-4 -translate-y-1/2 rotate-90 text-white" />
+        </label>
+        <div className="hidden min-w-0 flex-wrap items-center gap-2 sm:flex">
           <SegmentTabs
             label="Filter trainings by status"
             items={statusTabs.map((t) => ({
@@ -221,21 +245,21 @@ export function Learning() {
             onChange={setTab}
           />
         </div>
-        <div className="flex items-center gap-2">
-          <label className="relative">
+        <div className="flex items-center gap-2 max-sm:contents">
+          <label className="relative max-sm:min-w-0 max-sm:flex-1">
             <span className="sr-only">Category</span>
-            <Filter className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-500" />
+            <Filter className="pointer-events-none absolute top-1/2 left-3 hidden size-4 -translate-y-1/2 text-zinc-500 sm:block" />
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="appearance-none rounded-xl border border-zinc-200 bg-white py-2 pr-9 pl-9 text-sm text-zinc-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="appearance-none rounded-xl border border-zinc-200 bg-white py-2 pr-9 pl-9 max-sm:h-10 max-sm:w-full max-sm:pr-7 max-sm:pl-3 max-sm:text-xs text-sm text-zinc-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             >
               <option value="">All Categories</option>
               {categories.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
-            <ChevronRight className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 rotate-90 text-zinc-500" />
+            <ChevronRight className="pointer-events-none absolute top-1/2 right-3 size-4 max-sm:right-2 -translate-y-1/2 rotate-90 text-zinc-500" />
           </label>
           <ViewToggle view={view} onChange={setView} calendar />
         </div>

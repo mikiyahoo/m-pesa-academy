@@ -513,7 +513,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                       aria-checked={f.repeat === v}
                       onClick={() => set('repeat', v)}
                       className={cn(
-                        'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                        'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition',
                         f.repeat === v ? 'bg-surface text-zinc-900 shadow-xs' : 'text-zinc-600 hover:text-zinc-900',
                       )}
                     >
@@ -627,7 +627,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
             <div className="space-y-3">
               <label className="block text-sm font-semibold text-zinc-900">Target learner groups</label>
               {(preset?.participantIds?.length ?? 0) > 0 && (
-                <p className="text-xs text-mpesa-700 bg-mpesa-500/10 border border-mpesa-500/30 rounded-lg px-3 py-1.5 font-medium">
+                <p className="text-xs text-mpesa-700 bg-mpesa-500/10 border border-mpesa-500/30 rounded-xl px-3 py-1.5 font-medium">
                   ✓ {preset!.participantIds!.length} participants from the approved request are already included.
                 </p>
               )}

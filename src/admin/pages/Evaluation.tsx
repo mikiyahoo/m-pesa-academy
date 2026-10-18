@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ClipboardList, Copy, FileText, Library, ListChecks, MessageSquare, Plus, Settings2, Star, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ClipboardList, Copy, FileQuestion, FileText, Library, ListChecks, MessageSquare, Plus, Settings2, Star, Trash2 } from 'lucide-react'
 import { Wizard, WizardCard } from '../Wizard'
 import { useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
@@ -67,7 +67,7 @@ function FeedbackBankPicker({ onAdd, onClose }: { onAdd: (q: DraftQuestion[]) =>
                 .filter((q) => q.category === c)
                 .map((q) => (
                   <li key={q.id}>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50">
+                    <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50">
                       <input
                         type="checkbox"
                         checked={picked.has(q.id)}
@@ -160,7 +160,7 @@ function FormModal({ form, onClose }: { form?: FeedbackForm; onClose: () => void
           <p className="mb-1.5 text-sm font-medium text-zinc-700">Questions</p>
           <ol className="space-y-2">
             {questions.map((q, i) => (
-              <li key={i} className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-2.5 sm:flex-row sm:items-center">
+              <li key={i} className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-2.5 sm:flex-row sm:items-center">
                 <span className="hidden w-5 text-center text-xs font-semibold text-zinc-400 sm:block">{i + 1}</span>
                 <Input value={q.question} onChange={(e) => setQ(i, { question: e.target.value })} placeholder={`Question ${i + 1}`} className="flex-1" />
                 <div className="flex items-center gap-1">
@@ -206,7 +206,7 @@ function FormModal({ form, onClose }: { form?: FeedbackForm; onClose: () => void
                   type="button"
                   aria-pressed={on}
                   onClick={() => setTypes(on ? types.filter((x) => x !== tt.id) : [...types, tt.id])}
-                  className={cn('rounded-lg border px-3 py-1.5 text-xs font-medium transition', on ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50')}
+                  className={cn('rounded-xl border px-3 py-1.5 text-xs font-medium transition', on ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50')}
                 >
                   {tt.name}
                   {other && !on && <span className="ml-1 text-zinc-400">({other.title})</span>}
@@ -308,14 +308,14 @@ export function AdminFeedbackForms() {
             return (
               <Card key={f.id}>
                 <div className="flex items-start justify-between gap-3">
-                  <span className="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                  <span className="grid size-10 place-items-center rounded-xl bg-brand-50 text-brand-600">
                     <MessageSquare className="size-5" />
                   </span>
                   <Button size="sm" variant="ghost" onClick={() => setEditing(f)}>
                     Edit
                   </Button>
                 </div>
-                <h3 className="mt-3 font-semibold text-zinc-900">{f.title}</h3>
+                <h3 className="mt-3 font-bold text-zinc-900">{f.title}</h3>
                 <p className="mt-0.5 text-xs text-zinc-500">
                   Template for: {f.trainingTypeIds?.length ? f.trainingTypeIds.map((id) => data.trainingTypes.find((t) => t.id === id)?.name ?? id).join(', ') : 'no training type'}
                 </p>
@@ -532,7 +532,7 @@ function BankPicker({ onAdd, onClose }: { onAdd: (q: AssessmentQuestion) => void
             </Button>
           </div>
         ))}
-        {rows.length === 0 && <p className="py-6 text-center text-sm text-zinc-500">No questions in this category.</p>}
+        {rows.length === 0 && <Empty compact icon={FileQuestion} title="No questions in this category" />}
       </div>
     </Modal>
   )
@@ -645,15 +645,15 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
       {step === 'settings' && (
         <WizardCard icon={Settings2} title="Settings">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <label className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm">
+        <label className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
           <input type="checkbox" className="accent-mpesa-600" checked={mandatory} onChange={(e) => setMandatory(e.target.checked)} />
           Mandatory — must pass to complete
         </label>
-        <label className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm">
+        <label className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
           <input type="checkbox" className="accent-mpesa-600" checked={shuffle} onChange={(e) => setShuffle(e.target.checked)} />
           Shuffle question order
         </label>
-        <label className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm">
+        <label className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
           <input type="checkbox" className="accent-mpesa-600" checked={lockAfterDeadline} onChange={(e) => setLockAfterDeadline(e.target.checked)} />
           Lock after deadline
         </label>
@@ -934,12 +934,12 @@ export function AdminAssessments() {
             return (
               <Card key={a.id} className="flex flex-col">
                 <div className="flex items-start justify-between gap-3">
-                  <span className="grid size-10 place-items-center rounded-lg bg-zinc-100 text-zinc-700">
+                  <span className="grid size-10 place-items-center rounded-xl bg-zinc-100 text-zinc-700">
                     <ClipboardList className="size-5" />
                   </span>
                   <Badge tone={kind === 'PRE' ? 'blue' : 'green'}>{kind}</Badge>
                 </div>
-                <h3 className="mt-3 font-semibold text-zinc-900">{a.title}</h3>
+                <h3 className="mt-3 font-bold text-zinc-900">{a.title}</h3>
                 <p className="mt-1 flex-1 text-sm text-zinc-500">
                   {a.questions.length} questions · {a.passMark ? `pass mark ${a.passMark}%` : 'not graded'} · used in {used.length} training{used.length === 1 ? '' : 's'}
                 </p>
@@ -988,14 +988,14 @@ export function AdminAssessments() {
                 {q.type === 'mcq' ? (
                   <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {(q.options ?? []).map((o, oi) => (
-                      <li key={oi} className={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-sm', oi === q.answer ? 'border-mpesa-500 bg-mpesa-500/10 text-zinc-900' : 'border-zinc-200 text-zinc-600')}>
+                      <li key={oi} className={cn('flex items-center gap-2 rounded-xl border px-3 py-2 text-sm', oi === q.answer ? 'border-mpesa-500 bg-mpesa-500/10 text-zinc-900' : 'border-zinc-200 text-zinc-600')}>
                         {oi === q.answer && <CheckCircle2 className="size-4 text-mpesa-600" />}
                         {o}
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
+                  <p className="mt-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
                     {typeof q.answer === 'string' && q.answer ? q.answer : 'Graded manually — no model answer set.'}
                   </p>
                 )}
@@ -1068,7 +1068,7 @@ function SubmissionView({ submission, onClose }: { submission: AssessmentSubmiss
                   )}
                 </div>
               ) : (
-                <div className="mt-1.5 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
+                <div className="mt-1.5 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
                   {typeof answer === 'string' && answer ? answer : <span className="italic text-zinc-400">No answer</span>}
                   {typeof q.answer === 'string' && q.answer && <p className="mt-2 border-t border-zinc-200 pt-2 text-xs text-zinc-500">Model answer: {q.answer}</p>}
                 </div>

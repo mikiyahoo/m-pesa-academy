@@ -440,7 +440,7 @@ function OutlinePanel({
     <>
       <div className="flex items-start justify-between gap-3 border-b border-zinc-100 px-5 pt-5 pb-4">
         <div className="min-w-0">
-          <h2 className="text-lg leading-snug font-semibold text-zinc-900">
+          <h2 className="text-lg leading-snug font-bold text-zinc-900">
             {trainingTitle}
           </h2>
           {onClose && (

@@ -311,9 +311,9 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
     <Card className="p-0">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 p-5">
         <div>
-          <h2 className="flex items-center gap-2 font-semibold text-zinc-900">
+          <h2 className="flex items-center gap-2 font-bold text-zinc-900">
             Check-in
-            <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-semibold text-brand-600">
+            <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-1.5 py-0.5 text-[11px] font-semibold text-brand-600">
               <QrCode className="size-3" /> Self-service
             </span>
           </h2>
@@ -341,11 +341,11 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
 
       {open && session && (
         <div className="flex flex-wrap items-center gap-5 border-b border-zinc-200 bg-zinc-50/60 px-5 py-4">
-          <div className="flex items-center gap-4 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-4 rounded-2xl border border-zinc-200/80 bg-surface p-3">
             {qr ? (
-              <img src={qr} alt="Check-in QR code" className="size-[110px] rounded-lg" />
+              <img src={qr} alt="Check-in QR code" className="size-[110px] rounded-xl" />
             ) : (
-              <span className="grid size-[110px] place-items-center rounded-lg bg-zinc-100 text-zinc-400">
+              <span className="grid size-[110px] place-items-center rounded-xl bg-zinc-100 text-zinc-400">
                 <QrCode className="size-10" />
               </span>
             )}
@@ -377,26 +377,26 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
       )}
 
       <div className="grid grid-cols-2 gap-3 border-b border-zinc-200 p-5 sm:grid-cols-4">
-        <div className="rounded-lg border border-zinc-200 p-3">
+        <div className="rounded-xl border border-zinc-200 p-3">
           <p className="text-xs text-zinc-500">Checked in</p>
           <p className="mt-0.5 text-xl font-bold text-zinc-900">
             {checkins.length}
             <span className="text-sm font-medium text-zinc-400"> / {participants.length}</span>
           </p>
         </div>
-        <div className="rounded-lg border border-zinc-200 p-3">
+        <div className="rounded-xl border border-zinc-200 p-3">
           <p className="flex items-center gap-1.5 text-xs text-zinc-500">
             <span className="size-2 rounded-full bg-mpesa-500" /> Present
           </p>
           <p className="mt-0.5 text-xl font-bold text-zinc-900">{present}</p>
         </div>
-        <div className="rounded-lg border border-zinc-200 p-3">
+        <div className="rounded-xl border border-zinc-200 p-3">
           <p className="flex items-center gap-1.5 text-xs text-zinc-500">
             <span className="size-2 rounded-full bg-amber-500" /> Late
           </p>
           <p className="mt-0.5 text-xl font-bold text-zinc-900">{late}</p>
         </div>
-        <div className="rounded-lg border border-zinc-200 p-3">
+        <div className="rounded-xl border border-zinc-200 p-3">
           <p className="text-xs text-zinc-500">Attendance rate</p>
           <p className="mt-0.5 text-xl font-bold text-zinc-900">{rate}%</p>
         </div>
@@ -511,7 +511,7 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
           <p className="mb-2 text-xs font-semibold tracking-wider text-zinc-500 uppercase">Not checked in ({notCheckedIn.length})</p>
           <div className="flex flex-wrap gap-2">
             {notCheckedIn.map((p) => (
-              <span key={p.id} className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-600">
+              <span key={p.id} className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-surface px-3 py-1 text-xs text-zinc-600">
                 <Avatar name={p.name} size="sm" /> {p.name}
               </span>
             ))}
