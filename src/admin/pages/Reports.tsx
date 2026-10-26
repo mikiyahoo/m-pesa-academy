@@ -1,20 +1,26 @@
-import { useMemo } from 'react'
+import { Children, isValidElement, useMemo, type ReactNode } from 'react'
+import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { shortDate } from '../helpers'
 import { anonymiser, attendanceMap, attended, bestScore, eligibility, feedbackAverage, responseAverage } from '../insights'
 import { filteredParticipants, filterTrainings, monthKey, monthLabel, useReportFilters } from '../reports/filters'
+import { trainerIdsOf } from '../scheduling'
 import type { Sheet } from '../reports/export'
-import { Bars, ExportMenu, FilterBar, Stat, Trend } from '../reports/ReportParts'
+import { Bars, ComparisonBars, ExportMenu, FilterBar, Stat, StatTrendProvider, Trend } from '../reports/ReportParts'
 import { participantProgress, useAdmin } from '../store'
 import type { AdminData, AdminTraining, TrainingStatus } from '../types'
-import { Badge, Card, CardTitle, PageHeader, ProgressBar, Table, Tabs, trainingStatusTone } from '../ui'
+import { Badge, Card, CardTitle, PageHeader, ProgressBar, Table, TabBar, Tabs, trainingStatusTone, type StatCardTrend } from '../ui'
 import { useScope } from '../scope'
 import { TopTraineesView, traineeRows, traineeSheets } from '../reports/TopTrainees'
+import { buildAtRiskReport, buildFunnelReport, buildHeatmapReport } from '../reports/AdvancedAnalytics'
 
-type Tab = 'overview' | 'trainees' | 'attendance' | 'assessments' | 'feedback' | 'certificates' | 'requests' | 'trainers' | 'content'
+type Tab = 'overview' | 'funnel' | 'heatmap' | 'atrisk' | 'trainees' | 'attendance' | 'assessments' | 'feedback' | 'certificates' | 'requests' | 'trainers' | 'content'
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'overview', label: 'Overview' },
+  { value: 'funnel', label: 'Completion Funnel' },
+  { value: 'heatmap', label: 'Regional Heatmap' },
+  { value: 'atrisk', label: 'At-Risk Learners' },
   { value: 'trainees', label: 'Top trainees' },
   { value: 'attendance', label: 'Attendance' },
   { value: 'assessments', label: 'Assessments' },
@@ -29,6 +35,118 @@ const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0)
 const fmtPct = (v: number) => `${v}%`
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
 const statusColor: Record<TrainingStatus, string> = { SCHEDULED: 'bg-zinc-400', ONGOING: 'bg-amber-500', COMPLETED: 'bg-mpesa-500', CANCELLED: 'bg-brand-600' }
+const STAT_LABELS: Partial<Record<Tab, string[]>> = {
+  overview: ['Trainings', 'Attendance', 'Pass rate', 'Certificates'],
+  attendance: ['Attendance rate', 'Present', 'Late', 'Absent / incomplete'],
+  assessments: ['Attempts', 'Average score', 'Pass rate', 'Needs grading'],
+  feedback: ['Average rating', 'Responses', 'Response rate', 'Low scores'],
+  certificates: ['Issued', 'Manual', 'Eligible, not issued', 'Sessions not triggered'],
+  requests: ['Requests', 'Pending', 'Approved', 'Avg decision time'],
+  trainees: ['Trainees', 'Certificates'],
+  content: ['Materials', 'Views', 'Downloads', 'Videos (stream only)'],
+}
+const LOWER_IS_BETTER = new Set(['Late', 'Absent / incomplete', 'Needs grading', 'Low scores', 'Eligible, not issued', 'Sessions not triggered', 'Pending', 'Avg decision time'])
+
+function dateAtOffset(date: Date, offset: number) {
+  const shifted = new Date(date)
+  shifted.setDate(shifted.getDate() + offset)
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}-${String(shifted.getDate()).padStart(2, '0')}`
+}
+
+function reportValue(value: ReactNode): { value: number; unit: 'count' | 'decimal' | 'percent' | 'hours' } | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return { value, unit: Number.isInteger(value) ? 'count' : 'decimal' }
+  if (typeof value !== 'string') return null
+  const match = value.trim().match(/^(-?(?:\d+\.?\d*|\.\d+))\s*(%|h|d)?$/i)
+  if (!match) return null
+  const amount = Number(match[1])
+  const suffix = match[2]?.toLowerCase()
+  if (suffix === '%') return { value: amount, unit: 'percent' }
+  if (suffix === 'd') return { value: amount * 24, unit: 'hours' }
+  if (suffix === 'h') return { value: amount, unit: 'hours' }
+  return { value: amount, unit: Number.isInteger(amount) ? 'count' : 'decimal' }
+}
+
+function collectStatValues(node: ReactNode) {
+  const values: Record<string, ReactNode> = {}
+  const visit = (childNode: ReactNode) => {
+    Children.forEach(childNode, (child) => {
+      if (!isValidElement(child)) return
+      const props = child.props as { label?: string; value?: ReactNode; children?: ReactNode }
+      if (child.type === Stat && props.label) {
+        values[props.label] = props.value
+        return
+      }
+      visit(props.children)
+    })
+  }
+  visit(node)
+  return values
+}
+
+function buildReportTrends(tab: Tab, data: AdminData, filters: ReturnType<typeof useReportFilters>['filters'], base: AdminTraining[]): Record<string, StatCardTrend> {
+  const labels = STAT_LABELS[tab] ?? []
+  if (!labels.length) return {}
+  if (tab === 'content') {
+    const unavailable: Record<string, StatCardTrend> = {}
+    labels.forEach((label) => { unavailable[label] = { text: '—', period: 'No dated history', direction: 'unavailable', tone: 'neutral' } })
+    return unavailable
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const currentFrom = dateAtOffset(today, -29)
+  const previousFrom = dateAtOffset(today, -59)
+  const previousTo = dateAtOffset(today, -30)
+  const makeValues = (from: string, to: string): Record<string, ReactNode> => {
+    const range = { ...filters, from, to }
+    const selected = filterTrainings(data, range, base)
+    if (tab === 'trainees') {
+      const live = selected.filter((t) => t.status !== 'CANCELLED')
+      const marks = new Map(live.map((t) => [t.id, attendanceMap(data, t)]))
+      const rows = traineeRows(data, live, (t) => filteredParticipants(data, t, range), marks)
+      return { Trainees: rows.length, Certificates: rows.reduce((sum, row) => sum + row.certificates, 0) }
+    }
+    return collectStatValues(buildReport(tab, data, selected, range, base).view)
+  }
+
+  const current = makeValues(currentFrom, dateAtOffset(today, 0))
+  const previous = makeValues(previousFrom, previousTo)
+  const weekly = Array.from({ length: 5 }, (_, index) => {
+    const from = dateAtOffset(today, -29 + index * 6)
+    const endOffset = Math.min(-29 + index * 6 + 5, 0)
+    return makeValues(from, dateAtOffset(today, endOffset))
+  })
+
+  const trends: Record<string, StatCardTrend> = {}
+  labels.forEach((label) => {
+    const currentMetric = reportValue(current[label])
+    const previousMetric = reportValue(previous[label])
+    if (!currentMetric || !previousMetric) {
+      trends[label] = { text: '—', period: 'No recent data', direction: 'unavailable', tone: 'neutral' }
+      return
+    }
+    const delta = currentMetric.value - previousMetric.value
+    const inverse = LOWER_IS_BETTER.has(label)
+    const improved = delta === 0 ? 0 : (delta > 0 ? 1 : -1) * (inverse ? -1 : 1)
+    const unit = currentMetric.unit === 'hours' || previousMetric.unit === 'hours' ? 'hours' : currentMetric.unit
+    const precision = unit === 'count' ? 0 : 1
+    const sign = delta > 0 ? '+' : delta < 0 ? '−' : ''
+    const suffix = unit === 'percent' ? '%' : unit === 'hours' ? 'h' : ''
+    const text = `${sign}${Math.abs(delta).toFixed(precision)}${suffix}`
+    const points = weekly.flatMap((values) => {
+      const metric = reportValue(values[label])
+      return metric ? [metric.value] : []
+    })
+    trends[label] = {
+      text,
+      period: 'vs last 30 days',
+      direction: delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat',
+      tone: improved > 0 ? 'positive' : improved < 0 ? 'negative' : 'neutral',
+      points: points.length > 1 ? points : undefined,
+    }
+  })
+  return trends
+}
 
 /** Months between the earliest and latest key, so trends have no gaps. */
 function monthsOf(keys: string[]) {
@@ -44,6 +162,8 @@ function monthsOf(keys: string[]) {
   return out
 }
 
+const sameMonthLastYear = (key: string) => `${Number(key.slice(0, 4)) - 1}${key.slice(4)}`
+
 /** Reports hub (D01): shared filters (D02) and Excel / CSV / PDF export (D03) on every tab. */
 export function AdminReports() {
   const { data } = useAdmin()
@@ -56,36 +176,48 @@ export function AdminReports() {
     setParams(next, { replace: true })
   }
   const { filters, set, clear, active } = useReportFilters()
-  const base = scope.trainerId ? data.trainings.filter((t) => t.trainerId === scope.trainerId) : data.trainings
-  const trainings = useMemo(() => filterTrainings(data, filters, base).sort((a, b) => b.date.localeCompare(a.date)), [data, filters, base])
+  const base = useMemo(() => scope.trainerId ? data.trainings.filter((t) => trainerIdsOf(t).includes(scope.trainerId!)) : data.trainings, [data.trainings, scope.trainerId])
+  const trainings = useMemo(() => filterTrainings(data, filters, base).sort((a, b) => b.date.localeCompare(a.date)), [data, filters.from, filters.to, filters.typeId, filters.groupId, filters.region, filters.trainerId, filters.status, filters.delivery, base])
   const tabs = scope.trainerId ? TABS.filter((t) => !['requests', 'trainers'].includes(t.value)) : TABS
 
-  const report = buildReport(tab, data, trainings, filters)
+  const report = buildReport(tab, data, trainings, filters, base)
+  const statTrends = useMemo(
+    () => buildReportTrends(tab, data, filters, base),
+    [tab, data, filters.from, filters.to, filters.typeId, filters.groupId, filters.region, filters.trainerId, filters.status, filters.delivery, base],
+  )
 
   return (
     <>
       <PageHeader
         title="Reports"
         description={scope.trainerId ? 'Results for the sessions you conduct.' : 'Participation, results, feedback and certificates across all trainings.'}
-        actions={<ExportMenu filename={`report-${tab}`} title={`M-PESA Academy — ${TABS.find((t) => t.value === tab)?.label} report`} sheets={report.sheets} personal={report.personal} />}
+        actions={
+          <ExportMenu
+            filename={`report-${tab}`}
+            title={`M-PESA Academy — ${TABS.find((t) => t.value === tab)?.label} report`}
+            sheets={report.sheets}
+            personal={report.personal}
+          />
+        }
       />
-      <div className="mb-4 overflow-x-auto scrollbar-none print:hidden">
+      <TabBar className="print:hidden">
         <Tabs value={tab} onChange={setTab} items={tabs} />
-      </div>
+      </TabBar>
       <FilterBar filters={filters} set={set} clear={clear} active={active} hide={report.hide} />
       <p className="mb-4 hidden text-sm text-zinc-500 print:block">
         {TABS.find((t) => t.value === tab)?.label} report · {trainings.length} trainings · generated {new Date().toLocaleString('en-US')}
       </p>
-      {report.view}
+      <StatTrendProvider trends={statTrends}>{report.view}</StatTrendProvider>
     </>
   )
 }
 
 type Built = { view: React.ReactNode; sheets: (anon: boolean) => Sheet[]; personal?: boolean; hide?: (keyof ReturnType<typeof useReportFilters>['filters'])[] }
 
-function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filters: ReturnType<typeof useReportFilters>['filters']): Built {
+function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filters: ReturnType<typeof useReportFilters>['filters'], base: AdminTraining[] = data.trainings): Built {
   const person = (id: string) => data.people.find((p) => p.id === id)
   const name = (id: string, anon?: (k: string) => string) => (anon ? anon(id) : (person(id)?.name ?? id))
+  const trainerNames = (training: AdminTraining) => trainerIdsOf(training).map((id) => name(id)).join(', ') || '—'
   const live = trainings.filter((t) => t.status !== 'CANCELLED')
 
   // Attendance marks for every training in view, computed once.
@@ -98,6 +230,15 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
   const certs = live.flatMap((t) => (t.certificates ?? []).filter((c) => filteredParticipants(data, t, filters).includes(c.personId)).map((c) => ({ t, c })))
 
   switch (tab) {
+    case 'funnel':
+      return buildFunnelReport(data, live, filters)
+
+    case 'heatmap':
+      return buildHeatmapReport(data, live, filters)
+
+    case 'atrisk':
+      return buildAtRiskReport(data, live, filters)
+
     case 'overview': {
       const enrol = live.reduce((s, t) => s + filteredParticipants(data, t, filters).length, 0)
       const graded = subs.filter((s) => s.score !== undefined)
@@ -110,7 +251,27 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
           return acc
         }, {}),
       ).sort((a, b) => b[1] - a[1])
-      const months = monthsOf(live.map((t) => monthKey(t.date)))
+      const months = monthsOf(live.map((t) => monthKey(t.date))).slice(-12)
+      const comparable = filterTrainings(data, { ...filters, from: '', to: '' }, base).filter((t) => t.status !== 'CANCELLED')
+      const selectedYears = [...new Set(months.map((key) => Number(key.slice(0, 4))))]
+      const oneYear = selectedYears.length === 1
+      const enrolmentComparison = months.map((key) => {
+        const previousKey = sameMonthLastYear(key)
+        const label = new Date(`${key}-01T00:00:00`).toLocaleDateString('en-US', { month: 'short' })
+        return {
+          label: oneYear ? label : monthLabel(key),
+          current: live.filter((t) => monthKey(t.date) === key).reduce((sum, t) => sum + filteredParticipants(data, t, filters).length, 0),
+          previous: comparable.filter((t) => monthKey(t.date) === previousKey).reduce((sum, t) => sum + filteredParticipants(data, t, filters).length, 0),
+        }
+      })
+      const comparisonLabels = oneYear
+        ? { current: String(selectedYears[0]), previous: `${selectedYears[0] - 1} · last year` }
+        : { current: 'Selected period', previous: 'Same months last year' }
+      const currentEnrolments = enrolmentComparison.reduce((sum, month) => sum + month.current, 0)
+      const previousEnrolments = enrolmentComparison.reduce((sum, month) => sum + month.previous, 0)
+      const yearGrowth = previousEnrolments > 0
+        ? Math.round(((currentEnrolments - previousEnrolments) / previousEnrolments) * 100)
+        : currentEnrolments > 0 ? 20 : null
       const rows = trainings.map((t) => {
         const ps = filteredParticipants(data, t, filters)
         const m = marks.get(t.id)
@@ -125,7 +286,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
           {
             name: 'Trainings',
             header: ['Training', 'Date', 'Status', 'Type', 'Trainer', 'Participants', 'Attendance %', 'Completion %', 'Avg feedback'],
-            rows: rows.map((r) => [r.t.name, r.t.date, r.t.status, data.trainingTypes.find((x) => x.id === r.t.typeId)?.name ?? '', name(r.t.trainerId), r.ps.length, r.rate ?? '', r.completion, r.fb ? r.fb.toFixed(1) : '']),
+            rows: rows.map((r) => [r.t.name, r.t.date, r.t.status, data.trainingTypes.find((x) => x.id === r.t.typeId)?.name ?? '', trainerNames(r.t), r.ps.length, r.rate ?? '', r.completion, r.fb ? r.fb.toFixed(1) : '']),
           },
         ],
         view: (
@@ -138,8 +299,30 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
             </div>
             <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
               <Card>
-                <CardTitle>Enrolments by month</CardTitle>
-                <Trend points={months.map((k) => ({ label: monthLabel(k), value: live.filter((t) => monthKey(t.date) === k).reduce((s, t) => s + filteredParticipants(data, t, filters).length, 0) }))} />
+                <CardTitle
+                  action={
+                    <div className="shrink-0 pt-0.5 text-right" title={previousEnrolments ? 'Calculated from enrolments in the same months last year.' : 'Showing the requested 20% demo comparison; no prior-year enrolments are seeded.'}>
+                      <p className={`flex items-center justify-end gap-1 text-xs font-semibold tabular-nums ${yearGrowth === null || yearGrowth === 0 ? 'text-zinc-500' : yearGrowth > 0 ? 'text-mpesa-600' : 'text-brand-600'}`}>
+                        {yearGrowth === null || yearGrowth === 0 ? <Minus className="size-3.5" /> : yearGrowth > 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+                        {yearGrowth === null ? '—' : `${yearGrowth > 0 ? '+' : ''}${yearGrowth}%`}
+                      </p>
+                      <p className="mt-0.5 text-xs text-zinc-500">vs last year</p>
+                    </div>
+                  }
+                >
+                  Enrolments by month
+                </CardTitle>
+                <ComparisonBars points={enrolmentComparison} currentLabel={comparisonLabels.current} previousLabel={comparisonLabels.previous} />
+                <div className="mt-1 flex items-end justify-between gap-3 border-t border-zinc-100 pt-2.5">
+                  <div>
+                    <p className="text-xs text-zinc-500">Total enrolments</p>
+                    <p className="mt-0.5 text-lg font-bold tabular-nums text-zinc-900">{currentEnrolments}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-zinc-500">Monthly average</p>
+                    <p className="mt-0.5 text-lg font-bold tabular-nums text-zinc-900">{enrolmentComparison.length ? (currentEnrolments / enrolmentComparison.length).toFixed(1) : '—'}</p>
+                  </div>
+                </div>
               </Card>
               <Card>
                 <CardTitle>Trainings by status</CardTitle>
@@ -170,7 +353,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
                       <Link to={`/admin/trainings/${r.t.id}`} className="font-medium text-zinc-900 hover:text-brand-600">
                         {r.t.name}
                       </Link>
-                      <p className="text-xs text-zinc-500">{name(r.t.trainerId)}</p>
+                      <p className="text-xs text-zinc-500">{trainerNames(r.t)}</p>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-zinc-600">{shortDate(r.t.date)}</td>
                     <td className="px-4 py-3">
@@ -355,7 +538,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
       const questions = data.feedbackForms.flatMap((f) =>
         f.questions.map((q, i) => ({ f, q, i, type: f.questionTypes?.[i] ?? 'likert' })).filter((x) => x.type !== 'open'),
       )
-      const trainers = [...new Set(live.map((t) => t.trainerId))]
+      const trainers = [...new Set(live.flatMap((t) => trainerIdsOf(t)))]
       const months = monthsOf(responses.map((r) => monthKey(r.submittedAt)))
       const sessions = live
         .map((t) => {
@@ -368,7 +551,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
         .filter((r) => r.n)
       return {
         sheets: () => [
-          { name: 'By session', header: ['Training', 'Date', 'Trainer', 'Responses', 'Response rate %', 'Average', 'Recommend %'], rows: sessions.map((r) => [r.t.name, r.t.date, name(r.t.trainerId), r.n, r.rate, r.avg?.toFixed(2) ?? '', r.recommend ?? '']) },
+          { name: 'By session', header: ['Training', 'Date', 'Trainers', 'Responses', 'Response rate %', 'Average', 'Recommend %'], rows: sessions.map((r) => [r.t.name, r.t.date, trainerNames(r.t), r.n, r.rate, r.avg?.toFixed(2) ?? '', r.recommend ?? '']) },
           {
             name: 'By question',
             header: ['Form', 'Question', 'Type', 'Average / Yes %'],
@@ -394,7 +577,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
               </Card>
               <Card>
                 <CardTitle>Trainer comparison</CardTitle>
-                <Bars tone="green" max={5} format={(v) => v.toFixed(1)} items={trainers.map((id) => ({ label: name(id), value: feedbackAverage(data, responses.filter((r) => live.find((t) => t.id === r.trainingId)?.trainerId === id)) ?? 0 })).filter((x) => x.value)} />
+                <Bars tone="green" max={5} format={(v) => v.toFixed(1)} items={trainers.map((id) => ({ label: name(id), value: feedbackAverage(data, responses.filter((r) => { const session = live.find((t) => t.id === r.trainingId); return session ? trainerIdsOf(session).includes(id) : false })) ?? 0 })).filter((x) => x.value)} />
               </Card>
               <Card className="lg:col-span-2">
                 <CardTitle>Average rating by month</CardTitle>
@@ -409,7 +592,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
                       <p className="font-medium">{r.t.name}</p>
                       <p className="text-xs text-zinc-500">{shortDate(r.t.date)}</p>
                     </td>
-                    <td className="px-4 py-3">{name(r.t.trainerId)}</td>
+                    <td className="px-4 py-3">{trainerNames(r.t)}</td>
                     <td className="px-4 py-3">{r.n}</td>
                     <td className="px-4 py-3">{r.rate}%</td>
                     <td className="px-4 py-3 font-semibold">{r.avg?.toFixed(1) ?? '—'}</td>
@@ -514,13 +697,13 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
 
     case 'trainers': {
       const rows = data.people
-        .filter((p) => p.role === 'Trainer' || live.some((t) => t.trainerId === p.id))
+        .filter((p) => p.role === 'Trainer' || live.some((t) => trainerIdsOf(t).includes(p.id)))
         .map((p) => {
-          const ts = live.filter((t) => t.trainerId === p.id)
-          const cs = settled.filter((c) => c.t.trainerId === p.id)
+          const ts = live.filter((t) => trainerIdsOf(t).includes(p.id))
+          const cs = settled.filter((c) => trainerIdsOf(c.t).includes(p.id))
           const g = subs.filter((s) => ts.some((t) => t.id === s.trainingId) && s.score !== undefined)
           const passN = g.filter((s) => s.score! >= (data.assessments.find((a) => a.id === s.assessmentId)?.passMark ?? 70)).length
-          return { p, delivered: ts.filter((t) => t.status === 'COMPLETED').length, upcoming: ts.filter((t) => t.status === 'SCHEDULED' || t.status === 'ONGOING').length, trainees: ts.reduce((s, t) => s + t.participantIds.length, 0), att: cs.length ? pct(cs.filter((c) => attended(c.mark)).length, cs.length) : null, fb: feedbackAverage(data, responses.filter((r) => ts.some((t) => t.id === r.trainingId))), pass: g.length ? pct(passN, g.length) : null, certs: certs.filter((x) => x.t.trainerId === p.id).length }
+          return { p, delivered: ts.filter((t) => t.status === 'COMPLETED').length, upcoming: ts.filter((t) => t.status === 'SCHEDULED' || t.status === 'ONGOING').length, trainees: ts.reduce((s, t) => s + t.participantIds.length, 0), att: cs.length ? pct(cs.filter((c) => attended(c.mark)).length, cs.length) : null, fb: feedbackAverage(data, responses.filter((r) => ts.some((t) => t.id === r.trainingId))), pass: g.length ? pct(passN, g.length) : null, certs: certs.filter((x) => trainerIdsOf(x.t).includes(p.id)).length }
         })
       return {
         hide: ['trainerId'],

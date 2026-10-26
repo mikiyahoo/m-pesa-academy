@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cn, todayISO } from '../../lib/utils'
 import { longDate, time12 } from '../helpers'
-import { conflictIndex, WEEKDAYS } from '../scheduling'
+import { conflictIndex, trainerIdsOf, WEEKDAYS } from '../scheduling'
 import { useAdmin } from '../store'
 import { NewTrainingModal } from '../TrainingForm'
 import type { AdminTraining } from '../types'
@@ -38,9 +38,29 @@ const KIND: Record<Kind, { label: string; dot: string; icon: typeof CheckCircle2
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-export function AdminCalendar() {
+export function AdminTrainingStats() {
+  const { data } = useAdmin()
+  const monthKey = todayISO().slice(0, 7)
+  const monthTrainings = data.trainings.filter((training) => training.date.startsWith(monthKey))
+  const counts: Record<Kind, number> = {
+    confirmed: monthTrainings.filter((training) => training.status !== 'CANCELLED' && training.status !== 'COMPLETED').length,
+    pending: data.requests.filter((request) => request.status === 'APPROVED' && !request.trainingId && !!request.preferredDate?.startsWith(monthKey)).length,
+    completed: monthTrainings.filter((training) => training.status === 'COMPLETED').length,
+    cancelled: monthTrainings.filter((training) => training.status === 'CANCELLED').length,
+  }
+
+  return <StatStrip items={(Object.keys(KIND) as Kind[]).map((kind) => ({
+    icon: KIND[kind].icon,
+    label: `${KIND[kind].label} this month`,
+    value: counts[kind],
+    tone: KIND_TONE[kind],
+  }))} />
+}
+
+export function AdminCalendar({ embedded = false, trainings }: { embedded?: boolean; trainings?: AdminTraining[] } = {}) {
   const { data } = useAdmin()
   const scope = useScope()
+  const calendarTrainings = trainings ?? data.trainings
   const today = todayISO()
   const [cursor, setCursor] = useState(() => new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, 1))
   const [view, setView] = useState<'month' | 'agenda'>(() => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'agenda' : 'month'))
@@ -61,8 +81,8 @@ export function AdminCalendar() {
       const fromRequest = data.requests.some((r) => r.trainingId === t.id && r.team === team)
       return fromRequest || (!!group && t.participantIds.some((pid) => data.people.find((p) => p.id === pid)?.groupIds.includes(group.id)))
     }
-    const sessions: Entry[] = data.trainings
-      .filter((t) => (!trainer || t.trainerId === trainer) && (!type || t.typeId === type) && inTeam(t))
+    const sessions: Entry[] = calendarTrainings
+      .filter((t) => (!trainer || trainerIdsOf(t).includes(trainer)) && (!type || t.typeId === type) && inTeam(t))
       .map((t) => ({
         key: t.id,
         kind: t.status === 'CANCELLED' ? 'cancelled' : t.status === 'COMPLETED' ? 'completed' : 'confirmed',
@@ -73,11 +93,11 @@ export function AdminCalendar() {
         to: `/admin/trainings/${t.id}`,
         training: t,
         conflict: conflicts.has(t.id),
-        meta: `${data.people.find((p) => p.id === t.trainerId)?.name ?? 'No trainer'} · ${t.location === 'ONLINE' ? 'Online' : t.location}`,
+        meta: `${trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ') || 'No trainer'} · ${t.location === 'ONLINE' ? 'Online' : t.location}`,
       }))
     // Approved requests that don't have a session yet appear as Pending on the preferred date.
-    const pending: Entry[] = data.requests
-      .filter((r) => r.status === 'APPROVED' && !r.trainingId && r.preferredDate && (!trainer || r.trainerId === trainer) && (!type || r.trainingTypeId === type) && (!team || r.team === team))
+    const pending: Entry[] = (embedded ? [] : data.requests)
+      .filter((r) => r.status === 'APPROVED' && !r.trainingId && r.preferredDate && (!trainer || trainerIdsOf(r).includes(trainer)) && (!type || r.trainingTypeId === type) && (!team || r.team === team))
       .map((r) => ({
         key: r.id,
         kind: 'pending',
@@ -90,7 +110,7 @@ export function AdminCalendar() {
         meta: `Approved request · ${r.team} · needs scheduling`,
       }))
     return [...sessions, ...pending].filter((e) => kinds.includes(e.kind)).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
-  }, [data, trainer, type, team, kinds, conflicts])
+  }, [data, calendarTrainings, embedded, trainer, type, team, kinds, conflicts])
 
   const byDate = useMemo(() => {
     const m = new Map<string, Entry[]>()
@@ -143,7 +163,7 @@ export function AdminCalendar() {
 
   return (
     <>
-      <PageHeader
+      {!embedded && <PageHeader
         title="Calendar"
         description={scope.trainerId ? 'Sessions you conduct.' : 'Every scheduled session, plus approved requests still waiting for a date.'}
         actions={
@@ -153,9 +173,9 @@ export function AdminCalendar() {
             </Button>
           )
         }
-      />
+      />}
 
-      <StatStrip
+      {!embedded && <StatStrip
         className="mb-5"
         items={(Object.keys(KIND) as Kind[]).map((k) => ({
           icon: KIND[k].icon,
@@ -165,7 +185,7 @@ export function AdminCalendar() {
           active: kinds.length === 1 && kinds[0] === k,
           onClick: () => setKinds(kinds.length === 1 && kinds[0] === k ? (Object.keys(KIND) as Kind[]) : [k]),
         }))}
-      />
+      />}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="ml-auto flex flex-wrap items-center gap-2">

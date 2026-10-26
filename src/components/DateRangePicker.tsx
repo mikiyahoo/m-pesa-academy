@@ -31,7 +31,7 @@ const label = ({ from, to }: Range) => {
 }
 
 /** One date-range button (like the learner Report) that opens quick ranges and custom From / To dates. */
-export function DateRangePicker({ value, onChange, className }: { value: Range; onChange: (r: Range) => void; className?: string }) {
+export function DateRangePicker({ value, onChange, className, emptyLabel = 'All dates' }: { value: Range; onChange: (r: Range) => void; className?: string; emptyLabel?: string }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -49,15 +49,16 @@ export function DateRangePicker({ value, onChange, className }: { value: Range; 
   const current = list.find((p) => p.range.from === value.from && p.range.to === value.to)
 
   return (
-    <div ref={ref} className={cn('relative', className)}>
+    <div ref={ref} className={cn('relative min-w-0', className)}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-surface px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
+        title={!value.from && !value.to ? emptyLabel : label(value)}
+        className="flex h-10 max-w-[17rem] min-w-0 items-center gap-2 rounded-xl border border-zinc-200 bg-surface px-3 text-xs font-semibold text-zinc-700 transition hover:border-brand-200 hover:bg-brand-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/20"
       >
         <CalendarDays className="size-4 shrink-0 text-zinc-600" />
-        <span className="whitespace-nowrap">{label(value)}</span>
+        <span className="min-w-0 truncate whitespace-nowrap">{!value.from && !value.to ? emptyLabel : label(value)}</span>
         <ChevronDown className={cn('size-3.5 shrink-0 text-zinc-500 transition', open && 'rotate-180')} />
       </button>
       {open && (

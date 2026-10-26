@@ -16,8 +16,13 @@ export const localISO = (d: Date | number = new Date()) => {
 }
 
 export const parseDate = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d)
+  if (!iso) return new Date(NaN)
+  const clean = iso.includes('T') ? iso.split('T')[0] : iso.includes(' ') ? iso.split(' ')[0] : iso
+  const [y, m, d] = clean.split('-').map(Number)
+  if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+    return new Date(y, m - 1, d)
+  }
+  return new Date(iso)
 }
 
 export const formatDate = (iso: string, opts: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric' }) =>

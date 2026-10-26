@@ -10,11 +10,15 @@ import { useStore } from '../store/AppStore'
 import { learnPath } from './learn/outline'
 import { UserAvatar } from '../components/UserAvatar'
 import { useDialogFocus } from '../lib/useDialogFocus'
+import { CourseDiscussion } from '../components/CourseDiscussion'
+import { checkPrerequisites } from '../lib/learningPaths'
+import { OfflineCourseToggle } from '../components/OfflineCourseToggle'
 
 const tabs = [
   { id: 'about', label: 'About', icon: Info },
   { id: 'modules', label: 'Modules', icon: Layers },
   { id: 'assessment', label: 'Assessment', icon: FileText },
+  { id: 'discussion', label: 'Q&A Discussions', icon: MessageSquare },
 ] as const
 
 type TabId = (typeof tabs)[number]['id']
@@ -60,7 +64,7 @@ function SectionTitle({ icon: Icon, children, small = false, solid = false }: { 
 
 export function TrainingDetail() {
   const { id = '' } = useParams()
-  const { getTraining, progress, checkIn } = useStore()
+  const { getTraining, progress, checkIn, trainings } = useStore()
   const training = getTraining(id)
   const { toast } = useFeedback()
   const navigate = useNavigate()
@@ -120,6 +124,7 @@ export function TrainingDetail() {
   const { checks: certChecks, eligible, mark } = certificateChecks(training, p, LATE_WINDOW_MINUTES)
   const isTeams = !!training.teamsJoinUrl
   const isOnlineOnly = training.venue === 'ONLINE'
+  const { isLocked, missingPrerequisites, journey: prereqJourney } = checkPrerequisites(training.id, trainings, progress)
 
   const learn = (item?: string) => navigate(learnPath(training.id, item))
 
@@ -273,6 +278,35 @@ export function TrainingDetail() {
             <div ref={heroCta} className="mt-7">
               {primaryButton()}
             </div>
+
+            {isLocked && missingPrerequisites.length > 0 && (
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 sm:p-5 shadow-xs">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-800">
+                    <Lock className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-bold text-amber-900">
+                      Prerequisite Course Required
+                    </h4>
+                    <p className="mt-0.5 text-xs text-amber-800">
+                      This course is part of the <span className="font-semibold">{prereqJourney?.title}</span> learning pathway. Complete the prerequisite first:
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {missingPrerequisites.map((mp) => (
+                        <Link
+                          key={mp.id}
+                          to={`/trainings/${mp.id}`}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-amber-700 transition"
+                        >
+                          Start: {mp.title} <ArrowRight className="size-3.5" />
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="mt-5 space-y-2.5 text-sm text-zinc-600">
               {(status !== 'Not Started' || mark !== 'Not yet') && (
@@ -504,8 +538,19 @@ export function TrainingDetail() {
                 <p className="mt-0.5 text-sm text-zinc-500">Basic familiarity with M-PESA services and a smartphone.</p>
               </div>
             </div>
+
+            <div className="mt-5">
+              <OfflineCourseToggle training={training} />
+            </div>
           </section>
 
+          <section id="discussion" className={cn(card, 'scroll-mt-48')}>
+            <div className="mb-6 border-b border-zinc-100 pb-4">
+              <SectionTitle icon={MessageSquare}>Course Discussions &amp; Q&amp;A</SectionTitle>
+              <p className="mt-1 text-sm text-zinc-500">Ask questions, share experiences, and learn directly from instructors and peers.</p>
+            </div>
+            <CourseDiscussion trainingId={training.id} />
+          </section>
         </div>
 
         {/* Side column */}

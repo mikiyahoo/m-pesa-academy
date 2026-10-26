@@ -117,7 +117,7 @@ export function NotificationBell() {
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative z-40">
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
@@ -132,7 +132,7 @@ export function NotificationBell() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl max-sm:fixed max-sm:inset-x-4 max-sm:top-16 max-sm:mt-0 max-sm:w-auto border border-zinc-200 bg-white shadow-lg">
+        <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl max-sm:fixed max-sm:inset-x-4 max-sm:top-16 max-sm:mt-0 max-sm:w-auto border border-zinc-200 bg-white shadow-lg">
           <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
             <p className="text-sm font-semibold text-zinc-900">Notifications</p>
             {unread > 0 && (

@@ -19,9 +19,10 @@ import { journeys } from "../data/journeys";
 import { TrainingCard, useFavourites } from "../components/TrainingCard";
 import { cn, sessionStatus, todayISO } from "../lib/utils";
 import { useStore } from "../store/AppStore";
+import { LearningPathsTracker } from "../components/LearningPathsTracker";
 import type { SessionStatus } from "../types";
 
-type Tab = "All" | SessionStatus | "Favourites" | "Assigned";
+type Tab = "All" | SessionStatus | "Favourites" | "Assigned" | "Paths";
 const statusTabs: { value: Tab; label: string }[] = [
   { value: "All", label: "All Trainings" },
   { value: "Active", label: "Active" },
@@ -30,6 +31,7 @@ const statusTabs: { value: Tab; label: string }[] = [
 ];
 /** Saved and assigned items sit in their own group, apart from the status tabs. */
 const savedTabs: { value: Tab; label: string }[] = [
+  { value: "Paths", label: "Learning Paths" },
   { value: "Favourites", label: "Favourites" },
   { value: "Assigned", label: "Assigned" },
 ];
@@ -48,25 +50,29 @@ export function loadView(): "grid" | "list" {
   }
 }
 
-/** Grid / list toggle; pass `calendar` to add the month view as a third option. */
+/** Grid / list toggle; optional props tailor the available views for admin pages. */
 export function ViewToggle<V extends TrainingsView>({
   view,
   onChange,
   calendar = false,
+  grid = true,
+  remember = true,
 }: {
   view: V;
   onChange: (v: V) => void;
   calendar?: boolean;
+  grid?: boolean;
+  remember?: boolean;
 }) {
   const options = [
-    ["grid", LayoutGrid, "Grid view"],
-    ["list", List, "List view"],
+    ...(grid ? ([["grid", LayoutGrid, "Grid view"]] as const) : []),
+    ["list", List, "List view"] as const,
     ...(calendar ? ([["calendar", CalendarDays, "Calendar view"]] as const) : []),
   ] as const;
   const choose = (v: TrainingsView) => {
     onChange(v as V);
-    // The calendar is a per-visit choice; grid / list is remembered.
-    if (v === "calendar") return;
+    // Grid and list can be remembered; calendar is a per-visit choice.
+    if (v === "calendar" || !remember) return;
     try {
       localStorage.setItem(VIEW_KEY, v);
     } catch {
@@ -145,6 +151,7 @@ export function Learning() {
       All: trainings.length,
       Favourites: trainings.filter((t) => favourites.includes(t.id)).length,
       Assigned: assigned.length,
+      Paths: journeys.length,
     };
     trainings.forEach(
       (t) => (c[sessionStatus(t)] = (c[sessionStatus(t)] ?? 0) + 1),
@@ -265,7 +272,9 @@ export function Learning() {
         </div>
       </div>
 
-      {tab === "Assigned" ? (
+      {tab === "Paths" ? (
+        <LearningPathsTracker />
+      ) : tab === "Assigned" ? (
         assigned.length ? (
           <div className="rounded-2xl border border-zinc-200/80 bg-white px-5 py-2">
             <div className="divide-y divide-zinc-100">

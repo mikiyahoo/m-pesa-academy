@@ -5,16 +5,21 @@ import {
   CalendarRange,
   Check,
   CheckCircle2,
+  FileSpreadsheet,
+  ImagePlus,
   Layers,
   MapPin,
   Plus,
   Repeat,
   Sparkles,
   Users,
+  Upload,
   Video,
+  X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { read, utils } from 'xlsx'
 import { FullPageDialog } from './Wizard'
 import { cn, localISO, todayISO } from '../lib/utils'
 import { shortDate, time12 } from './helpers'
@@ -22,13 +27,15 @@ import { describeRecurrence, findConflicts, LEVELS, makeInviteLink, MAX_OCCURREN
 import { uid, useAdmin } from './store'
 import { demoMeeting } from './teams/attendance'
 import type { AdminTraining, Journey, Recurrence, RecurrenceFreq, TrainingLevel } from './types'
-import { Badge, Button, Card, Field, Input, Modal, Select, Textarea } from './ui'
+import { ADD_TRAINER_OPTION, AddTrainerModal } from './TrainerModal'
+import { Avatar, Badge, Button, Card, Field, Input, Modal, Select, Textarea } from './ui'
 
 export type TrainingPreset = {
   name?: string
   journeyId?: string
   typeId?: string
   trainerId?: string
+  trainerIds?: string[]
   date?: string
   startTime?: string
   location?: string
@@ -45,6 +52,65 @@ const addDays = (iso: string, n: number) => {
 const weekdayOf = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y, m - 1, d).getDay()
+}
+
+const PARTICIPANT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+async function parseParticipantEmailSheet(file: File) {
+  if (!/\.(xlsx|xls|csv)$/i.test(file.name)) throw new Error('Choose an Excel or CSV file.')
+  const workbook = read(await file.arrayBuffer(), { type: 'array' })
+  const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+  if (!firstSheet) throw new Error('The spreadsheet has no worksheets.')
+  const rows = utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: '' })
+  if (!rows.length) throw new Error('The first worksheet is empty.')
+
+  const headerIndex = (rows[0] ?? []).findIndex((cell) => ['email', 'emailaddress', 'participantemail', 'participantemails', 'useremail', 'emailid'].includes(String(cell).toLowerCase().replace(/[^a-z]/g, '')))
+  const values = headerIndex >= 0
+    ? rows.slice(1).map((row) => row[headerIndex])
+    : rows.flat()
+  const emails = new Set<string>()
+  let invalidRows = 0
+  for (const value of values) {
+    const text = String(value ?? '').trim()
+    if (!text) continue
+    const found = text.match(/[\w.+%'-]+@[\w.-]+\.[A-Za-z]{2,}/g) ?? []
+    const valid = found.map((email) => email.toLowerCase()).filter((email) => PARTICIPANT_EMAIL_RE.test(email))
+    if (!valid.length) invalidRows += 1
+    valid.forEach((email) => emails.add(email))
+  }
+  if (!emails.size) throw new Error('No valid email addresses were found in the spreadsheet.')
+  return { emails: [...emails], invalidRows }
+}
+
+async function prepareTrainingCover(file: File) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Choose a JPG, PNG or WebP image.')
+  if (file.size > 8 * 1024 * 1024) throw new Error('Choose an image smaller than 8 MB.')
+
+  const url = URL.createObjectURL(file)
+  try {
+    const image = new Image()
+    image.src = url
+    await image.decode()
+
+    let scale = Math.min(1, 1440 / image.naturalWidth, 900 / image.naturalHeight)
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Image preview is unavailable in this browser.')
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+      context.fillStyle = '#ffffff'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      context.drawImage(image, 0, 0, canvas.width, canvas.height)
+      const cover = canvas.toDataURL('image/jpeg', Math.max(0.55, 0.82 - attempt * 0.09))
+      if (cover.length <= 250_000) return cover
+      scale *= 0.8
+    }
+    throw new Error('This image could not be compressed enough. Choose a smaller image.')
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
 function QuickJourneyModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
@@ -99,6 +165,16 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   const [step, setStep] = useState<StepId>(1)
   const [triedSteps, setTriedSteps] = useState<Record<number, boolean>>({})
   const [newJourneyOpen, setNewJourneyOpen] = useState(false)
+  const [addingTrainer, setAddingTrainer] = useState(false)
+  const [choosingTrainer, setChoosingTrainer] = useState(false)
+  const [candidateTrainerId, setCandidateTrainerId] = useState('')
+  const [emailImportError, setEmailImportError] = useState('')
+  const [emailImportSummary, setEmailImportSummary] = useState('')
+  const [readingEmailFile, setReadingEmailFile] = useState(false)
+  const emailFileRef = useRef<HTMLInputElement>(null)
+  const coverFileRef = useRef<HTMLInputElement>(null)
+  const [coverPending, setCoverPending] = useState(false)
+  const [coverError, setCoverError] = useState('')
   const trainers = data.people.filter((p) => p.role === 'Trainer' && p.status === 'Active')
   const startDate = preset?.date && preset.date >= todayISO() ? preset.date : todayISO()
   const presetOnline = preset?.location === 'ONLINE'
@@ -107,11 +183,12 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
     name: preset?.name ?? '',
     categoryId: data.categories[0]?.id ?? '',
     subcategoryId: '',
+    cover: '',
     description: '',
     typeId: preset?.typeId ?? data.trainingTypes[0]?.id ?? '',
     level: 'Beginner' as TrainingLevel,
     journeyId: preset?.journeyId ?? data.journeys[0]?.id ?? '',
-    trainerId: preset?.trainerId ?? trainers[0]?.id ?? '',
+    trainerIds: [...new Set(preset?.trainerIds?.length ? preset.trainerIds : [preset?.trainerId ?? trainers[0]?.id ?? ''].filter(Boolean))],
     preAssessmentId: '',
     postAssessmentId: '',
     delivery: (presetOnline ? 'Online' : preset?.location ? 'Physical' : 'Online') as 'Online' | 'Physical',
@@ -129,10 +206,43 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   }))
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }))
 
+  const chooseCover = async (file?: File) => {
+    if (!file) return
+    setCoverPending(true)
+    setCoverError('')
+    try {
+      set('cover', await prepareTrainingCover(file))
+    } catch (error) {
+      setCoverError(error instanceof Error ? error.message : 'The image could not be uploaded.')
+    } finally {
+      setCoverPending(false)
+      if (coverFileRef.current) coverFileRef.current.value = ''
+    }
+  }
+
+  const importParticipantEmails = async (file?: File) => {
+    if (!file) return
+    setReadingEmailFile(true)
+    setEmailImportError('')
+    setEmailImportSummary('')
+    try {
+      const imported = await parseParticipantEmailSheet(file)
+      const current = f.emails.split(/[\s,;]+/).map((email) => email.trim().toLowerCase()).filter(Boolean)
+      const merged = [...new Set([...current, ...imported.emails])]
+      set('emails', merged.join(', '))
+      setEmailImportSummary(`${imported.emails.length} email${imported.emails.length === 1 ? '' : 's'} imported${imported.invalidRows ? ` · ${imported.invalidRows} invalid row${imported.invalidRows === 1 ? '' : 's'} skipped` : ''}`)
+    } catch (error) {
+      setEmailImportError(error instanceof Error ? error.message : 'The spreadsheet could not be read.')
+    } finally {
+      setReadingEmailFile(false)
+      if (emailFileRef.current) emailFileRef.current.value = ''
+    }
+  }
+
   const category = data.categories.find((c) => c.id === f.categoryId)
   const journey = data.journeys.find((j) => j.id === f.journeyId)
   const trainingType = data.trainingTypes.find((t) => t.id === f.typeId)
-  const assignedTrainer = data.people.find((p) => p.id === f.trainerId)
+  const assignedTrainers = f.trainerIds.map((id) => data.people.find((p) => p.id === id)).filter((person): person is NonNullable<typeof person> => !!person)
   const rule: Recurrence = { freq: f.freq, interval: Math.max(1, f.interval), weekdays: f.freq === 'weekly' ? f.weekdays : [], until: f.until }
   const dates = useMemo(() => (f.repeat ? occurrenceDates(f.date, rule) : [f.date]), [f.repeat, f.date, f.freq, f.interval, f.weekdays, f.until]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -149,12 +259,13 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   ]
 
   const participantKey = participantIds.join(',')
+  const trainerKey = f.trainerIds.join(',')
   const conflicts = useMemo(
     () =>
       dates
-        .map((date) => ({ date, list: findConflicts({ date, startTime: f.startTime, endTime: f.endTime, trainerId: f.trainerId, participantIds }, data.trainings, data.people) }))
+        .map((date) => ({ date, list: findConflicts({ date, startTime: f.startTime, endTime: f.endTime, trainerId: f.trainerIds[0] ?? '', trainerIds: f.trainerIds, participantIds }, data.trainings, data.people) }))
         .filter((x) => x.list.length),
-    [dates, f.startTime, f.endTime, f.trainerId, participantKey, data.trainings, data.people], // eslint-disable-line react-hooks/exhaustive-deps
+    [dates, f.startTime, f.endTime, trainerKey, participantKey, data.trainings, data.people], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   // Validation rules by step
@@ -172,7 +283,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   if (f.repeat && f.freq === 'weekly' && !f.weekdays.length) step2Errors.weekdays = 'Pick at least one day.'
 
   const step3Errors: Record<string, string> = {}
-  if (!f.trainerId) step3Errors.trainerId = 'Choose a trainer.'
+  if (!f.trainerIds.length) step3Errors.trainerIds = 'Choose at least one trainer.'
 
   const err1 = (k: string) => (triedSteps[1] ? step1Errors[k] : undefined)
   const err2 = (k: string) => (triedSteps[2] ? step2Errors[k] : undefined)
@@ -228,14 +339,17 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
 
     const at = localISO()
     const seriesId = f.repeat && dates.length > 1 ? uid('ser') : undefined
+    const coverId = f.cover ? uid('cover') : undefined
     const sessions: AdminTraining[] = dates.map((date) => {
       const id = uid('t')
       return {
         id,
+        coverId,
         name: f.name.trim(),
         journeyId: f.journeyId,
         typeId: f.typeId,
-        trainerId: f.trainerId,
+        trainerId: f.trainerIds[0],
+        trainerIds: f.trainerIds,
         date,
         startTime: f.startTime,
         endTime: f.endTime,
@@ -262,6 +376,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
     update(
       (d) => ({
         ...d,
+        ...(coverId ? { trainingCovers: { ...d.trainingCovers, [coverId]: f.cover } } : {}),
         trainings: [...sessions, ...d.trainings],
         requests: preset?.requestId
           ? d.requests.map((r) => (r.id === preset.requestId ? { ...r, trainingId: sessions[0].id, history: [...r.history, { at, by: 'Training team', label: 'Scheduled', detail: sessions[0].name }] } : r))
@@ -345,8 +460,8 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
             </Button>
           )}
           {step < 4 ? (
-            <Button variant="primary" onClick={handleNext}>
-              Next <ArrowRight className="size-4" />
+            <Button variant="primary" onClick={handleNext} disabled={coverPending}>
+              {coverPending ? 'Optimizing…' : 'Next'} <ArrowRight className="size-4" />
             </Button>
           ) : (
             <Button variant="primary" onClick={create}>
@@ -372,6 +487,47 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                 />
               </Field>
               {err1('name') && <p className="mt-1 text-xs text-brand-600">{err1('name')}</p>}
+            </div>
+
+            <div>
+              <input
+                ref={coverFileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                aria-label="Upload training cover image"
+                onChange={(event) => void chooseCover(event.currentTarget.files?.[0])}
+              />
+              <p className="mb-1.5 text-sm font-medium text-zinc-700">Training cover image <span className="font-normal text-zinc-400">(optional)</span></p>
+              {f.cover ? (
+                <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-surface">
+                  <div className="relative aspect-[16/7] overflow-hidden bg-zinc-100">
+                    <img src={f.cover} alt="Training cover preview" className="size-full object-cover" />
+                    <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" aria-hidden="true" />
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-2.5">
+                    <span className="text-xs text-zinc-500">Preview shown on learner training cards</span>
+                    <span className="flex gap-2">
+                      <Button size="sm" onClick={() => coverFileRef.current?.click()} disabled={coverPending}>
+                        <Upload className="size-3.5" /> Replace
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => { set('cover', ''); setCoverError('') }} disabled={coverPending}>Remove</Button>
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => coverFileRef.current?.click()}
+                  disabled={coverPending}
+                  className="flex min-h-32 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/70 px-4 py-5 text-center transition hover:border-brand-300 hover:bg-brand-50/30 disabled:cursor-wait disabled:opacity-70"
+                >
+                  <span className="grid size-10 place-items-center rounded-xl bg-surface text-brand-600 shadow-xs"><ImagePlus className="size-5" /></span>
+                  <span className="text-sm font-semibold text-zinc-800">{coverPending ? 'Optimizing image…' : 'Upload a custom cover image'}</span>
+                  <span className="text-xs text-zinc-500">JPG, PNG or WebP · up to 8 MB</span>
+                </button>
+              )}
+              {coverError && <p className="mt-1.5 text-xs text-brand-600">{coverError}</p>}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -612,16 +768,52 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
         {step === 3 && (
           <section className="space-y-5">
             <div>
-              <Field label="Assigned trainer">
-                <Select value={f.trainerId} onChange={(e) => set('trainerId', e.target.value)}>
-                  {trainers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.department || 'Training'})
-                    </option>
+              <Field label="Assigned trainers">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {assignedTrainers.map((trainer) => (
+                    <div key={trainer.id} className="flex items-center gap-3 rounded-xl border border-zinc-200 px-3 py-2">
+                      <Avatar name={trainer.name} size="sm" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-zinc-900">{trainer.name}</span>
+                        <span className="block truncate text-xs text-zinc-500">{trainer.department || 'Training'}</span>
+                      </span>
+                      <button type="button" onClick={() => set('trainerIds', f.trainerIds.filter((id) => id !== trainer.id))} aria-label={`Remove ${trainer.name}`} title="Remove trainer" className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700 transition hover:bg-brand-100">
+                        <X className="size-4" />
+                      </button>
+                    </div>
                   ))}
-                </Select>
+                  {choosingTrainer ? (
+                    <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+                      <Select
+                        className="min-w-0 flex-1"
+                        value={candidateTrainerId}
+                        onChange={(event) => {
+                          if (event.target.value === ADD_TRAINER_OPTION) {
+                            setChoosingTrainer(false)
+                            setAddingTrainer(true)
+                          } else setCandidateTrainerId(event.target.value)
+                        }}
+                        autoFocus
+                      >
+                        <option value="">Choose a trainer…</option>
+                        {trainers.filter((trainer) => !f.trainerIds.includes(trainer.id)).map((trainer) => (
+                          <option key={trainer.id} value={trainer.id}>{trainer.name} ({trainer.department || 'Training'})</option>
+                        ))}
+                        <option value={ADD_TRAINER_OPTION}>+ Add new trainer…</option>
+                      </Select>
+                      <Button size="sm" variant="primary" disabled={!candidateTrainerId || candidateTrainerId === ADD_TRAINER_OPTION} onClick={() => { set('trainerIds', [...new Set([...f.trainerIds, candidateTrainerId])]); setChoosingTrainer(false); setCandidateTrainerId('') }}>
+                        <Plus className="size-3.5" /> Add
+                      </Button>
+                      <Button size="sm" onClick={() => setChoosingTrainer(false)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" onClick={() => { setCandidateTrainerId(trainers.find((trainer) => !f.trainerIds.includes(trainer.id))?.id ?? ''); setChoosingTrainer(true) }}>
+                      <Plus className="size-3.5" /> Add trainer
+                    </Button>
+                  )}
+                </div>
               </Field>
-              {err3('trainerId') && <p className="mt-1 text-xs text-brand-600">{err3('trainerId')}</p>}
+              {err3('trainerIds') && <p className="mt-1 text-xs text-brand-600">{err3('trainerIds')}</p>}
             </div>
 
             <div className="space-y-3">
@@ -656,10 +848,18 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
             <div>
               <Field
                 label="Direct participant emails (optional)"
-                hint="Paste email addresses separated by commas or spaces. Directory users will be resolved automatically."
+                hint="Paste email addresses or import an Excel/CSV list. Directory users will be resolved automatically."
               >
-                <Textarea rows={3} value={f.emails} onChange={(e) => set('emails', e.target.value)} placeholder="awet.gebrehiwet@partner.safaricom.et, ..." />
+                <Textarea rows={3} value={f.emails} onChange={(e) => { set('emails', e.target.value); setEmailImportSummary(''); setEmailImportError('') }} placeholder="awet.gebrehiwet@partner.safaricom.et, ..." />
               </Field>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input ref={emailFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(event) => void importParticipantEmails(event.target.files?.[0])} />
+                <Button size="sm" disabled={readingEmailFile} onClick={() => emailFileRef.current?.click()}>
+                  <FileSpreadsheet className="size-3.5" /> {readingEmailFile ? 'Reading file…' : 'Import from Excel'}
+                </Button>
+                {emailImportSummary && <span className="text-xs text-mpesa-700">{emailImportSummary}</span>}
+                {emailImportError && <span role="alert" className="text-xs text-brand-600">{emailImportError}</span>}
+              </div>
               {matched.length > 0 && (
                 <p className="mt-1 text-xs text-mpesa-700">
                   {matched.length} directory contact{matched.length === 1 ? '' : 's'} recognized and added.
@@ -734,7 +934,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                 <div>
                   <span className="block text-zinc-400 font-medium">Trainer</span>
                   <span className="font-semibold text-zinc-900 block mt-0.5 truncate">
-                    {assignedTrainer?.name || 'Unassigned'}
+                    {assignedTrainers.map((trainer) => trainer.name).join(', ') || 'Unassigned'}
                   </span>
                 </div>
                 <div>
@@ -773,7 +973,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                       <li key={`${date}-${i}`}>
                         <span className="font-medium">{shortDate(date)}:</span>{' '}
                         {c.kind === 'trainer'
-                          ? `${assignedTrainer?.name} is already running “${c.training.name}” (${time12(c.training.startTime)}–${time12(c.training.endTime)}).`
+                          ? `${assignedTrainers.map((trainer) => trainer.name).join(', ')} is already running “${c.training.name}” (${time12(c.training.startTime)}–${time12(c.training.endTime)}).`
                           : `${c.people.length} trainee${c.people.length === 1 ? ' is' : 's are'} also booked in “${c.training.name}”.`}
                       </li>
                     )),
@@ -787,6 +987,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
       </div>
 
       {newJourneyOpen && <QuickJourneyModal onClose={() => setNewJourneyOpen(false)} onCreated={(id) => set('journeyId', id)} />}
+      {addingTrainer && <AddTrainerModal onClose={() => setAddingTrainer(false)} onCreated={(id) => set('trainerIds', [...new Set([...f.trainerIds, id])])} />}
     </FullPageDialog>
   )
 }

@@ -1,4 +1,4 @@
-import { Award, BarChart3, CheckCircle2, ChevronDown, ClipboardCheck, Clock, Download, FileQuestion, GraduationCap, MessageSquare, Search, Star, UserCheck, Users, X, XCircle } from 'lucide-react'
+import { Award, BarChart3, CheckCircle2, ChevronDown, ClipboardCheck, Clock, Download, FileQuestion, GraduationCap, MessageSquare, Minus, Search, Star, TrendingDown, TrendingUp, UserCheck, Users, X, XCircle } from 'lucide-react'
 import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { cn } from '../lib/utils'
 import type { RequestStatus, TrainingStatus } from './types'
@@ -92,25 +92,67 @@ const statTile: Record<StatTone, string> = {
   zinc: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800',
 }
 
-/** One stat card for every admin page, matching the learner portal: icon left, label above value, hint below. */
-export function StatCard({ icon: Icon, label, value, hint, tone = 'zinc', className }: { icon?: React.ComponentType<{ className?: string }>; label: string; value: ReactNode; hint?: ReactNode; tone?: StatTone; className?: string }) {
+export type StatCardTrend = { text: string; period: string; direction: 'up' | 'down' | 'flat' | 'unavailable'; tone: 'positive' | 'negative' | 'neutral'; points?: number[] }
+
+function StatSparkline({ points }: { points: number[] }) {
+  if (points.length < 2) return null
+  const width = 72
+  const height = 28
+  const inset = 2
+  const min = Math.min(...points)
+  const span = Math.max(1, Math.max(...points) - min)
+  const coords = points.map((point, index) => ({
+    x: inset + (index / (points.length - 1)) * (width - inset * 2),
+    y: height - inset - ((point - min) / span) * (height - inset * 2),
+  }))
+  const line = coords.map(({ x, y }, index) => `${index ? 'L' : 'M'}${x},${y}`).join(' ')
+  const area = `${line} L${width - inset},${height - inset} L${inset},${height - inset} Z`
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} aria-hidden="true" className="h-7 w-[4.5rem] shrink-0 overflow-visible text-brand-600">
+      <path d={area} className="fill-brand-600/10" />
+      <path d={line} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** One stat card for every admin page, matching the learner portal: icon and value left, comparison at the top right. */
+export function StatCard({ icon: Icon, label, value, hint, tone = 'zinc', trend, className }: { icon?: React.ComponentType<{ className?: string }>; label: string; value: ReactNode; hint?: ReactNode; tone?: StatTone; trend?: StatCardTrend; className?: string }) {
+  const trendTone = trend?.tone === 'positive' ? 'text-mpesa-600' : trend?.tone === 'negative' ? 'text-brand-600' : 'text-zinc-500'
   return (
     <Card className={cn('flex min-w-0 flex-col p-4 shadow-card sm:p-5', className)}>
-      <div className="flex min-w-0 items-center gap-3.5">
-        {(() => {
-          const Shown = Icon ?? iconFor(label)
-          return (
-            <span className={cn('grid size-11 shrink-0 place-items-center rounded-full sm:size-12', statTile[tone])}>
-              <Shown className="size-5" />
-            </span>
-          )
-        })()}
-        <div className="min-w-0">
-          <p className="truncate text-xs font-medium text-zinc-600 sm:text-[13px]">{label}</p>
-          <p className="mt-0.5 text-xl leading-tight font-bold tracking-tight text-zinc-900 sm:text-[1.65rem]">{value}</p>
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-3.5">
+          {(() => {
+            const Shown = Icon ?? iconFor(label)
+            return (
+              <span className={cn('grid size-11 shrink-0 place-items-center rounded-full sm:size-12', statTile[tone])}>
+                <Shown className="size-5" />
+              </span>
+            )
+          })()}
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium text-zinc-600 sm:text-[13px]">{label}</p>
+            <p className="mt-0.5 text-xl leading-tight font-bold tracking-tight text-zinc-900 sm:text-[1.65rem]">{value}</p>
+          </div>
         </div>
+        {trend && (
+          <div className="min-w-0 shrink-0 pt-0.5 text-right">
+            <p className={cn('flex items-center justify-end gap-1 text-xs font-semibold tabular-nums', trendTone)}>
+              {trend.direction === 'up' ? <TrendingUp className="size-3.5 shrink-0" /> : trend.direction === 'down' ? <TrendingDown className="size-3.5 shrink-0" /> : trend.direction === 'flat' ? <Minus className="size-3.5 shrink-0" /> : null}
+              <span className="truncate">{trend.text}</span>
+            </p>
+            <p className="mt-0.5 truncate text-xs text-zinc-500">{trend.period}</p>
+          </div>
+        )}
       </div>
-      {hint && <p className="mt-auto pt-3 text-xs text-zinc-500">{hint}</p>}
+      {(hint || trend?.points) && (
+        <div className="mt-auto flex min-w-0 items-end justify-between gap-2 pt-3">
+          <div className="min-w-0">
+            {hint && <p className="truncate text-xs text-zinc-500">{hint}</p>}
+          </div>
+          {trend?.points && <StatSparkline points={trend.points} />}
+        </div>
+      )}
     </Card>
   )
 }
@@ -146,7 +188,7 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', classN
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="w-full rounded-full border border-transparent bg-zinc-100 py-2 pr-4 pl-9 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-500 focus:border-brand-500 focus:bg-surface focus:ring-2 focus:ring-brand-100 dark:bg-zinc-800/70 dark:focus:bg-surface"
+        className="w-full rounded-full border border-transparent bg-zinc-100 py-2 pr-4 pl-9 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-500 focus:border-brand-500 focus:bg-surface focus:ring-2 focus:ring-brand-100 dark:bg-zinc-800/70"
       />
     </div>
   )
@@ -182,7 +224,7 @@ export const Select = ({ className, ...props }: SelectHTMLAttributes<HTMLSelectE
   )
 }
 
-export function Modal({ open, onClose, title, description, children, footer, wide }: { open: boolean; onClose: () => void; title: string; description?: string; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
+export function Modal({ open, onClose, title, description, children, footer, wide }: { open: boolean; onClose: () => void; title: ReactNode; description?: ReactNode; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   const dialog = useRef<HTMLDivElement>(null)
   const restore = useRef<HTMLElement | null>(null)
   const titleId = useId()
@@ -289,7 +331,7 @@ export function Tabs<T extends string>({ value, onChange, items, label }: { valu
     if (next) onChange(next.value)
   }
   return (
-    <div role="tablist" aria-label={label} className="scrollbar-none flex flex-wrap gap-1">
+    <div role="tablist" aria-label={label} className="scrollbar-none flex min-w-0 max-w-full gap-1 overflow-x-auto">
       {items.map((it) => {
         const active = value === it.value
         return (
@@ -308,15 +350,15 @@ export function Tabs<T extends string>({ value, onChange, items, label }: { valu
               }
             }}
             className={cn(
-              'flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all',
+              'flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition',
               active
                 ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30'
-                : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white',
+                : 'text-zinc-600 hover:bg-zinc-50',
             )}
           >
             {it.label}
             {it.count !== undefined && (
-              <span className={cn('grid min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold', active ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400')}>
+              <span className={cn('grid min-w-5 place-items-center rounded-full px-1.5 text-xs font-semibold', active ? 'bg-white text-brand-600' : 'bg-zinc-100 text-zinc-600')}>
                 {it.count}
               </span>
             )}
@@ -325,6 +367,11 @@ export function Tabs<T extends string>({ value, onChange, items, label }: { valu
       })}
     </div>
   )
+}
+
+/** Shared white toolbar for page-level admin tabs with related filters/actions on the right. */
+export function TabBar({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn('mb-4 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200/80 bg-surface p-2.5', className)}>{children}</div>
 }
 
 export function downloadCsv(filename: string, header: string[], rows: (string | number)[][]) {

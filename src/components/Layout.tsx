@@ -1,4 +1,4 @@
-import { ArrowRight, Award, BookOpen, Briefcase, ChartNoAxesColumn, ChevronDown, ChevronLeft, CircleHelp, ClipboardList, FilePlus2, Home, LogOut, Menu, RotateCcw, Search, type LucideIcon, UserRound, X } from 'lucide-react'
+import { ArrowRight, Award, BookOpen, Briefcase, ChartNoAxesColumn, ChevronDown, ChevronLeft, CircleHelp, ClipboardList, FilePlus2, Home, LogOut, Menu, RotateCcw, Route, Search, type LucideIcon, UserRound, X } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { cn, progressStatus } from '../lib/utils'
@@ -15,7 +15,8 @@ type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean; sec
 
 const learnerNav: NavItem[] = [
     { to: '/trainings', label: 'Home', icon: Home, end: true },
-    { to: '/learning', label: 'Trainings', icon: BookOpen },
+    { to: '/learning', label: 'Trainings', icon: BookOpen, end: true },
+    { to: '/learning?tab=Paths', label: 'Learning Paths', icon: Route },
     { to: '/certificates', label: 'Certificates', icon: Award },
     { to: '/report', label: 'Report', icon: ChartNoAxesColumn },
     { to: '/help', label: 'Help & Support', icon: CircleHelp },
@@ -203,14 +204,14 @@ function UserMenu({ reset }: { reset: DemoReset }) {
   }, [])
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative z-40">
       <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-2.5 rounded-full py-1 pr-2 pl-1 hover:bg-zinc-100">
         <UserAvatar name={user.name} className="size-9 ring-1 ring-zinc-200" />
         <span className="hidden max-w-[12rem] truncate text-sm font-medium whitespace-nowrap lg:block">{user.name}</span>
         <ChevronDown className="size-4 text-zinc-500" />
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-64 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
+        <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
           <div className="flex items-center gap-3 border-b border-zinc-100 p-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-full bg-zinc-100 text-zinc-700">
               <Briefcase className="size-4" />

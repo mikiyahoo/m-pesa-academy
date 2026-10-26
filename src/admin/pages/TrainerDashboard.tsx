@@ -56,7 +56,7 @@ export function TrainerDashboard() {
         <Card>
           <CardTitle
             action={
-              <Link to="/admin/calendar" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
+              <Link to="/admin/trainings?view=calendar" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
                 Calendar <ArrowRight className="size-3.5" />
               </Link>
             }

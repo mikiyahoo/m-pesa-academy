@@ -17,12 +17,15 @@ export const myLearnerId = () => activeLearner().personId
 
 export type AssignmentState = 'Acknowledged' | 'Read' | 'Not opened' | 'Overdue'
 
-export const isAssigned = (m: Material) => (m.assignedGroupIds?.length ?? 0) > 0
+export const isAssigned = (m: Material) => (m.assignedGroupIds?.length ?? 0) > 0 || (m.assignedPersonIds?.length ?? 0) > 0
 
-/** Everyone an assignment reaches: active members of the assigned groups (the demo learner is a member of ISON). */
+/** Everyone an assignment reaches: active members of assigned groups and directly assigned users. */
 export function assignedPeople(data: AdminData, m: Material) {
   const groups = new Set(m.assignedGroupIds ?? [])
-  const people = data.people.filter((p) => p.status !== 'Inactive' && p.groupIds.some((g) => groups.has(g))).map((p) => ({ id: p.id, name: p.name, email: p.email }))
+  const individuals = new Set(m.assignedPersonIds ?? [])
+  const people = data.people
+    .filter((p) => p.status !== 'Inactive' && (individuals.has(p.id) || p.groupIds.some((g) => groups.has(g))))
+    .map((p) => ({ id: p.id, name: p.name, email: p.email }))
   return people
 }
 
@@ -45,8 +48,9 @@ export const assignmentDone = (m: Material, personId: string) => {
 const EVENT = 'mpesa-learning:assignments-change'
 
 function learnerList(data = loadAdminData()) {
+  const learner = activeLearner()
   return data.materials
-    .filter((m) => m.assignedGroupIds?.some((g) => activeLearner().groupIds.includes(g)))
+    .filter((m) => m.assignedPersonIds?.includes(learner.personId) || m.assignedGroupIds?.some((g) => learner.groupIds.includes(g)))
     .sort((a, b) => Number(assignmentDone(a, myLearnerId())) - Number(assignmentDone(b, myLearnerId())) || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
 }
 

@@ -3,9 +3,10 @@ import { useState } from 'react'
 import { useFeedback } from '../components/Feedback'
 import { cn, localISO, todayISO } from '../lib/utils'
 import { dateTime, shortDate, time12 } from './helpers'
-import { CHANGE_REASONS, findConflicts, type Conflict } from './scheduling'
+import { CHANGE_REASONS, findConflicts, trainerIdsOf, type Conflict } from './scheduling'
 import { useAdmin } from './store'
 import type { AdminData, AdminTraining, TrainingEvent } from './types'
+import { ADD_TRAINER_OPTION, AddTrainerModal } from './TrainerModal'
 import { Avatar, Button, Card, CardTitle, Field, Input, Modal, SearchInput, Select, Textarea } from './ui'
 
 /** Reason dropdown with a custom box for "Other" (URS 2.3: "selected from dropdown or custom"). */
@@ -52,7 +53,7 @@ function ScopePicker({ training, value, onChange, count }: { training: AdminTrai
   )
 }
 
-export function ConflictList({ conflicts, data, trainerId }: { conflicts: Conflict[]; data: AdminData; trainerId: string }) {
+export function ConflictList({ conflicts, data, trainerIds = [] }: { conflicts: Conflict[]; data: AdminData; trainerIds?: string[] }) {
   if (!conflicts.length) return null
   return (
     <div className="space-y-1.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-3 text-sm text-amber-900">
@@ -63,7 +64,7 @@ export function ConflictList({ conflicts, data, trainerId }: { conflicts: Confli
         {conflicts.map((c, i) => (
           <li key={i} className="list-disc">
             {c.kind === 'trainer'
-              ? `${data.people.find((p) => p.id === trainerId)?.name ?? 'The trainer'} is running “${c.training.name}” (${time12(c.training.startTime)}–${time12(c.training.endTime)}).`
+              ? `${trainerIdsOf(c.training).filter((id) => trainerIds.includes(id)).map((id) => data.people.find((p) => p.id === id)?.name).filter(Boolean).join(', ') || 'An assigned trainer'} is running “${c.training.name}” (${time12(c.training.startTime)}–${time12(c.training.endTime)}).`
               : `${c.people.length} trainee${c.people.length === 1 ? ' is' : 's are'} also in “${c.training.name}”: ${c.people.slice(0, 3).map((p) => p.name).join(', ')}${c.people.length > 3 ? '…' : ''}.`}
           </li>
         ))}
@@ -72,7 +73,7 @@ export function ConflictList({ conflicts, data, trainerId }: { conflicts: Confli
   )
 }
 
-const notifyCount = (t: AdminTraining) => t.participantIds.length + (t.trainerId ? 1 : 0)
+const notifyCount = (t: AdminTraining) => t.participantIds.length + trainerIdsOf(t).length
 
 export function RescheduleModal({ training, onClose }: { training: AdminTraining; onClose: () => void }) {
   const { data, update } = useAdmin()
@@ -83,7 +84,7 @@ export function RescheduleModal({ training, onClose }: { training: AdminTraining
   const [f, setF] = useState({ date: training.date, startTime: training.startTime, endTime: training.endTime, location: training.location })
   const online = training.location === 'ONLINE'
   const dateShift = Math.round((new Date(`${f.date}T00:00`).getTime() - new Date(`${training.date}T00:00`).getTime()) / 86_400_000)
-  const conflicts = findConflicts({ id: training.id, date: f.date, startTime: f.startTime, endTime: f.endTime, trainerId: training.trainerId, participantIds: training.participantIds }, data.trainings, data.people)
+  const conflicts = findConflicts({ id: training.id, date: f.date, startTime: f.startTime, endTime: f.endTime, trainerId: training.trainerId, trainerIds: trainerIdsOf(training), participantIds: training.participantIds }, data.trainings, data.people)
   const changed = f.date !== training.date || f.startTime !== training.startTime || f.endTime !== training.endTime || f.location !== training.location
   const errors = [
     !changed && 'Change the date, time or location.',
@@ -116,6 +117,7 @@ export function RescheduleModal({ training, onClose }: { training: AdminTraining
         action: `Rescheduled ${targets.length > 1 ? `${targets.length} sessions` : 'session'} (${reason})`,
         target: training.name,
         silent: true,
+        remarks: reason,
         changes: [
           { field: 'Date', from: training.date, to: f.date },
           { field: 'Time', from: `${training.startTime}–${training.endTime}`, to: `${f.startTime}–${f.endTime}` },
@@ -162,7 +164,7 @@ export function RescheduleModal({ training, onClose }: { training: AdminTraining
         )}
         {scope === 'series' && dateShift !== 0 && <p className="text-xs text-zinc-500">Following sessions move by {dateShift > 0 ? '+' : ''}{dateShift} day{Math.abs(dateShift) === 1 ? '' : 's'} as well.</p>}
         {ui}
-        <ConflictList conflicts={conflicts} data={data} trainerId={training.trainerId} />
+        <ConflictList conflicts={conflicts} data={data} trainerIds={trainerIdsOf(training)} />
         {errors.length > 0 && errors[0] !== 'Choose a reason.' && changed && <p className="text-xs text-brand-600">{errors[0]}</p>}
       </div>
     </Modal>
@@ -185,7 +187,7 @@ export function CancelModal({ training, onClose }: { training: AdminTraining; on
         ...d,
         trainings: d.trainings.map((t) => (ids.has(t.id) ? { ...t, status: 'CANCELLED', history: [...(t.history ?? []), { at, by: 'Training team', action: 'Cancelled', reason }] } : t)),
       }),
-      { action: `Cancelled ${targets.length > 1 ? `${targets.length} sessions` : 'session'} (${reason})`, target: training.name, silent: true },
+      { action: `Cancelled ${targets.length > 1 ? `${targets.length} sessions` : 'session'} (${reason})`, target: training.name, silent: true, remarks: reason, changes: [{ field: 'Status', from: training.status, to: 'CANCELLED' }] },
     )
     toast(`Cancelled — ${notifyCount(training)} people will be notified`)
     onClose()
@@ -222,13 +224,19 @@ export function ChangeTrainerModal({ training, onClose }: { training: AdminTrain
   const { data, update } = useAdmin()
   const { toast } = useFeedback()
   const { reason, ui } = useReason()
-  const trainers = data.people.filter((p) => p.role === 'Trainer' && p.status === 'Active' && p.id !== training.trainerId)
+  const currentTrainerIds = trainerIdsOf(training)
+  const trainers = data.people.filter((p) => p.role === 'Trainer' && p.status === 'Active' && !currentTrainerIds.includes(p.id))
   const [trainerId, setTrainerId] = useState(trainers[0]?.id ?? '')
+  const [addingTrainer, setAddingTrainer] = useState(false)
   const following = seriesFrom(data, training)
   const [scope, setScope] = useState<'one' | 'series'>('one')
-  const conflicts = trainerId ? findConflicts({ id: training.id, date: training.date, startTime: training.startTime, endTime: training.endTime, trainerId, participantIds: [] }, data.trainings, data.people) : []
-  const from = data.people.find((p) => p.id === training.trainerId)?.name ?? 'Unassigned'
+  const conflicts = trainerId ? findConflicts({ id: training.id, date: training.date, startTime: training.startTime, endTime: training.endTime, trainerId, trainerIds: [trainerId], participantIds: [] }, data.trainings, data.people) : []
+  const from = currentTrainerIds.map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ') || 'Unassigned'
   const to = data.people.find((p) => p.id === trainerId)?.name ?? ''
+
+  if (addingTrainer) {
+    return <AddTrainerModal onClose={() => setAddingTrainer(false)} onCreated={setTrainerId} />
+  }
 
   const save = () => {
     const ids = new Set((scope === 'series' ? following : [training]).map((t) => t.id))
@@ -236,9 +244,9 @@ export function ChangeTrainerModal({ training, onClose }: { training: AdminTrain
     update(
       (d) => ({
         ...d,
-        trainings: d.trainings.map((t) => (ids.has(t.id) ? { ...t, trainerId, history: [...(t.history ?? []), { at, by: 'Training team', action: 'Trainer changed', reason, detail: `${from} → ${to}` }] } : t)),
+        trainings: d.trainings.map((t) => (ids.has(t.id) ? { ...t, trainerId, trainerIds: [trainerId], history: [...(t.history ?? []), { at, by: 'Training team', action: 'Trainer changed', reason, detail: `${from} → ${to}` }] } : t)),
       }),
-      { action: `Delegated to ${to} (${reason})`, target: training.name, silent: true, changes: [{ field: 'Trainer', from, to }] },
+      { action: `Delegated to ${to} (${reason})`, target: training.name, silent: true, remarks: reason, changes: [{ field: 'Trainer', from, to }] },
     )
     toast(`${to} now runs this training — both trainers are notified`)
     onClose()
@@ -262,16 +270,18 @@ export function ChangeTrainerModal({ training, onClose }: { training: AdminTrain
       <div className="space-y-4">
         <ScopePicker training={training} value={scope} onChange={setScope} count={following.length} />
         <Field label="New trainer">
-          <Select value={trainerId} onChange={(e) => setTrainerId(e.target.value)}>
+          <Select value={trainerId} onChange={(e) => e.target.value === ADD_TRAINER_OPTION ? setAddingTrainer(true) : setTrainerId(e.target.value)}>
+            <option value="" disabled>Select a trainer</option>
             {trainers.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name} — {t.department}
               </option>
             ))}
+            <option value={ADD_TRAINER_OPTION}>+ Add new trainer…</option>
           </Select>
         </Field>
         {ui}
-        <ConflictList conflicts={conflicts} data={data} trainerId={trainerId} />
+        <ConflictList conflicts={conflicts} data={data} trainerIds={[trainerId]} />
       </div>
     </Modal>
   )

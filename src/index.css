@@ -54,6 +54,15 @@ body {
   @apply bg-zinc-50 text-zinc-900 antialiased;
 }
 
+/* Compact, consistent admin table rows so more records fit below the fixed header and sidebar. */
+.admin-shell table tbody > tr > td {
+  padding-block: 0.5rem;
+}
+
+.admin-shell table thead > tr > th {
+  padding-block: 0.625rem;
+}
+
 /* Still scrollable (swipe / shift+wheel), just without a visible bar. */
 .scrollbar-none {
   scrollbar-width: none;

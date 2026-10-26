@@ -20,6 +20,10 @@ const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', '
 /** Safety cap so a long or daily rule can't create hundreds of sessions by accident. */
 export const MAX_OCCURRENCES = 52
 
+/** Trainer ids for current and legacy records; trainerId remains the primary id. */
+export const trainerIdsOf = (value: { trainerId?: string; trainerIds?: string[] }) =>
+  [...new Set([value.trainerId, ...(value.trainerIds ?? [])].filter((id): id is string => !!id))]
+
 const toISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const minutes = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number)
@@ -42,14 +46,14 @@ export type Conflict = {
  * Cancelled sessions never conflict.
  */
 export function findConflicts(
-  candidate: Pick<AdminTraining, 'date' | 'startTime' | 'endTime' | 'trainerId' | 'participantIds'> & { id?: string },
+  candidate: Pick<AdminTraining, 'date' | 'startTime' | 'endTime' | 'trainerId' | 'participantIds'> & { trainerIds?: string[]; id?: string },
   trainings: AdminTraining[],
   people: Person[],
 ): Conflict[] {
   const out: Conflict[] = []
   for (const t of trainings) {
     if (t.id === candidate.id || t.status === 'CANCELLED' || !overlaps(candidate, t)) continue
-    if (candidate.trainerId && t.trainerId === candidate.trainerId) out.push({ kind: 'trainer', training: t, people: [] })
+    if (trainerIdsOf(candidate).some((id) => trainerIdsOf(t).includes(id))) out.push({ kind: 'trainer', training: t, people: [] })
     const shared = candidate.participantIds.filter((pid) => t.participantIds.includes(pid))
     if (shared.length) out.push({ kind: 'trainee', training: t, people: shared.map((pid) => people.find((p) => p.id === pid)).filter((p): p is Person => !!p) })
   }

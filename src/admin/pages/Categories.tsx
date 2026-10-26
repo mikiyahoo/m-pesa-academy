@@ -8,10 +8,32 @@ function CategoryModal({ category, onClose }: { category?: Category; onClose: ()
   const { data, update } = useAdmin()
   const [name, setName] = useState(category?.name ?? '')
   const [description, setDescription] = useState(category?.description ?? '')
+  const [subcategories, setSubcategories] = useState<string[]>([])
   const taken = data.categories.some((c) => c.id !== category?.id && c.name.trim().toLowerCase() === name.trim().toLowerCase())
+  const isDuplicateSubcategory = (value: string, index: number) => {
+    const normalized = value.trim().toLowerCase()
+    if (!normalized) return false
+    return (category?.subcategories ?? []).some((sub) => sub.name.trim().toLowerCase() === normalized) ||
+      subcategories.slice(0, index).some((sub) => sub.trim().toLowerCase() === normalized)
+  }
+  const hasDuplicateSubcategories = subcategories.some(isDuplicateSubcategory)
+  const appendSubcategory = () => {
+    const nextIndex = subcategories.length
+    setSubcategories((current) => [...current, ''])
+    window.requestAnimationFrame(() => document.getElementById(`category-subcategory-${nextIndex}`)?.focus())
+  }
 
   const save = () => {
-    const next: Category = { id: category?.id ?? uid('c'), name: name.trim(), description: description.trim(), subcategories: category?.subcategories ?? [] }
+    const addedSubcategories = subcategories
+      .map((sub) => sub.trim())
+      .filter(Boolean)
+      .map((sub) => ({ id: uid('cs'), name: sub, description: '' }))
+    const next: Category = {
+      id: category?.id ?? uid('c'),
+      name: name.trim(),
+      description: description.trim(),
+      subcategories: [...(category?.subcategories ?? []), ...addedSubcategories],
+    }
     update((d) => ({ ...d, categories: category ? d.categories.map((c) => (c.id === next.id ? next : c)) : [...d.categories, next] }), {
       action: category ? 'Updated category' : 'Created category',
       target: next.name,
@@ -27,7 +49,7 @@ function CategoryModal({ category, onClose }: { category?: Category; onClose: ()
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!name.trim() || taken} onClick={save}>
+          <Button variant="primary" disabled={!name.trim() || taken || hasDuplicateSubcategories} onClick={save}>
             Save
           </Button>
         </>
@@ -41,6 +63,47 @@ function CategoryModal({ category, onClose }: { category?: Category; onClose: ()
         <Field label="Description (optional)">
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
+        {subcategories.length ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-zinc-700">Sub-categories (optional)</p>
+              <Button size="sm" variant="ghost" type="button" onClick={appendSubcategory}>
+                <Plus className="size-3.5" /> Add another
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {subcategories.map((sub, index) => {
+                const duplicate = isDuplicateSubcategory(sub, index)
+                return (
+                  <div key={index} className={sub.trim().length > 12 ? 'sm:col-span-3' : ''}>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id={`category-subcategory-${index}`}
+                        value={sub}
+                        onChange={(e) => setSubcategories((current) => current.map((value, i) => i === index ? e.target.value : value))}
+                        placeholder="Sub-category title"
+                        aria-label={`Sub-category ${index + 1}`}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter') return
+                          event.preventDefault()
+                          if (sub.trim() && !duplicate) appendSubcategory()
+                        }}
+                      />
+                      <Button size="sm" variant="ghost" type="button" onClick={() => setSubcategories((current) => current.filter((_, i) => i !== index))} aria-label={`Remove sub-category ${index + 1}`}>
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                    {duplicate && <p className="mt-1 text-xs text-brand-600">This sub-category already exists.</p>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : (
+          <Button size="sm" variant="ghost" type="button" onClick={() => setSubcategories([''])}>
+            <Plus className="size-3.5" /> Add sub-category
+          </Button>
+        )}
       </div>
     </Modal>
   )

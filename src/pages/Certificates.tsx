@@ -1,7 +1,8 @@
-import { ArrowLeft, ArrowRight, Award, CalendarDays, Check, CheckCircle2, Circle, Download, Hourglass, Loader2, Printer, Star, Trophy } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { ArrowLeft, ArrowRight, Award, CalendarDays, Check, CheckCircle2, Circle, Copy, Download, ExternalLink, Hourglass, Loader2, Printer, Share2, Star, Trophy } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useFeedback } from '../components/Feedback'
 import { downloadCertificatePdf, printCertificate } from '../lib/certificateExport'
+import { downloadPdfBytes, fillCertificatePdf, printPdfBytes } from '../lib/fillableCertificate'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../store/Auth'
 import { CERTIFICATE_LAYOUTS, CertificateDesign, type CertificateLayout } from '../components/CertificateDesign'
@@ -25,16 +26,27 @@ function defaultLayout(): CertificateLayout {
   } catch {
     // Preference is best-effort.
   }
-  return loadAdminData().templates.find((t) => t.isDefault)?.layout ?? 'border'
+  return defaultTemplate()?.layout ?? 'border'
+}
+
+function defaultTemplate(training?: Training) {
+  const data = loadAdminData()
+  const adminTraining = training && data.trainings.find((item) => item.id === training.id || item.name === training.title)
+  const assigned = adminTraining && data.templates.find((item) => item.assignedTypeIds?.includes(adminTraining.typeId))
+  if (assigned) return assigned
+  return data.templates.find((t) => t.isDefault) ?? data.templates[0]
 }
 
 export function CertificateArt({ training, progress, layout }: { training: Training; progress: TrainingProgress; small?: boolean; layout?: CertificateLayout }) {
   const { user } = useAuth()
+  const template = defaultTemplate(training)
   return (
     <CertificateDesign
       layout={layout ?? defaultLayout()}
+      pdfTemplate={template?.pdfTemplateData}
       fields={{
         name: user.name,
+        email: user.email,
         course: training.title,
         score: progress.quizScore,
         issued: formatDate(progress.completedAt ?? training.date),
@@ -84,7 +96,7 @@ export function Certificates() {
         ]}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200/80 bg-white p-2.5">
+      <div className="w-full rounded-2xl border border-zinc-200/80 bg-white p-2.5">
         <SegmentTabs
           label="Certificates"
           items={[
@@ -93,10 +105,8 @@ export function Certificates() {
           ]}
           value={tab}
           onChange={setTab}
+          className="w-full"
         />
-        <p className="hidden pr-2 text-xs text-zinc-500 sm:block">
-          {tab === 'earned' ? 'Open a certificate to view, print or save it as PDF.' : 'Finish the missing checks to unlock these.'}
-        </p>
       </div>
 
       {tab === 'earned' ? (
@@ -250,11 +260,142 @@ function Empty({ icon: Icon, title, text, action }: { icon: typeof Award; title:
   )
 }
 
+function ShareCertificateMenu({ title, certId }: { title: string; certId: string }) {
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const { toast } = useFeedback()
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/verify/${certId}` : `/verify/${certId}`
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [])
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      toast('Verification link copied to clipboard!')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast('Could not copy link to clipboard', { tone: 'error' })
+    }
+  }
+
+  const shareWhatsApp = () => {
+    const text = `🎓 I earned my official certificate for "${title}" at M-PESA Academy!\nVerify my credential here: ${shareUrl}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer')
+  }
+
+  const shareLinkedInPost = () => {
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank', 'noopener,noreferrer')
+  }
+
+  const addLinkedInCert = () => {
+    const url = `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(title)}&organizationName=${encodeURIComponent('M-PESA Academy')}&certUrl=${encodeURIComponent(shareUrl)}&certId=${encodeURIComponent(certId)}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  const tryNativeShare = async () => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `M-PESA Academy Certificate - ${title}`,
+          text: `Check out my certificate for ${title} on M-PESA Academy!`,
+          url: shareUrl,
+        })
+        return
+      } catch {
+        // Fallback to dropdown
+      }
+    }
+    setOpen((o) => !o)
+  }
+
+  return (
+    <div ref={ref} className="relative inline-block text-left">
+      <button
+        type="button"
+        onClick={tryNativeShare}
+        aria-expanded={open}
+        className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
+      >
+        <Share2 className="size-4 text-zinc-600" /> Share
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-50 mt-2 w-72 origin-top-right rounded-2xl border border-zinc-200 bg-white p-2 shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in-95">
+          <div className="border-b border-zinc-100 px-3 py-2">
+            <p className="text-xs font-semibold text-zinc-900">Share your credential</p>
+            <p className="text-[11px] text-zinc-500">Publicly share or add to your professional profiles</p>
+          </div>
+
+          <div className="space-y-1 p-1">
+            <button
+              onClick={copy}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100 transition"
+            >
+              {copied ? <Check className="size-4 text-emerald-600" /> : <Copy className="size-4 text-zinc-500" />}
+              <span className="flex-1 text-left">{copied ? 'Link copied!' : 'Copy verification link'}</span>
+            </button>
+
+            <button
+              onClick={shareWhatsApp}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-emerald-50 hover:text-emerald-800 transition"
+            >
+              <span className="grid size-5 place-items-center rounded-full bg-emerald-600 text-white shrink-0">
+                <svg className="size-3 fill-current" viewBox="0 0 24 24">
+                  <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.634.057-1.02-.083-.72-.261-1.616-.92-2.348-1.652-.731-.732-1.391-1.628-1.652-2.348-.14-.386-.128-.708-.083-1.02.05-.333.419-1.026.824-1.17.133-.048.28-.023.384.072l.747 1.157c.088.136.077.31-.027.436l-.372.453c-.09.11-.107.26-.04.389.28.539.81 1.07 1.35 1.35.129.067.279.05.389-.04l.453-.372c.126-.104.3-.115.436-.027l1.157.747c.095.104.12.251.072.384z" />
+                </svg>
+              </span>
+              <span className="flex-1 text-left">Share to WhatsApp</span>
+            </button>
+
+            <button
+              onClick={shareLinkedInPost}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-sky-50 hover:text-sky-800 transition"
+            >
+              <span className="grid size-5 place-items-center rounded-full bg-[#0a66c2] text-white shrink-0">
+                <svg className="size-3 fill-current" viewBox="0 0 24 24">
+                  <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 8.76a1.53 1.53 0 1 0 0-3.06 1.53 1.53 0 0 0 0 3.06m1.4 9.74V9.93H5.05v8.57h2.81z" />
+                </svg>
+              </span>
+              <span className="flex-1 text-left">Share on LinkedIn Feed</span>
+            </button>
+
+            <button
+              onClick={addLinkedInCert}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-[#0a66c2]/10 hover:text-[#0a66c2] transition"
+            >
+              <span className="grid size-5 place-items-center rounded-full bg-zinc-100 text-[#0a66c2] shrink-0 font-bold text-[10px]">
+                in
+              </span>
+              <span className="flex-1 text-left">Add to LinkedIn Profile</span>
+              <ExternalLink className="size-3 text-zinc-400" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function CertificateView() {
   const { id = '' } = useParams()
   const { getTraining, progress } = useStore()
   const training = getTraining(id)
   const p = progress[id]
+  const { user } = useAuth()
+  const importedTemplate = defaultTemplate(training)?.pdfTemplateData
   const eligible = training ? certificateChecks(training, p, LATE_WINDOW_MINUTES).eligible : false
   const [layout, setLayout] = useState<CertificateLayout>(defaultLayout)
   const art = useRef<HTMLDivElement>(null)
@@ -266,7 +407,20 @@ export function CertificateView() {
     if (!node || !training || busy) return
     setBusy(kind)
     try {
-      if (kind === 'pdf') {
+      const template = defaultTemplate(training)
+      if (template?.pdfTemplateData) {
+        const bytes = await fillCertificatePdf(template.pdfTemplateData, {
+          name: user.name,
+          email: user.email,
+          training: training.title,
+          date: formatDate(p?.completedAt ?? training.date),
+          code: certificateId(training),
+        })
+        if (kind === 'pdf') {
+          downloadPdfBytes(bytes, `M-PESA Academy certificate - ${training.title}`)
+          toast('Certificate downloaded')
+        } else printPdfBytes(bytes)
+      } else if (kind === 'pdf') {
         await downloadCertificatePdf(node, `M-PESA Academy certificate - ${training.title}`)
         toast('Certificate downloaded')
       } else await printCertificate(node)
@@ -304,7 +458,8 @@ export function CertificateView() {
         <Link to="/certificates" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800">
           <ArrowLeft className="size-4" /> All certificates
         </Link>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ShareCertificateMenu title={training.title} certId={certificateId(training)} />
           <button onClick={() => run('print')} disabled={!!busy} className="inline-flex items-center gap-2 rounded-xl border disabled:opacity-60 border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50">
             {busy === 'print' ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />} Print
           </button>
@@ -313,10 +468,16 @@ export function CertificateView() {
           </button>
         </div>
       </div>
-      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200/80 bg-white p-2.5 print:hidden">
-        <SegmentTabs label="Certificate design" items={CERTIFICATE_LAYOUTS.map((l, i) => ({ value: l.value, label: l.label, badge: i + 1 }))} value={layout} onChange={pickLayout} />
-        <span className="hidden pr-2 text-xs text-zinc-500 sm:block">{CERTIFICATE_LAYOUTS.find((l) => l.value === layout)?.hint}</span>
-      </div>
+      {importedTemplate ? (
+        <div className="mx-auto max-w-4xl rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 print:hidden">
+          This certificate uses the organization’s imported fillable PDF template.
+        </div>
+      ) : (
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200/80 bg-white p-2.5 print:hidden">
+          <SegmentTabs label="Certificate design" items={CERTIFICATE_LAYOUTS.map((l, i) => ({ value: l.value, label: l.label, badge: i + 1 }))} value={layout} onChange={pickLayout} />
+          <span className="hidden pr-2 text-xs text-zinc-500 sm:block">{CERTIFICATE_LAYOUTS.find((l) => l.value === layout)?.hint}</span>
+        </div>
+      )}
       <div ref={art} className="mx-auto max-w-4xl overflow-hidden rounded-xl border border-zinc-200 shadow-xl print:max-w-none print:rounded-none print:border-0 print:shadow-none">
         <CertificateArt training={training} progress={p} layout={layout} />
       </div>

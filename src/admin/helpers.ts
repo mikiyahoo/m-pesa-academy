@@ -13,7 +13,12 @@ export const longDate = (iso: string) => {
 }
 
 /** "Oct 8, 2026" */
-export const shortDate = (iso: string) => parseDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+export const shortDate = (iso?: string | null) => {
+  if (!iso) return '—'
+  const d = parseDate(iso)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
 
 /** "9:00 AM" */
 export const time12 = (hhmm: string) => {
@@ -21,5 +26,9 @@ export const time12 = (hhmm: string) => {
   return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
 }
 
-export const dateTime = (isoDateTime: string) =>
-  new Date(isoDateTime).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+export const dateTime = (isoDateTime?: string | null) => {
+  if (!isoDateTime) return '—'
+  const d = new Date(isoDateTime)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+}

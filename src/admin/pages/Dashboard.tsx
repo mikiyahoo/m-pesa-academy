@@ -1,42 +1,99 @@
-import { ArrowRight, CalendarDays, CheckCircle2, FileQuestion, GraduationCap, MapPin, Plus, Star, Users } from 'lucide-react'
+import { ArrowRight, CalendarDays, CheckCircle2, GraduationCap, MapPin, Plus, Star, Users, FileQuestion } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { todayISO } from '../../lib/utils'
 import { useAuth } from '../../store/Auth'
 import { dateTime, shortDate, time12 } from '../helpers'
 import { participantProgress, useAdmin } from '../store'
-import { Badge, Button, Card, CardTitle, Empty, PageHeader, StatCard, trainingStatusTone } from '../ui'
+import { DateRangePicker } from '../../components/DateRangePicker'
+import { filterActivityLogs, isInRange, type DateRange } from '../reports/filters'
+import { Badge, Button, Card, CardTitle, Empty, PageHeader, StatCard, trainingStatusTone, type StatCardTrend } from '../ui'
 import { NewTrainingModal } from './Trainings'
+
+function dateAtOffset(date: string, offset: number) {
+  const shifted = new Date(`${date}T00:00:00`)
+  shifted.setDate(shifted.getDate() + offset)
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}-${String(shifted.getDate()).padStart(2, '0')}`
+}
+
+function comparisonTrend(current: number | null, previous: number | null, unit: 'count' | 'percent' | 'decimal', points: (number | null)[]): StatCardTrend {
+  if (current === null || previous === null) return { text: '—', period: 'No recent data', direction: 'unavailable', tone: 'neutral' }
+  const delta = current - previous
+  const sign = delta > 0 ? '+' : delta < 0 ? '−' : ''
+  const suffix = unit === 'percent' ? '%' : ''
+  const trendPoints = points.filter((point): point is number => point !== null)
+  return {
+    text: `${sign}${Math.abs(delta).toFixed(unit === 'count' ? 0 : 1)}${suffix}`,
+    period: 'vs last 30 days',
+    direction: delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat',
+    tone: delta > 0 ? 'positive' : delta < 0 ? 'negative' : 'neutral',
+    points: trendPoints.length > 1 ? trendPoints : undefined,
+  }
+}
 
 export function AdminDashboard() {
   const { data } = useAdmin()
   const { user } = useAuth()
   const [creating, setCreating] = useState(false)
+  const [range, setRange] = useState<DateRange>({ from: '', to: '' })
   const today = todayISO()
 
-  const active = data.trainings.filter((t) => t.status !== 'CANCELLED')
-  const learners = new Set(active.flatMap((t) => t.participantIds)).size
-  const completionRates = active
+  const trainings = data.trainings.filter((t) => t.status !== 'CANCELLED')
+  const filtered = trainings.filter((t) => isInRange(t.date, range))
+  const learners = new Set(filtered.flatMap((t) => t.participantIds)).size
+
+  // Completion across filtered trainings with participants and modules.
+  const completionRates = filtered
     .filter((t) => t.participantIds.length)
     .map((t) => {
       const mids = data.journeys.find((j) => j.id === t.journeyId)?.modules.map((m) => m.id) ?? []
       return t.participantIds.reduce((s, pid) => s + participantProgress(t, pid, mids), 0) / t.participantIds.length
     })
   const avgCompletion = completionRates.length ? completionRates.reduce((a, b) => a + b, 0) / completionRates.length : 0
+
   const ratings = data.feedbackResponses.flatMap((r) => r.ratings)
   const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0
   const pending = data.requests.filter((r) => r.status === 'PENDING')
 
-  const upcoming = data.trainings
+  const periodMetrics = (from: string, to: string) => {
+    const periodTrainings = trainings.filter((t) => t.date >= from && t.date <= to)
+    const participantIds = new Set(periodTrainings.flatMap((t) => t.participantIds))
+    const completionRates = periodTrainings.filter((t) => t.participantIds.length).map((t) => {
+      const moduleIds = data.journeys.find((journey) => journey.id === t.journeyId)?.modules.map((module) => module.id) ?? []
+      return t.participantIds.reduce((sum, participantId) => sum + participantProgress(t, participantId, moduleIds), 0) / t.participantIds.length
+    })
+    const periodRatings = data.feedbackResponses
+      .filter((response) => response.submittedAt.slice(0, 10) >= from && response.submittedAt.slice(0, 10) <= to)
+      .flatMap((response) => response.ratings)
+    return {
+      trainings: periodTrainings.length ? periodTrainings.length : null,
+      learners: periodTrainings.length ? participantIds.size : null,
+      completion: completionRates.length ? completionRates.reduce((sum, value) => sum + value, 0) / completionRates.length : null,
+      feedback: periodRatings.length ? periodRatings.reduce((sum, value) => sum + value, 0) / periodRatings.length : null,
+    }
+  }
+  const previousMetrics = periodMetrics(dateAtOffset(today, -59), dateAtOffset(today, -30))
+  const weeklyMetrics = Array.from({ length: 5 }, (_, index) => {
+    const offset = -29 + index * 6
+    return periodMetrics(dateAtOffset(today, offset), dateAtOffset(today, Math.min(offset + 5, 0)))
+  })
+  const currentMetrics = periodMetrics(dateAtOffset(today, -29), today)
+  const dashboardTrend = (key: keyof typeof currentMetrics, unit: 'count' | 'percent' | 'decimal') =>
+    comparisonTrend(currentMetrics[key], previousMetrics[key], unit, weeklyMetrics.map((metrics) => metrics[key]))
+
+  // Upcoming / ongoing sessions in the selected date range.
+  const upcoming = filtered
     .filter((t) => t.date >= today && (t.status === 'SCHEDULED' || t.status === 'ONGOING'))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 5)
 
-  // Sessions per month for the last 6 months through next 2.
-  const months = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1 - 3 + i, 1)
+  // Sessions per month across the selected range.
+  const mins = range.from ? Number(range.from.slice(0, 4)) : Number(today.slice(0, 4))
+  const maxs = range.to ? Number(range.to.slice(0, 4)) : Number(today.slice(0, 4))
+  const months = Array.from({ length: maxs - mins + 1 }, (_, i) => {
+    const d = new Date(mins + i, (Number(today.slice(5, 7)) - 1) % 12, 1)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const items = data.trainings.filter((t) => t.date.startsWith(key) && t.status !== 'CANCELLED')
+    const items = trainings.filter((t) => t.date.startsWith(key))
     return { key, label: d.toLocaleDateString('en-US', { month: 'short' }), sessions: items.length, learners: items.reduce((s, t) => s + t.participantIds.length, 0) }
   })
   const maxLearners = Math.max(1, ...months.map((m) => m.learners))
@@ -47,16 +104,19 @@ export function AdminDashboard() {
         title={`Good day, ${user.name.split(' ')[0]}`}
         description="Here’s what’s happening across M-PESA trainings."
         actions={
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            <Plus className="size-4" /> New training
-          </Button>
+          <>
+            <DateRangePicker value={range} onChange={setRange} />
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              <Plus className="size-4" /> New training
+            </Button>
+          </>
         }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={GraduationCap} tone="red" label="Total trainings" value={data.trainings.length} hint={`${upcoming.length} upcoming sessions`} />
-        <StatCard icon={Users} tone="zinc" label="Active learners" value={learners} hint={`${data.people.filter((p) => p.role === 'Participant').length} registered in portal`} />
-        <StatCard icon={CheckCircle2} tone="green" label="Avg. completion" value={`${avgCompletion.toFixed(0)}%`} hint="Across active modules" />
+        <StatCard icon={GraduationCap} tone="red" label="Total trainings" value={filtered.length} hint={`${upcoming.length} upcoming sessions`} trend={dashboardTrend('trainings', 'count')} />
+        <StatCard icon={Users} tone="zinc" label="Active learners" value={learners} hint={`${data.people.filter((p) => p.role === 'Participant').length} registered in portal`} trend={dashboardTrend('learners', 'count')} />
+        <StatCard icon={CheckCircle2} tone="green" label="Avg. completion" value={`${avgCompletion.toFixed(0)}%`} hint="Across active modules" trend={dashboardTrend('completion', 'percent')} />
         <StatCard
           icon={Star}
           tone="amber"
@@ -67,6 +127,7 @@ export function AdminDashboard() {
             </>
           }
           hint={`${data.feedbackResponses.length} total responses`}
+          trend={dashboardTrend('feedback', 'decimal')}
         />
       </div>
 
@@ -181,7 +242,7 @@ export function AdminDashboard() {
             Recent activity
           </CardTitle>
           <ol className="relative space-y-4 border-l border-zinc-200 pl-4">
-            {data.auditLogs.slice(0, 6).map((l) => (
+            {filterActivityLogs(data, range).slice(0, 6).map((l) => (
               <li key={l.id} className="relative">
                 <span className="absolute top-1.5 -left-[21px] size-2 rounded-full bg-brand-600 ring-4 ring-surface" />
                 <p className="text-sm text-zinc-800">

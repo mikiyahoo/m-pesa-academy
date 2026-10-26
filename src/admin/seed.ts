@@ -100,6 +100,8 @@ export const seedAdminData = (): AdminData => {
       description: 'Step-by-step guide to registering a new consumer, including KYC requirements and Fayda verification.',
       updatedAt: '2026-09-12', level: 'Beginner', skills: ['KYC', 'Customer registration'], thumbnail: 'red', minViewSeconds: 300,
       downloadableGroupIds: ['g1', 'g2', 'g3', 'g4'], visibleGroupIds: [], taggedTrainerIds: ['s2', 's3'], version: 2,
+      assignedGroupIds: ['g1'], dueDate: '2026-11-05', requiresAck: true, assignedAt: '2026-10-10T09:00:00',
+      assignmentProgress: { u1: { openedAt: '2026-10-17T09:00:00', acknowledgedAt: '2026-10-17T09:12:00' }, u2: { openedAt: '2026-10-20T10:00:00' } },
       history: [
         { at: '2026-09-12T10:00:00', by: 'Mariamawit Fekadeselase', change: 'Replaced file — added the new Fayda flow (version 2)' },
         { at: '2026-08-20T09:00:00', by: 'Mariamawit Fekadeselase', change: 'Created' },
@@ -110,6 +112,8 @@ export const seedAdminData = (): AdminData => {
       description: 'How enterprise customers are onboarded to B2C, C2B and bulk payment services.',
       updatedAt: '2026-09-02', level: 'Intermediate', skills: ['B2C', 'Enterprise onboarding'], thumbnail: 'blue', minViewSeconds: 600,
       downloadableGroupIds: ['g4'], visibleGroupIds: ['g4'], taggedTrainerIds: ['s4'], version: 1,
+      assignedPersonIds: ['u4', 'u5', 'u6'], dueDate: '2026-10-20', requiresAck: true, assignedAt: '2026-10-04T11:00:00',
+      assignmentProgress: { u4: { openedAt: '2026-10-12T08:30:00', acknowledgedAt: '2026-10-12T08:35:00' }, u5: { openedAt: '2026-10-16T14:20:00' } },
       history: [{ at: '2026-09-02T11:30:00', by: 'Bereket Belay', change: 'Created' }],
     },
     {
@@ -135,6 +139,8 @@ export const seedAdminData = (): AdminData => {
       description: 'Secure procedure for verifying customers and resetting their M-PESA PIN.',
       updatedAt: '2026-07-30', level: 'Advanced', skills: ['PIN reset', 'Account security'], thumbnail: 'red', minViewSeconds: 240,
       downloadableGroupIds: ['g1'], visibleGroupIds: ['g1'], taggedTrainerIds: ['s2'], version: 1,
+      assignedGroupIds: ['g3'], assignedPersonIds: ['u33'], dueDate: '2026-11-12', requiresAck: false, assignedAt: '2026-10-19T10:00:00',
+      assignmentProgress: { u33: { openedAt: '2026-10-21T08:45:00' } },
       history: [{ at: '2026-07-30T08:00:00', by: 'Mariamawit Fekadeselase', change: 'Created' }],
     },
     {
@@ -598,10 +604,10 @@ export const seedAdminData = (): AdminData => {
     journeys,
     people,
     groups: [
-      { id: 'g1', name: 'Call Center — ISON', description: 'Outsourced call center agents at ISON.' },
-      { id: 'g2', name: 'Retail Shops', description: 'Safaricom retail shop staff.' },
-      { id: 'g3', name: 'Agent Network', description: 'Field agents and super-agents.' },
-      { id: 'g4', name: 'Enterprise Sales', description: 'Enterprise account managers.' },
+      { id: 'g1', name: 'Call Center — ISON', description: 'Outsourced call center agents at ISON.', organization: 'ISON' },
+      { id: 'g2', name: 'Retail Shops', description: 'Safaricom retail shop staff.', organization: 'Safaricom' },
+      { id: 'g3', name: 'Agent Network', description: 'Field agents and super-agents.', organization: 'M-PESA Agent Network' },
+      { id: 'g4', name: 'Enterprise Sales', description: 'Enterprise account managers.', organization: 'Safaricom' },
     ],
     trainings,
     requests,

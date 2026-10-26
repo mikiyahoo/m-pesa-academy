@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Download, Loader2, Presentation, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, Loader2, Maximize2, Minimize2, Presentation, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '../lib/utils'
@@ -191,7 +191,32 @@ export function PptxViewer({ url, title, globalKeys = false }: { url: string; ti
 /** Pop-up slide viewer: dark backdrop, title bar with download and close, slides fitted to the screen. */
 export function SlidesDialog({ url, title, downloadable, onClose }: { url: string; title: string; downloadable?: boolean; onClose: () => void }) {
   const panel = useRef<HTMLDivElement>(null)
-  useDialogFocus(panel, onClose)
+  // Full screen fills the window itself, and also asks the browser for real full screen when allowed.
+  const [full, setFull] = useState(false)
+  const fullRef = useRef(false)
+  fullRef.current = full
+  const exitFull = () => {
+    setFull(false)
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
+  }
+  // Esc leaves full screen first; a second Esc closes the slides.
+  useDialogFocus(panel, () => (fullRef.current ? exitFull() : onClose()))
+  useEffect(() => {
+    // Leaving the browser's full screen (e.g. its own Esc) also leaves ours.
+    const sync = () => {
+      if (!document.fullscreenElement) setFull(false)
+    }
+    document.addEventListener('fullscreenchange', sync)
+    return () => {
+      document.removeEventListener('fullscreenchange', sync)
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
+    }
+  }, [])
+  const toggleFull = () => {
+    if (full) return exitFull()
+    setFull(true)
+    void panel.current?.requestFullscreen?.().catch(() => {})
+  }
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -201,14 +226,24 @@ export function SlidesDialog({ url, title, downloadable, onClose }: { url: strin
   }, [])
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
+    <div className={cn('fixed inset-0 z-50 flex justify-center', full ? 'items-stretch' : 'items-end sm:items-center sm:p-6')}>
       <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm" onClick={onClose} aria-hidden />
-      <div ref={panel} role="dialog" aria-modal aria-label={`${title} slides`} className="relative flex max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl">
+      <div ref={panel} role="dialog" aria-modal aria-label={`${title} slides`} className={cn('relative flex w-full flex-col overflow-hidden bg-white shadow-2xl', full ? 'h-full max-h-none max-w-none rounded-none' : 'max-h-[100dvh] max-w-6xl rounded-t-3xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl')}>
         <header className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3 sm:px-6">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
             <Presentation className="size-4" />
           </span>
           <h2 className="min-w-0 flex-1 truncate text-base font-bold text-zinc-900">{title}</h2>
+          <button
+            type="button"
+            onClick={toggleFull}
+            aria-label={full ? 'Exit full screen' : 'Full screen'}
+            title={full ? 'Exit full screen' : 'Full screen'}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-2.5 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 sm:px-3"
+          >
+            {full ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+            <span className="hidden sm:inline">{full ? 'Exit full screen' : 'Full screen'}</span>
+          </button>
           {downloadable && (
             <a href={url} download className="hidden items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 sm:inline-flex">
               <Download className="size-3.5" /> Download

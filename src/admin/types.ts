@@ -28,13 +28,16 @@ export type Material = {
   version: number
   /** Version history: replacements and edits (C03). */
   history: { at: string; by: string; change: string }[]
-  /** Uploaded file's name and size in bytes (documents and presentations; contents aren't stored in the prototype). */
+  /** Uploaded file's metadata. The file bytes live in browser IndexedDB in this prototype. */
+  fileId?: string
   fileName?: string
   fileSize?: number
   /** External URL for LINK materials and stream-only videos (URS 5: videos are links). */
   url?: string
   /** Groups assigned this material directly as self-paced mandatory reading (no session). */
   assignedGroupIds?: string[]
+  /** Individual users assigned this material directly, in addition to or instead of groups. */
+  assignedPersonIds?: string[]
   /** Optional due date for standalone reading assignments. */
   dueDate?: string
   /** Assignment needs an "I have read and understood" acknowledgement from each person. */
@@ -84,6 +87,8 @@ export type Person = {
   designation?: string
   organization?: string
   region?: string
+  /** Admin who originally created the profile. */
+  createdBy?: string
   /** Temporary (invited) users only (TA-1.3/1.4, URS 2.1). Dates are inclusive. */
   accessStart?: string
   accessEnd?: string
@@ -101,6 +106,9 @@ export type Group = {
   id: string
   name: string
   description: string
+  organization?: string
+  createdAt?: string
+  createdBy?: string
 }
 
 export type TrainingStatus = 'SCHEDULED' | 'ONGOING' | 'COMPLETED' | 'CANCELLED'
@@ -187,9 +195,14 @@ export type TrainingEvent = {
 export type AdminTraining = {
   id: string
   name: string
+  /** Reference to a shared uploaded cover, stored once even for recurring sessions. */
+  coverId?: string
   journeyId: string
   typeId: string
+  /** Primary trainer, kept for compatibility with existing records. */
   trainerId: string
+  /** All assigned trainers; includes trainerId when set. */
+  trainerIds?: string[]
   date: string
   startTime: string
   endTime: string
@@ -270,6 +283,7 @@ export type TrainingRequest = {
   /** Drafts are discarded after 24 hours (RQ-1.2). */
   draftExpiresAt?: string
   trainerId?: string
+  trainerIds?: string[]
   trainingId?: string
   joinLink?: string
   rejection?: { reason: string; comment: string }
@@ -380,6 +394,10 @@ export type CertificateTemplate = {
   isDefault: boolean
   /** Certificate layout (see components/CertificateDesign). */
   layout?: 'sweep' | 'border' | 'tiles'
+  /** Imported fillable PDF template, base64-encoded for local storage. */
+  pdfTemplateData?: string
+  pdfFileName?: string
+  pdfFileSize?: number
   /** Training types that use this template (X03); otherwise the default applies. */
   assignedTypeIds?: string[]
 }
@@ -406,6 +424,10 @@ export type AuditLog = {
   action: string
   target: string
   at: string // ISO datetime
+  /** Affected record metadata; older entries are resolved from their action and target when displayed. */
+  entityId?: string
+  entityType?: string
+  remarks?: string
   /** Field-level before/after values (Y02). */
   changes?: AuditChange[]
 }
@@ -436,6 +458,8 @@ export type AdminData = {
   people: Person[]
   groups: Group[]
   trainings: AdminTraining[]
+  /** Uploaded training cover images keyed by coverId (data URLs optimized for browser storage). */
+  trainingCovers?: Record<string, string>
   requests: TrainingRequest[]
   assessments: Assessment[]
   questionBank: QuestionBankItem[]
@@ -454,4 +478,82 @@ export type AdminData = {
   contentStats: Record<string, { views: number; downloads: number }>
   /** Appreciation emails sent to top trainees from Reports (simulated delivery). */
   appreciations?: { personId: string; at: string; by: string; subject: string }[]
+  /** Gamification: per-person point events and earned badges. */
+  gamification?: GamificationData
+}
+
+// ─── Gamification ────────────────────────────────────────────────────────────
+
+export type BadgeId =
+  | 'first-login'
+  | 'first-complete'
+  | 'perfect-score'
+  | 'hat-trick'       // 3 trainings completed
+  | 'speedster'       // Completed assessment under 5 min
+  | 'top-learner'     // Ranked #1 on leaderboard at end of month
+  | 'streak-7'        // 7-day learning streak
+  | 'quiz-master'     // 5 perfect MCQ assessments
+  | 'early-bird'      // Submitted assessment >1 day before deadline
+  | 'team-player'     // Attended 3+ group trainings
+
+export type Badge = {
+  id: BadgeId
+  label: string
+  description: string
+  icon: string        // emoji
+  color: string       // tailwind bg class
+  points: number      // bonus points awarded when earned
+}
+
+export const ALL_BADGES: Badge[] = [
+  { id: 'first-login',   label: 'First Steps',       description: 'Logged in for the first time.',             icon: '🚀', color: 'bg-sky-500',     points: 50  },
+  { id: 'first-complete',label: 'Completionist',      description: 'Completed your first training.',            icon: '🎯', color: 'bg-green-500',   points: 100 },
+  { id: 'perfect-score', label: 'Perfect Score',      description: 'Scored 100% on an assessment.',            icon: '⭐', color: 'bg-yellow-500',  points: 150 },
+  { id: 'hat-trick',     label: 'Hat-Trick',          description: 'Completed 3 trainings.',                    icon: '🎩', color: 'bg-purple-500',  points: 200 },
+  { id: 'speedster',     label: 'Speedster',          description: 'Finished an assessment in under 5 minutes.',icon: '⚡', color: 'bg-orange-500',  points: 75  },
+  { id: 'top-learner',   label: 'Top Learner',        description: 'Ranked #1 on the monthly leaderboard.',    icon: '🏆', color: 'bg-brand-500',   points: 500 },
+  { id: 'streak-7',      label: '7-Day Streak',       description: '7 days of consecutive learning activity.',  icon: '🔥', color: 'bg-red-500',     points: 250 },
+  { id: 'quiz-master',   label: 'Quiz Master',        description: 'Aced 5 assessments with a perfect score.',  icon: '🧠', color: 'bg-indigo-500',  points: 300 },
+  { id: 'early-bird',    label: 'Early Bird',         description: 'Submitted an assessment 1+ day before due.', icon: '🐦', color: 'bg-teal-500',    points: 100 },
+  { id: 'team-player',   label: 'Team Player',        description: 'Attended 3 or more group training sessions.',icon: '🤝', color: 'bg-pink-500',    points: 150 },
+]
+
+export type PointEventKind =
+  | 'training-completed'
+  | 'assessment-passed'
+  | 'assessment-perfect'
+  | 'badge-earned'
+  | 'attendance-present'
+  | 'attendance-early'
+  | 'feedback-submitted'
+  | 'streak-bonus'
+  | 'material-completed'
+
+export type PointEvent = {
+  id: string
+  personId: string
+  kind: PointEventKind
+  points: number
+  at: string            // ISO datetime
+  label: string         // human-readable description
+  refId?: string        // trainingId / assessmentId / materialId
+}
+
+export type EarnedBadge = {
+  badgeId: BadgeId
+  earnedAt: string
+}
+
+export type PersonGamification = {
+  personId: string
+  points: number
+  events: PointEvent[]
+  badges: EarnedBadge[]
+  /** ISO date of last activity, for streak calculation. */
+  lastActivityAt?: string
+  currentStreak?: number
+}
+
+export type GamificationData = {
+  people: Record<string, PersonGamification>  // keyed by personId
 }

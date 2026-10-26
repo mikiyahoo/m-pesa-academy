@@ -1,14 +1,15 @@
-import { AlarmClock, BellRing, BookOpenCheck, CheckCircle2, ClipboardList, Download, Eye, FileText, Users } from 'lucide-react'
+import { AlarmClock, BellRing, BookOpenCheck, CheckCircle2, ClipboardList, Download, Eye, FileText, UserPlus, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { RowMenu } from '../../components/RowMenu'
 import { useFeedback } from '../../components/Feedback'
 import { assignedPeople, assignmentDone, assignmentState, isAssigned, type AssignmentState } from '../../lib/assignments'
 import { cn, localISO, todayISO } from '../../lib/utils'
 import { shortDate } from '../helpers'
 import { useAdmin } from '../store'
+import { canDownloadFile } from '../materialFiles'
+import { AssignMaterialModal } from './Content'
 import type { Material } from '../types'
-import { Badge, Button, Card, downloadCsv, Empty, Modal, PageHeader, ProgressBar, SearchInput, StatCard, Table, Tabs } from '../ui'
+import { Badge, Button, Card, downloadCsv, Empty, Modal, PageHeader, ProgressBar, SearchInput, StatCard, Table, TabBar, Tabs } from '../ui'
 
 const stateTone: Record<AssignmentState, 'green' | 'zinc' | 'amber' | 'red'> = { Acknowledged: 'green', Read: 'green', 'Not opened': 'zinc', Overdue: 'red' }
 
@@ -21,6 +22,9 @@ export function AdminAssignments() {
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [viewing, setViewing] = useState<Material | null>(null)
+  const [choosingMaterial, setChoosingMaterial] = useState(false)
+  const [assigning, setAssigning] = useState<Material | null>(null)
+  const [materialSearch, setMaterialSearch] = useState('')
   const today = todayISO()
 
   const rows = useMemo(
@@ -75,9 +79,9 @@ export function AdminAssignments() {
             <Button onClick={exportAll} disabled={!rows.length}>
               <Download className="size-4" /> Export
             </Button>
-            <Link to="/admin/materials" className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-xs transition hover:bg-brand-700">
+            <Button variant="primary" onClick={() => setChoosingMaterial(true)}>
               <ClipboardList className="size-4" /> Assign from materials
-            </Link>
+            </Button>
           </>
         }
       />
@@ -89,7 +93,7 @@ export function AdminAssignments() {
         <StatCard icon={AlarmClock} tone="amber" label="Overdue" value={overdue} />
       </div>
 
-      <div className="mt-6 mb-4 flex flex-wrap items-center justify-between gap-3">
+      <TabBar className="mt-6">
         <Tabs<Filter>
           value={filter}
           onChange={setFilter}
@@ -102,10 +106,10 @@ export function AdminAssignments() {
           ]}
         />
         <SearchInput value={q} onChange={setQ} placeholder="Search assignments…" className="w-full sm:w-64" />
-      </div>
+      </TabBar>
 
       {visible.length ? (
-        <Table head={['Material', 'Groups', 'Due', 'Opened', 'Progress', '']} minWidth={820}>
+        <Table head={['Material', 'Assigned to', 'Due', 'Opened', 'Progress', '']} minWidth={820}>
           {visible.map((r) => (
             <tr key={r.m.id} className="hover:bg-zinc-50">
               <td className="px-4 py-3">
@@ -124,6 +128,7 @@ export function AdminAssignments() {
                   {(r.m.assignedGroupIds ?? []).map((g) => (
                     <Badge key={g}>{groupName(g)}</Badge>
                   ))}
+                  {!!r.m.assignedPersonIds?.length && <Badge tone="green">{r.m.assignedPersonIds.length} individual user{r.m.assignedPersonIds.length === 1 ? '' : 's'}</Badge>}
                 </div>
               </td>
               <td className={cn('px-4 py-3 whitespace-nowrap', r.overdue ? 'font-medium text-brand-700' : 'text-zinc-600')}>{r.m.dueDate ? shortDate(r.m.dueDate) : '—'}</td>
@@ -143,7 +148,7 @@ export function AdminAssignments() {
                   items={[
                     { label: 'View people', icon: Eye, onClick: () => setViewing(r.m) },
                     { label: 'Send reminder', icon: BellRing, onClick: () => remind(r.m, r.people.filter((p) => !assignmentDone(r.m, p.id)).map((p) => p.id)) },
-                    { label: 'Edit assignment', icon: ClipboardList, to: '/admin/materials' },
+                    { label: 'Edit assignment', icon: ClipboardList, onClick: () => setAssigning(r.m) },
                   ]}
                 />
               </td>
@@ -155,13 +160,55 @@ export function AdminAssignments() {
           <Empty
             icon={BookOpenCheck}
             title={rows.length ? 'No assignments match' : 'No reading assigned yet'}
-            text={rows.length ? 'Try another filter or search.' : 'Open Materials and choose “Assign to groups” on a document to send it without a training.'}
+            text={rows.length ? 'Try another filter or search.' : 'Choose a material to assign it to groups or individual users without scheduling a training.'}
+            action={!rows.length ? <Button variant="primary" onClick={() => setChoosingMaterial(true)}><UserPlus className="size-4" /> Choose material</Button> : undefined}
           />
         </Card>
       )}
 
       {viewing && <PeopleModal material={data.materials.find((m) => m.id === viewing.id) ?? viewing} onClose={() => setViewing(null)} onRemind={remind} />}
+      {choosingMaterial && (
+        <MaterialPickerModal
+          materials={data.materials.filter((material) => canDownloadFile(material) && (!materialSearch || material.title.toLowerCase().includes(materialSearch.trim().toLowerCase())))}
+          search={materialSearch}
+          onSearch={setMaterialSearch}
+          onClose={() => setChoosingMaterial(false)}
+          onChoose={(material) => { setChoosingMaterial(false); setMaterialSearch(''); setAssigning(material) }}
+        />
+      )}
+      {assigning && <AssignMaterialModal material={assigning} onClose={() => setAssigning(null)} />}
     </>
+  )
+}
+
+function MaterialPickerModal({ materials, search, onSearch, onClose, onChoose }: { materials: Material[]; search: string; onSearch: (value: string) => void; onClose: () => void; onChoose: (material: Material) => void }) {
+  return (
+    <Modal
+      open
+      wide
+      onClose={onClose}
+      title="Choose material to assign"
+      description="Select a document or presentation, then choose the groups or individual users who should receive it."
+      footer={<Button onClick={onClose}>Close</Button>}
+    >
+      <div className="space-y-3">
+        <SearchInput value={search} onChange={onSearch} placeholder="Search materials…" className="w-full" />
+        <div className="max-h-[55vh] divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200">
+          {materials.map((material) => (
+            <button key={material.id} type="button" onClick={() => onChoose(material)} className="flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-zinc-50">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600"><FileText className="size-4" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-zinc-900">{material.title}</span>
+                <span className="block text-xs text-zinc-500">{material.type} · {material.minutes} min</span>
+              </span>
+              {isAssigned(material) && <Badge tone="green">Assigned</Badge>}
+              <span className="shrink-0 text-sm font-semibold text-brand-700">Assign</span>
+            </button>
+          ))}
+          {!materials.length && <p className="px-4 py-8 text-center text-sm text-zinc-500">No documents or presentations match that search.</p>}
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -205,7 +252,7 @@ function PeopleModal({ material: m, onClose, onRemind }: { material: Material; o
         })}
         {!people.length && (
           <li>
-            <Empty compact icon={Users} title="No one to show" text="There are no active people in the assigned groups." />
+            <Empty compact icon={Users} title="No one to show" text="There are no active people in the assigned groups or direct assignments." />
           </li>
         )}
       </ul>

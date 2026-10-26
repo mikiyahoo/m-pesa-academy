@@ -1,4 +1,4 @@
-import { ArrowRight, Award, BadgeCheck, BarChart3, Bell, BellOff, Briefcase, CalendarDays, ChevronDown, ChevronRight, ClipboardList, FileClock, FileQuestion, GraduationCap, KeyRound, LayoutDashboard, LogOut, MessageSquare, Moon, PanelLeft, RotateCcw, Search, Settings2, Sun, type LucideIcon, UserRoundPlus, Users, X } from 'lucide-react'
+import { ArrowRight, Award, BadgeCheck, BarChart3, Bell, BellOff, Briefcase, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileClock, FileQuestion, GraduationCap, LayoutDashboard, LogOut, Menu, MessageSquare, Moon, RotateCcw, Search, Settings2, Sun, Trophy, type LucideIcon, UserRoundPlus, Users, X } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '../lib/utils'
@@ -16,7 +16,6 @@ type NavItem = { label: string; icon: LucideIcon; to?: string; end?: boolean; ch
 const nav: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin', end: true },
   { label: 'Trainings', icon: GraduationCap, to: '/admin/trainings' },
-  { label: 'Calendar', icon: CalendarDays, to: '/admin/calendar' },
   { label: 'Training Requests', icon: FileQuestion, to: '/admin/requests' },
   {
     label: 'Training Content',
@@ -47,8 +46,14 @@ const nav: NavItem[] = [
   },
   { label: 'Certificates', icon: BadgeCheck, to: '/admin/certificates' },
   { label: 'Certificate Templates', icon: Award, to: '/admin/certificate-templates' },
-  { label: 'Users', icon: Users, to: '/admin/users' },
-  { label: 'Temporary access', icon: KeyRound, to: '/admin/temporary-access' },
+  {
+    label: 'Users',
+    icon: Users,
+    children: [
+      { label: 'All users', to: '/admin/users' },
+      { label: 'Temporary access', to: '/admin/temporary-access' },
+    ],
+  },
   { label: 'Groups', icon: UserRoundPlus, to: '/admin/groups' },
   {
     label: 'Training Type',
@@ -60,38 +65,52 @@ const nav: NavItem[] = [
   },
   { label: 'Audit Logs', icon: FileClock, to: '/admin/audit-logs' },
   { label: 'Reports', icon: BarChart3, to: '/admin/reports' },
+  { label: 'Leaderboard', icon: Trophy, to: '/admin/leaderboard' },
 ]
 
 /** Trainer portal (D04, S10): only what a trainer needs for the sessions they conduct. */
 const trainerNav: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin', end: true },
   { label: 'My sessions', icon: GraduationCap, to: '/admin/trainings' },
-  { label: 'Calendar', icon: CalendarDays, to: '/admin/calendar' },
   { label: 'Materials', icon: ClipboardList, to: '/admin/materials' },
   { label: 'Grading', icon: MessageSquare, to: '/admin/submissions' },
   { label: 'Certificates', icon: BadgeCheck, to: '/admin/certificates' },
   { label: 'Reports', icon: BarChart3, to: '/admin/reports' },
 ]
 
-const itemCls = (active: boolean) =>
+const itemCls = (active: boolean, collapsed = false) =>
   cn(
-    'flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium transition-all',
+    'relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium transition-all',
+    collapsed && 'justify-center px-0',
     active ? 'bg-white/15 text-white ring-1 ring-white/20' : 'text-white/90 hover:bg-white/10 hover:text-white',
   )
 
 /** A collapsible group; the sidebar keeps only one group open at a time. */
-function NavGroup({ item, open, onToggle, onNavigate }: { item: NavItem; open: boolean; onToggle: () => void; onNavigate?: () => void }) {
+function NavGroup({ item, open, onToggle, onNavigate, collapsed, onExpand }: { item: NavItem; open: boolean; onToggle: () => void; onNavigate?: () => void; collapsed?: boolean; onExpand?: () => void }) {
   const { pathname } = useLocation()
   const active = item.children!.some((c) => pathname.startsWith(c.to))
   const Icon = item.icon
   return (
     <div>
-      <button onClick={onToggle} aria-expanded={open} className={itemCls(active)}>
+      <button
+        onClick={() => {
+          if (collapsed) {
+            onExpand?.()
+            if (!open) onToggle()
+          } else {
+            onToggle()
+          }
+        }}
+        title={collapsed ? item.label : undefined}
+        aria-label={collapsed ? item.label : undefined}
+        aria-expanded={!collapsed && open}
+        className={itemCls(active, collapsed)}
+      >
         <Icon className="size-4 shrink-0" />
-        <span className="flex-1 text-left">{item.label}</span>
-        {open ? <ChevronDown className="size-4 text-white/60" /> : <ChevronRight className="size-4 text-white/60" />}
+        {!collapsed && <span className="flex-1 text-left">{item.label}</span>}
+        {!collapsed && (open ? <ChevronDown className="size-4 text-white/60" /> : <ChevronRight className="size-4 text-white/60" />)}
       </button>
-      {open && (
+      {open && !collapsed && (
         <div className="mt-0.5 ml-[17px] space-y-0.5 border-l border-white/20 pl-3">
           {item.children!.map((c) => (
             <NavLink key={c.to} to={c.to} onClick={onNavigate} className={({ isActive }) => itemCls(isActive)}>
@@ -126,7 +145,7 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
   }, [])
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative z-40 isolate">
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex items-center gap-2.5 rounded-full py-1 pr-2 pl-1 transition hover:bg-zinc-100">
         <UserAvatar name={user.name} className="size-9 ring-1 ring-zinc-200" />
         <span className="hidden max-w-[12rem] truncate text-sm font-medium whitespace-nowrap text-zinc-900 lg:block">{user.name}</span>
@@ -134,7 +153,7 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
         <ChevronDown className="size-4 text-zinc-500" />
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-64 overflow-hidden rounded-xl border border-zinc-200 bg-surface shadow-lg">
+        <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-zinc-200 bg-surface shadow-lg">
           <div className="flex items-center gap-3 border-b border-zinc-100 p-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-full bg-zinc-100 text-zinc-700">
               <Briefcase className="size-4" />
@@ -194,8 +213,10 @@ function SidebarPromo({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
-function Sidebar({ onNavigate, items, promo }: { onNavigate?: () => void; items: NavItem[]; promo?: ReactNode }) {
+function Sidebar({ onNavigate, items, promo, collapsed = false, onExpand }: { onNavigate?: () => void; items: NavItem[]; promo?: ReactNode; collapsed?: boolean; onExpand?: () => void }) {
   const { pathname } = useLocation()
+  const { data } = useAdmin()
+  const pendingRequests = data.requests.filter((request) => request.status === 'PENDING').length
   // Accordion: the group holding the current page opens; opening another closes it.
   const activeGroup = items.find((i) => i.children?.some((c) => pathname.startsWith(c.to)))?.label ?? ''
   const [openGroup, setOpenGroup] = useState(activeGroup)
@@ -203,27 +224,32 @@ function Sidebar({ onNavigate, items, promo }: { onNavigate?: () => void; items:
     if (activeGroup) setOpenGroup(activeGroup)
   }, [activeGroup])
   return (
-    <div className="flex h-full flex-col p-3">
-      <Link to="/admin" onClick={onNavigate} className="mb-6 flex items-center gap-3 px-1.5 pt-2">
+    <div className={cn('flex h-full flex-col p-3', collapsed && 'px-2')}>
+      <Link to="/admin" onClick={onNavigate} title={collapsed ? 'M-PESA Academy' : undefined} className={cn('mb-6 flex items-center gap-3 px-1.5 pt-2', collapsed && 'justify-center px-0')}>
         <img src="/favicon white.svg" alt="" className="size-10 shrink-0 rounded-xl" />
-        <span className="leading-none font-bold tracking-tight text-white">
+        {!collapsed && <span className="leading-none font-bold tracking-tight text-white">
           <span className="block text-base leading-[1.05]">M-PESA</span>
           <span className="block text-sm leading-[1.05] font-semibold text-white/85">Academy</span>
-        </span>
+        </span>}
       </Link>
       <nav className="scrollbar-none flex-1 space-y-0.5 overflow-y-auto">
         {items.map((item) =>
           item.children ? (
-            <NavGroup key={item.label} item={item} open={openGroup === item.label} onToggle={() => setOpenGroup((g) => (g === item.label ? '' : item.label))} onNavigate={onNavigate} />
+            <NavGroup key={item.label} item={item} open={openGroup === item.label} onToggle={() => setOpenGroup((g) => (g === item.label ? '' : item.label))} onNavigate={onNavigate} collapsed={collapsed} onExpand={onExpand} />
           ) : (
-            <NavLink key={item.label} to={item.to!} end={item.end} onClick={onNavigate} className={({ isActive }) => itemCls(isActive)}>
+            <NavLink key={item.label} to={item.to!} end={item.end} onClick={onNavigate} title={collapsed ? item.label : undefined} className={({ isActive }) => itemCls(isActive, collapsed)}>
               <item.icon className="size-4 shrink-0" />
-              {item.label}
+              {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+              {item.to === '/admin/requests' && pendingRequests > 0 && (
+                <span aria-label={`${pendingRequests} pending`} className={cn('min-w-5 rounded-full bg-white px-1.5 py-0.5 text-center text-[10px] leading-none font-bold tabular-nums text-brand-700', collapsed ? 'absolute -top-1 -right-1' : 'ml-auto')}>
+                  {pendingRequests > 99 ? '99+' : pendingRequests}
+                </span>
+              )}
             </NavLink>
           ),
         )}
       </nav>
-      {promo && <div className="mt-3 shrink-0">{promo}</div>}
+      {!collapsed && promo && <div className="mt-3 shrink-0">{promo}</div>}
     </div>
   )
 }
@@ -310,13 +336,13 @@ function AlertsBell() {
   const alerts = [...data.alerts].sort((a, b) => b.at.localeCompare(a.at))
   const markRead = (id?: string) => update((d) => ({ ...d, alerts: d.alerts.map((x) => (!id || x.id === id ? { ...x, read: true } : x)) }))
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative z-40">
       <button onClick={() => setOpen((o) => !o)} className="relative grid size-10 place-items-center rounded-full text-zinc-600 transition hover:bg-zinc-100" aria-label={unread ? 'Alerts, ' + unread + ' unread' : 'Alerts'}>
         <Bell className="size-5" />
         {unread > 0 && <span className="absolute top-1.5 right-1.5 grid min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[10px] leading-4 font-bold text-white ring-2 ring-white">{unread}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl max-sm:fixed max-sm:inset-x-4 max-sm:top-16 max-sm:mt-0 max-sm:w-auto border border-zinc-200 bg-surface shadow-xl">
+        <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl max-sm:fixed max-sm:inset-x-4 max-sm:top-16 max-sm:mt-0 max-sm:w-auto border border-zinc-200 bg-surface shadow-xl">
           <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
             <p className="text-sm font-semibold text-zinc-900">Alerts</p>
             {unread > 0 && (
@@ -412,11 +438,19 @@ export function AdminLayout({ variant = 'admin', trainerId }: { variant?: 'admin
 
   return (
     <ScopeContext.Provider value={{ role: variant, trainerId }}>
-    <div className={cn('flex h-screen bg-canvas text-zinc-900 print:block print:h-auto print:bg-white', dark && 'dark')}>
-      <aside className={cn('relative hidden shrink-0 overflow-hidden transition-[width] lg:block print:hidden bg-gradient-to-b from-brand-600 via-[#8e2118] to-[#5e1914] dark:from-[#a8302f] dark:via-[#6e1a15] dark:to-[#3d100d] isolate before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:-z-10 before:h-56 before:bg-gradient-to-b before:from-black/45 before:to-transparent', collapsed ? 'w-0' : 'w-[236px]')}>
-        <div className="h-full w-[236px]">
-          <Sidebar items={items} promo={variant === 'admin' ? <SidebarPromo /> : undefined} />
+    <div className={cn('admin-shell flex h-screen bg-canvas text-zinc-900 print:block print:h-auto print:bg-white', dark && 'dark')}>
+      <aside className={cn('relative z-30 hidden shrink-0 transition-[width] lg:block print:hidden bg-gradient-to-b from-brand-600 via-[#8e2118] to-[#5e1914] dark:from-[#a8302f] dark:via-[#6e1a15] dark:to-[#3d100d] isolate before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:-z-10 before:h-56 before:bg-gradient-to-b before:from-black/45 before:to-transparent', collapsed ? 'w-20' : 'w-64')}>
+        <div className={cn('h-full', collapsed ? 'w-20' : 'w-64')}>
+          <Sidebar items={items} promo={variant === 'admin' ? <SidebarPromo /> : undefined} collapsed={collapsed} onExpand={() => setCollapsed(false)} />
         </div>
+        <button
+          onClick={() => setCollapsed((c) => !c)}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
+          className="absolute top-8 -right-3 z-30 grid size-6 place-items-center rounded-full border border-zinc-200 bg-white text-zinc-600 transition hover:text-brand-600"
+        >
+          <ChevronLeft className={cn('size-3.5 transition-transform', collapsed && 'rotate-180')} />
+        </button>
       </aside>
 
       {mobileOpen && (
@@ -433,14 +467,14 @@ export function AdminLayout({ variant = 'admin', trainerId }: { variant?: 'admin
 
       <div className="flex min-w-0 flex-1 flex-col print:p-0">
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden print:overflow-visible">
-          <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-zinc-200/70 bg-surface/90 px-4 backdrop-blur sm:px-6 print:hidden">
+          <header className="relative z-40 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-zinc-200/70 bg-surface/90 px-4 backdrop-blur sm:px-6 print:hidden">
             <div className="flex min-w-0 items-center gap-4">
               <button
-                onClick={() => (window.innerWidth >= 1024 ? setCollapsed((c) => !c) : setMobileOpen(true))}
-                className="rounded-full p-2 text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
-                aria-label="Toggle sidebar"
+                onClick={() => setMobileOpen(true)}
+                className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-600 text-white shadow-sm shadow-brand-600/30 transition hover:bg-brand-700 lg:hidden"
+                aria-label="Open menu"
               >
-                <PanelLeft className="size-4" />
+                <Menu className="size-[18px]" />
               </button>
               {/* Dashboard greets you like the learner portal; other pages show where you are. */}
               {pathname === '/admin' ? (
@@ -453,7 +487,7 @@ export function AdminLayout({ variant = 'admin', trainerId }: { variant?: 'admin
               {/* Search box styled like the learner header; opens the command palette. */}
               <button
                 onClick={() => setPaletteOpen(true)}
-                className="hidden w-64 items-center gap-2.5 rounded-full border border-transparent bg-zinc-100 py-2.5 pr-2 pl-3.5 text-sm text-zinc-500 transition hover:border-zinc-200 hover:bg-zinc-50 md:flex lg:w-80"
+                className="hidden w-64 items-center gap-2.5 rounded-full border border-transparent bg-zinc-100 py-2.5 pr-3.5 pl-3.5 text-sm text-zinc-500 transition hover:border-zinc-200 hover:bg-zinc-50 md:flex lg:w-80"
                 aria-label={`Search (${MOD_KEY} K)`}
               >
                 <Search className="size-4" /> <span className="flex-1 text-left">Search trainings, people…</span>
@@ -468,7 +502,7 @@ export function AdminLayout({ variant = 'admin', trainerId }: { variant?: 'admin
           </header>
           {/* Full-page editors (wizards) render here: under the header, beside the sidebar. */}
           <div id="admin-page-overlay" className="absolute inset-x-0 top-16 bottom-0 z-30 empty:hidden" />
-          <div ref={scroller} className="flex-1 overflow-y-auto scrollbar-thin print:overflow-visible">
+          <div ref={scroller} className="relative z-0 flex-1 overflow-y-auto scrollbar-thin print:overflow-visible">
             <main className="mx-auto w-full max-w-[1400px] p-4 sm:p-6 print:max-w-none print:p-0">
               {variant === 'trainer' && trainerId ? (
                 <TrainerScope trainerId={trainerId}>

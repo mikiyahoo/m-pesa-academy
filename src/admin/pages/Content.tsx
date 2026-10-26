@@ -1,17 +1,18 @@
-import { ArrowDown, ArrowUp, BookOpen, Calendar, Check, Download, ExternalLink, Eye, FileText, Layers, Pencil, PlayCircle, Plus, RefreshCw, Trash2, UserPlus, Users, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Calendar, Check, Download, ExternalLink, Eye, FileText, Layers, Pencil, PlayCircle, Plus, RefreshCw, Trash2, Upload, UserPlus, Users, X } from 'lucide-react'
 import { RowMenu } from '../../components/RowMenu'
-import { canDownloadFile, countDownload, downloadMaterial, formatBytes, materialFileName } from '../materialFiles'
+import { canDownloadFile, countDownload, deleteMaterialFile, downloadMaterial, formatBytes, materialFileName, saveMaterialFile } from '../materialFiles'
 import { assignedPeople } from '../../lib/assignments'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
 import { localISO } from '../../lib/utils'
 import { MaterialPreview, materialIcon } from '../MaterialPreview'
+import { MaterialAttachmentPreview } from '../MaterialAttachmentPreview'
 import { useScope } from '../scope'
 import { videoSource } from '../embeds'
 import { uid, useAdmin } from '../store'
 import type { Journey, Material, MaterialType, TrainingLevel } from '../types'
-import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, Table, Tabs, Textarea } from '../ui'
+import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, Table, TabBar, Tabs, Textarea } from '../ui'
 import { Wizard, WizardCard, type WizardStep } from '../Wizard'
 
 const LEVELS: TrainingLevel[] = ['Novice', 'Beginner', 'Intermediate', 'Advanced']
@@ -306,54 +307,71 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
   })
   const [visible, setVisible] = useState<Set<string>>(new Set(material?.visibleGroupIds))
   const [downloadable, setDownloadable] = useState<Set<string>>(new Set(material?.downloadableGroupIds))
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
   const scope = useScope()
   // A trainer adding material is tagged on it automatically so they can keep editing it.
   const [trainers, setTrainers] = useState<Set<string>>(new Set(material?.taggedTrainerIds ?? (scope.trainerId ? [scope.trainerId] : [])))
-  const valid = form.title.trim() && Number(form.minutes) > 0
+  const acceptsFile = form.type === 'DOCUMENT' || form.type === 'PRESENTATION'
+  const fileAccept = form.type === 'PRESENTATION' ? '.ppt,.pptx,.pdf' : '.pdf,.doc,.docx'
+  const valid = !!form.title.trim() && Number(form.minutes) > 0 && (!!material || !acceptsFile || !!uploadedFile)
   const [step, setStep] = useState<MaterialStep>('details')
 
-  const save = () => {
-    const now = localISO()
-    const next: Material = {
-      id: material?.id ?? uid('mat'),
-      title: form.title.trim(),
-      type: form.type,
-      minutes: Number(form.minutes),
-      description: form.description.trim(),
-      updatedAt: now.slice(0, 10),
-      level: form.level,
-      skills: form.skills.split(',').map((s) => s.trim()).filter(Boolean),
-      thumbnail: form.thumbnail,
-      minViewSeconds: form.type === 'DOCUMENT' ? Number(form.minViewSeconds) || 0 : undefined,
-      url: form.url.trim() || undefined,
-      downloadableGroupIds: form.type === 'VIDEO' ? [] : [...downloadable],
-      visibleGroupIds: [...visible],
-      taggedTrainerIds: [...trainers],
-      version: material?.version ?? 1,
-      history: material
-        ? [...material.history, { at: now, by: CURRENT_ADMIN, change: 'Details updated' }]
-        : [{ at: now, by: CURRENT_ADMIN, change: 'Created' }],
+  const save = async () => {
+    if (!valid || saving) return
+    setSaving(true)
+    try {
+      const now = localISO()
+      const fileId = uploadedFile ? await saveMaterialFile(uploadedFile) : material?.fileId
+      const next: Material = {
+        id: material?.id ?? uid('mat'),
+        title: form.title.trim(),
+        type: form.type,
+        minutes: Number(form.minutes),
+        description: form.description.trim(),
+        updatedAt: now.slice(0, 10),
+        level: form.level,
+        skills: form.skills.split(',').map((s) => s.trim()).filter(Boolean),
+        thumbnail: form.thumbnail,
+        minViewSeconds: form.type === 'DOCUMENT' ? Number(form.minViewSeconds) || 0 : undefined,
+        url: form.url.trim() || undefined,
+        downloadableGroupIds: form.type === 'VIDEO' ? [] : [...downloadable],
+        visibleGroupIds: [...visible],
+        taggedTrainerIds: [...trainers],
+        version: material?.version ?? 1,
+        fileId,
+        fileName: uploadedFile?.name ?? material?.fileName,
+        fileSize: uploadedFile?.size ?? material?.fileSize,
+        history: material
+          ? [...material.history, { at: now, by: CURRENT_ADMIN, change: 'Details updated' }]
+          : [{ at: now, by: CURRENT_ADMIN, change: 'Created' }],
+      }
+      update(
+        (d) => ({ ...d, materials: material ? d.materials.map((m) => (m.id === material.id ? next : m)) : [next, ...d.materials] }),
+        {
+          action: material ? 'Updated material' : 'Uploaded material',
+          target: next.title,
+          changes: material
+            ? [
+                { field: 'Title', from: material.title, to: next.title },
+                { field: 'Type', from: material.type, to: next.type },
+                { field: 'Level', from: material.level ?? '', to: next.level ?? '' },
+                { field: 'Minutes', from: String(material.minutes), to: String(next.minutes) },
+                { field: 'Visible to groups', from: String(material.visibleGroupIds.length || 'All'), to: String(next.visibleGroupIds.length || 'All') },
+                { field: 'Downloadable groups', from: String(material.downloadableGroupIds.length), to: String(next.downloadableGroupIds.length) },
+                { field: 'Tagged trainers', from: String(material.taggedTrainerIds.length), to: String(next.taggedTrainerIds.length) },
+              ]
+            : undefined,
+        },
+      )
+      toast(material ? 'Material updated' : 'Material added')
+      onClose()
+    } catch {
+      toast('The file could not be saved. Try again.', { tone: 'error' })
+    } finally {
+      setSaving(false)
     }
-    update(
-      (d) => ({ ...d, materials: material ? d.materials.map((m) => (m.id === material.id ? next : m)) : [next, ...d.materials] }),
-      {
-        action: material ? 'Updated material' : 'Uploaded material',
-        target: next.title,
-        changes: material
-          ? [
-              { field: 'Title', from: material.title, to: next.title },
-              { field: 'Type', from: material.type, to: next.type },
-              { field: 'Level', from: material.level ?? '', to: next.level ?? '' },
-              { field: 'Minutes', from: String(material.minutes), to: String(next.minutes) },
-              { field: 'Visible to groups', from: String(material.visibleGroupIds.length || 'All'), to: String(next.visibleGroupIds.length || 'All') },
-              { field: 'Downloadable groups', from: String(material.downloadableGroupIds.length), to: String(next.downloadableGroupIds.length) },
-              { field: 'Tagged trainers', from: String(material.taggedTrainerIds.length), to: String(next.taggedTrainerIds.length) },
-            ]
-          : undefined,
-      },
-    )
-    toast(material ? 'Material updated' : 'Material added')
-    onClose()
   }
 
   const groupNames = (ids: Set<string>, empty: string) => (ids.size ? data.groups.filter((g) => ids.has(g.id)).map((g) => g.name).join(', ') : empty)
@@ -364,7 +382,7 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
   ]
 
   return (
-    <Wizard title={material ? 'Edit material' : 'Add material'} steps={steps} step={step} onStep={setStep} onClose={onClose} onSave={save} canSave={!!valid} saveLabel={material ? 'Save changes' : 'Add material'}>
+    <Wizard title={material ? 'Edit material' : 'Add material'} steps={steps} step={step} onStep={setStep} onClose={onClose} onSave={save} canSave={!!valid && !saving} saveLabel={saving ? 'Saving file…' : material ? 'Save changes' : 'Add material'}>
       {step === 'details' && (
         <WizardCard icon={FileText} title="Details">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -374,7 +392,7 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
               </Field>
             </div>
             <Field label="Type">
-              <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as MaterialType })}>
+              <Select value={form.type} onChange={(e) => { setUploadedFile(null); setForm({ ...form, type: e.target.value as MaterialType }) }}>
                 {(['DOCUMENT', 'VIDEO', 'PRESENTATION', 'LINK'] as MaterialType[]).map((t) => (
                   <option key={t}>{t}</option>
                 ))}
@@ -429,9 +447,42 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
                 <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
               </Field>
             </div>
-            {!material && (
-              <div className="rounded-xl border border-dashed border-zinc-300 p-4 text-center text-xs text-zinc-500 sm:col-span-2">
-                File upload is simulated in this demo — only the details above are saved.
+            {!material && acceptsFile && (
+              <div className="space-y-3 sm:col-span-2">
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept={fileAccept}
+                  className="hidden"
+                  aria-label="Attach material file"
+                  onChange={(event) => {
+                    setUploadedFile(event.currentTarget.files?.[0] ?? null)
+                    event.currentTarget.value = ''
+                  }}
+                />
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 p-4">
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-zinc-800">Attach {form.type === 'PRESENTATION' ? 'presentation' : 'document'}</span>
+                    <span className="mt-0.5 block text-xs text-zinc-500">{fileAccept.replaceAll('.', '').replaceAll(',', ', ').toUpperCase()}</span>
+                  </span>
+                  <Button type="button" onClick={() => fileInput.current?.click()}>
+                    <Upload className="size-4" /> {uploadedFile ? 'Replace file' : 'Browse files'}
+                  </Button>
+                </div>
+                {uploadedFile ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-surface p-3">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600"><FileText className="size-4" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-zinc-900">{uploadedFile.name}</span>
+                      <span className="block text-xs text-zinc-500">Attached · {formatBytes(uploadedFile.size)}</span>
+                    </span>
+                    <button type="button" onClick={() => setUploadedFile(null)} className="grid size-8 shrink-0 place-items-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700" aria-label="Remove attached file">
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-zinc-500">Choose a file to attach it to this material. A file is required for documents and presentations.</p>
+                )}
               </div>
             )}
           </div>
@@ -477,6 +528,7 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
             {[
               ['Title', form.title.trim() || '—'],
               ['Type', form.type],
+              ...(acceptsFile ? [['File', uploadedFile?.name ?? material?.fileName ?? '—']] : []),
               ['Duration', `${form.minutes || 0} min`],
               ['Level', form.level],
               ['Skills', form.skills.trim() || '—'],
@@ -491,7 +543,20 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
               </div>
             ))}
           </dl>
-          {!valid && <p className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">Add a title and a duration before saving.</p>}
+          {acceptsFile && (
+            <div className="mt-4 space-y-2">
+              <p className="text-sm font-semibold text-zinc-900">Attached material preview</p>
+              <MaterialAttachmentPreview
+                type={form.type}
+                title={form.title || 'Material'}
+                file={uploadedFile}
+                fileId={uploadedFile ? undefined : material?.fileId}
+                fileName={uploadedFile?.name ?? material?.fileName}
+                fileSize={uploadedFile?.size ?? material?.fileSize}
+              />
+            </div>
+          )}
+          {!valid && <p className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">Add a title and duration{!material && acceptsFile && !uploadedFile ? ', then attach a file' : ''} before saving.</p>}
         </WizardCard>
       )}
     </Wizard>
@@ -503,6 +568,7 @@ function ReplaceFileModal({ material, onClose }: { material: Material; onClose: 
   const { toast } = useFeedback()
   const [file, setFile] = useState<File | null>(null)
   const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
   const accept = material.type === 'PRESENTATION' ? '.ppt,.pptx,.pdf' : '.pdf,.doc,.docx,.ppt,.pptx'
 
   // Everyone learning through a journey that uses this material.
@@ -513,31 +579,41 @@ function ReplaceFileModal({ material, onClose }: { material: Material; onClose: 
     return people.size
   }
 
-  const replace = () => {
-    if (!file) return
-    const version = material.version + 1
-    const now = localISO()
-    update(
-      (d) => ({
-        ...d,
-        materials: d.materials.map((m) =>
-          m.id === material.id
-            ? {
-                ...m,
-                version,
-                fileName: file.name,
-                fileSize: file.size,
-                updatedAt: now.slice(0, 10),
-                history: [...m.history, { at: now, by: CURRENT_ADMIN, change: `Replaced file with ${file.name} (version ${version})${note.trim() ? ` — ${note.trim()}` : ''}` }],
-              }
-            : m,
-        ),
-      }),
-      { action: 'Replaced material file', target: material.title, changes: [{ field: 'File', from: `${materialFileName(material)} (v${material.version})`, to: `${file.name} (v${version})` }] },
-    )
-    const n = audience()
-    toast(n > 0 ? `Replaced — ${n} trainees with access notified` : 'Replaced — no active trainings use this material yet')
-    onClose()
+  const replace = async () => {
+    if (!file || saving) return
+    setSaving(true)
+    try {
+      const fileId = await saveMaterialFile(file)
+      const version = material.version + 1
+      const now = localISO()
+      update(
+        (d) => ({
+          ...d,
+          materials: d.materials.map((m) =>
+            m.id === material.id
+              ? {
+                  ...m,
+                  version,
+                  fileId,
+                  fileName: file.name,
+                  fileSize: file.size,
+                  updatedAt: now.slice(0, 10),
+                  history: [...m.history, { at: now, by: CURRENT_ADMIN, change: `Replaced file with ${file.name} (version ${version})${note.trim() ? ` — ${note.trim()}` : ''}` }],
+                }
+              : m,
+          ),
+        }),
+        { action: 'Replaced material file', target: material.title, changes: [{ field: 'File', from: `${materialFileName(material)} (v${material.version})`, to: `${file.name} (v${version})` }] },
+      )
+      const n = audience()
+      toast(n > 0 ? `Replaced — ${n} trainees with access notified` : 'Replaced — no active trainings use this material yet')
+      onClose()
+      if (material.fileId) void deleteMaterialFile(material.fileId).catch(() => undefined)
+    } catch {
+      toast('The replacement file could not be saved. Try again.', { tone: 'error' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const replacements = material.history.filter((h) => h.change.startsWith('Replaced')).slice().reverse()
@@ -551,8 +627,8 @@ function ReplaceFileModal({ material, onClose }: { material: Material; onClose: 
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!file} onClick={replace}>
-            <RefreshCw className="size-4" /> Replace file
+          <Button variant="primary" disabled={!file || saving} onClick={replace}>
+            <RefreshCw className="size-4" /> {saving ? 'Saving file…' : 'Replace file'}
           </Button>
         </>
       }
@@ -583,7 +659,7 @@ function ReplaceFileModal({ material, onClose }: { material: Material; onClose: 
               <span className="block text-xs text-zinc-500">{accept.replaceAll(',', ', ')}</span>
             </span>
           )}
-          <input type="file" accept={accept} className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          <input type="file" accept={accept} className="sr-only" onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.currentTarget.value = '' }} />
         </label>
         <Field label="What changed? (optional)">
           <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Updated tariff table for October" />
@@ -601,19 +677,25 @@ function ReplaceFileModal({ material, onClose }: { material: Material; onClose: 
             </ul>
           </div>
         )}
-        <p className="text-xs text-zinc-500">In this prototype only the file name and size are kept, not the file itself.</p>
+        <p className="text-xs text-zinc-500">The attached file is saved in this browser and is available to learners with download access.</p>
       </div>
     </Modal>
   )
 }
 
-function AssignMaterialModal({ material, onClose }: { material: Material; onClose: () => void }) {
+export function AssignMaterialModal({ material, onClose }: { material: Material; onClose: () => void }) {
   const { data, update } = useAdmin()
   const { toast } = useFeedback()
   const [groupIds, setGroupIds] = useState<string[]>(material.assignedGroupIds ?? [])
+  const [personIds, setPersonIds] = useState<string[]>(material.assignedPersonIds ?? [])
+  const [personSearch, setPersonSearch] = useState('')
   const [dueDate, setDueDate] = useState(material.dueDate ?? '')
   const [requiresAck, setRequiresAck] = useState(material.requiresAck ?? true)
-  const reach = assignedPeople(data, { ...material, assignedGroupIds: groupIds }).length
+  const reach = assignedPeople(data, { ...material, assignedGroupIds: groupIds, assignedPersonIds: personIds }).length
+  const people = data.people
+    .filter((person) => person.role === 'Participant' && person.status === 'Active')
+    .filter((person) => `${person.name} ${person.email} ${person.department}`.toLowerCase().includes(personSearch.trim().toLowerCase()))
+  const hasRecipients = groupIds.length > 0 || personIds.length > 0
 
   const save = () => {
     const at = localISO()
@@ -622,17 +704,20 @@ function AssignMaterialModal({ material, onClose }: { material: Material; onClos
         ...d,
         materials: d.materials.map((m) =>
           m.id === material.id
-            ? { ...m, assignedGroupIds: groupIds, dueDate: dueDate || undefined, requiresAck, assignedAt: groupIds.length ? (m.assignedAt ?? at) : undefined }
+            ? { ...m, assignedGroupIds: groupIds, assignedPersonIds: personIds, dueDate: dueDate || undefined, requiresAck, assignedAt: hasRecipients ? (m.assignedAt ?? at) : undefined }
             : m,
         ),
       }),
       {
-        action: groupIds.length ? 'Assigned reading' : 'Cleared reading assignment',
+        action: hasRecipients ? 'Assigned reading' : 'Cleared reading assignment',
         target: material.title,
-        changes: [{ field: 'Groups', from: String(material.assignedGroupIds?.length ?? 0), to: String(groupIds.length) }],
+        changes: [
+          { field: 'Groups', from: String(material.assignedGroupIds?.length ?? 0), to: String(groupIds.length) },
+          { field: 'Individual users', from: String(material.assignedPersonIds?.length ?? 0), to: String(personIds.length) },
+        ],
       },
     )
-    toast(groupIds.length ? `Assigned to ${reach} ${reach === 1 ? 'person' : 'people'} — they’ll see it under Assigned to me` : 'Assignment cleared')
+    toast(hasRecipients ? `Assigned to ${reach} ${reach === 1 ? 'person' : 'people'} — they’ll see it under Assigned to me` : 'Assignment cleared')
     onClose()
   }
 
@@ -641,13 +726,13 @@ function AssignMaterialModal({ material, onClose }: { material: Material; onClos
       open
       onClose={onClose}
       title={`Assign reading — ${material.title}`}
-      description="Send this material straight to groups for self-paced reading, without scheduling a training."
+      description="Send this material to groups or individual users for self-paced reading, without scheduling a training."
       footer={
         <>
-          <span className="mr-auto self-center text-xs text-zinc-500">{groupIds.length ? `Reaches ${reach} ${reach === 1 ? 'person' : 'people'}` : 'No groups selected'}</span>
+          <span className="mr-auto self-center text-xs text-zinc-500">{hasRecipients ? `Reaches ${reach} ${reach === 1 ? 'person' : 'people'}` : 'No groups or users selected'}</span>
           <Button onClick={onClose}>Cancel</Button>
           <Button variant="primary" onClick={save}>
-            {groupIds.length ? 'Assign' : 'Save'}
+            {hasRecipients ? 'Assign' : 'Save'}
           </Button>
         </>
       }
@@ -667,6 +752,30 @@ function AssignMaterialModal({ material, onClose }: { material: Material; onClos
                 <span className="min-w-0 flex-1 truncate">{g.name}</span>
               </label>
             ))}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div>
+            <p className="text-sm font-medium text-zinc-700">Individual users</p>
+            <p className="mt-0.5 text-xs text-zinc-500">Assign directly to active users without adding a group.</p>
+          </div>
+          <SearchInput value={personSearch} onChange={setPersonSearch} placeholder="Search users by name, email or department" className="w-full" />
+          <div className="max-h-48 divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200">
+            {people.map((person) => (
+              <label key={person.id} className="flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm hover:bg-zinc-50">
+                <input
+                  type="checkbox"
+                  className="size-4 shrink-0 accent-brand-600"
+                  checked={personIds.includes(person.id)}
+                  onChange={(event) => setPersonIds(event.target.checked ? [...personIds, person.id] : personIds.filter((id) => id !== person.id))}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium text-zinc-900">{person.name}</span>
+                  <span className="block truncate text-xs text-zinc-500">{person.email}{person.department ? ` · ${person.department}` : ''}</span>
+                </span>
+              </label>
+            ))}
+            {!people.length && <p className="px-3 py-5 text-center text-sm text-zinc-500">No active users match that search.</p>}
           </div>
         </div>
         <Field label="Due date (optional)">
@@ -740,28 +849,26 @@ export function AdminMaterials() {
           </Button>
         }
       />
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <TabBar>
+        <div className="w-full min-w-0 sm:flex-1">
           <Tabs<TypeFilter>
             value={type}
             onChange={setType}
             items={(['ALL', 'DOCUMENT', 'VIDEO', 'PRESENTATION', 'LINK'] as TypeFilter[]).map((v) => ({ value: v, label: v === 'ALL' ? 'All' : v[0] + v.slice(1).toLowerCase() }))}
           />
+        </div>
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
           <Select value={level} onChange={(e) => setLevel(e.target.value as 'ALL' | TrainingLevel)} className="w-auto py-1.5 text-xs">
             <option value="ALL">All levels</option>
-            {LEVELS.map((l) => (
-              <option key={l}>{l}</option>
-            ))}
+            {LEVELS.map((l) => <option key={l}>{l}</option>)}
           </Select>
           <Select value={skill} onChange={(e) => setSkill(e.target.value)} className="w-auto py-1.5 text-xs">
             <option value="ALL">All skills</option>
-            {allSkills.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
+            {allSkills.map((s) => <option key={s}>{s}</option>)}
           </Select>
+          <SearchInput value={q} onChange={setQ} placeholder="Search materials…" className="w-full sm:w-64" />
         </div>
-        <SearchInput value={q} onChange={setQ} placeholder="Search materials…" className="w-full sm:w-64" />
-      </div>
+      </TabBar>
       <Table head={['Title', 'Type', 'Level', 'Skills', 'Duration', 'Used in', 'Assigned', 'Version', 'Updated', '']} minWidth={1040}>
         {rows.map((m) => {
           const Icon = materialIcon[m.type]
@@ -792,11 +899,11 @@ export function AdminMaterials() {
               <td className="px-4 py-3 text-zinc-600">{m.minutes} mins</td>
               <td className="px-4 py-3 text-zinc-600">{usage(m.id)} journeys</td>
               <td className="px-4 py-3 text-zinc-600">
-                {m.assignedGroupIds && m.assignedGroupIds.length > 0 ? (
-                  <Badge tone="green">{m.assignedGroupIds.length} group{m.assignedGroupIds.length === 1 ? '' : 's'}</Badge>
-                ) : (
-                  <span className="text-zinc-400">—</span>
-                )}
+                <div className="flex flex-wrap gap-1">
+                  {!!m.assignedGroupIds?.length && <Badge tone="green">{m.assignedGroupIds.length} group{m.assignedGroupIds.length === 1 ? '' : 's'}</Badge>}
+                  {!!m.assignedPersonIds?.length && <Badge>{m.assignedPersonIds.length} user{m.assignedPersonIds.length === 1 ? '' : 's'}</Badge>}
+                  {!m.assignedGroupIds?.length && !m.assignedPersonIds?.length && <span className="text-zinc-400">—</span>}
+                </div>
               </td>
               <td className="px-4 py-3 text-zinc-600">v{m.version}</td>
               <td className="px-4 py-3 whitespace-nowrap text-zinc-600">{m.updatedAt}</td>
@@ -810,7 +917,7 @@ export function AdminMaterials() {
                       ...(canDownloadFile(m) || m.url ? [{ label: canDownloadFile(m) ? 'Download file' : 'Open source', icon: canDownloadFile(m) ? Download : ExternalLink, onClick: () => void download(m) }] : []),
                       ...(canEdit(m)
                         ? [
-                            ...(canDownloadFile(m) ? [{ label: 'Assign to groups', icon: UserPlus, onClick: () => setAssigning(m) }] : []),
+                            ...(canDownloadFile(m) ? [{ label: 'Assign material', icon: UserPlus, onClick: () => setAssigning(m) }] : []),
                             { label: 'Edit details', icon: Pencil, onClick: () => setEditing(m) },
                             ...(canDownloadFile(m) ? [{ label: 'Replace file', icon: RefreshCw, onClick: () => setReplacing(m) }] : []),
                             ...(!scope.trainerId ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => void remove(m) }] : []),

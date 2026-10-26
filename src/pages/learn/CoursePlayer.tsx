@@ -39,6 +39,8 @@ import {
   type OutlineItem,
 } from "./outline";
 import { UserAvatar } from "../../components/UserAvatar";
+import { CourseDiscussion } from "../../components/CourseDiscussion";
+import { OfflineCourseToggle } from "../../components/OfflineCourseToggle";
 
 const KIND_ICON: Record<ItemKind, typeof BookOpen> = {
   session: Video,
@@ -70,6 +72,7 @@ export function CoursePlayer() {
   // True while an assessment is running: hides the prev/next footer so it can't be skipped mid-attempt.
   const [focus, setFocus] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  const [showQa, setShowQa] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -243,6 +246,20 @@ export function CoursePlayer() {
           <ProgressRing percent={percent} />
           <span className="hidden sm:inline">{percent}%</span>
         </span>
+        <OfflineCourseToggle training={training} compact />
+        <button
+          onClick={() => setShowQa(!showQa)}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition",
+            showQa
+              ? "bg-brand-50 text-brand-600 ring-1 ring-brand-200"
+              : "text-zinc-600 hover:bg-zinc-100",
+          )}
+          title="Toggle Course Q&A Forum"
+        >
+          <MessageSquare className="size-4" />
+          <span className="hidden sm:inline">Q&A</span>
+        </button>
         <UserAvatar name={user.name} className="size-9 ring-1 ring-zinc-200" />
       </header>
 
@@ -333,6 +350,33 @@ export function CoursePlayer() {
             </footer>
           )}
         </main>
+
+        {/* Course Q&A Panel */}
+        {showQa && (
+          <aside className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-zinc-200 bg-white shadow-2xl lg:static lg:z-auto lg:w-[380px] lg:rounded-2xl lg:border lg:border-zinc-200/70 lg:shadow-none">
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-100 px-4">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="size-4 text-brand-600" />
+                <h3 className="text-sm font-bold text-zinc-900">Discussion &amp; Q&amp;A</h3>
+              </div>
+              <button
+                onClick={() => setShowQa(false)}
+                className="grid size-8 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                aria-label="Close Q&A"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <CourseDiscussion
+                trainingId={training.id}
+                currentModuleId={item.kind === "reading" || item.kind === "video" ? item.id : undefined}
+                currentModuleTitle={item.kind === "reading" || item.kind === "video" ? item.title : undefined}
+                compact
+              />
+            </div>
+          </aside>
+        )}
       </div>
 
       {/* Outline drawer (mobile / tablet) */}

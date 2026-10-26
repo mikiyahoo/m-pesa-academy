@@ -1,6 +1,7 @@
 import type { AdminData, AdminTraining, Material } from '../admin/types'
 import type { BannerTheme, Module, QuizQuestion, Training } from '../types'
 import { TEAMS_DEMO } from '../data/trainings'
+import { trainerIdsOf } from '../admin/scheduling'
 
 /**
  * Turns trainings scheduled in the admin portal into learner trainings, so a session an admin
@@ -41,7 +42,7 @@ const fallbackQuiz = (name: string): QuizQuestion[] => [
 
 export function adminToLearnerTraining(data: AdminData, t: AdminTraining): Training {
   const journey = data.journeys.find((j) => j.id === t.journeyId)
-  const trainer = data.people.find((p) => p.id === t.trainerId)?.name ?? 'Training team'
+  const trainer = trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ') || 'Training team'
   const type = data.trainingTypes.find((x) => x.id === t.typeId)
   const material = (id?: string) => data.materials.find((m) => m.id === id)
   const modules = (journey?.modules ?? []).map((jm, i) => toModule(`${t.id}-${jm.id}`, jm.title, material(jm.materialIds[0]), i))
@@ -59,6 +60,7 @@ export function adminToLearnerTraining(data: AdminData, t: AdminTraining): Train
     teamsJoinUrl: t.teamsMeeting?.joinUrl ?? (t.delivery === 'Online' ? TEAMS_DEMO : undefined),
     category: type?.name ?? 'Training',
     banner: THEMES[hash(t.id) % THEMES.length],
+    cover: t.coverId ? data.trainingCovers?.[t.coverId] : undefined,
     bannerTitle: t.name,
     description: t.description || journey?.description || `${t.name} — scheduled by the training team.`,
     modules: modules.length ? modules : [toModule(`${t.id}-intro`, 'Session overview', undefined, 0)],

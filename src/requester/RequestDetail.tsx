@@ -2,6 +2,7 @@ import { ArrowLeft, CalendarDays, CheckCircle2, Clock, MapPin, UserRound, XCircl
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { JoinLink, RequestDetails, RequestStatusPill, RequestTimeline } from '../admin/RequestParts'
 import { dateTime, longDate, time12 } from '../admin/helpers'
+import { trainerIdsOf } from '../admin/scheduling'
 import { cn } from '../lib/utils'
 import { useRequester } from './useRequester'
 
@@ -13,7 +14,7 @@ export function RequestDetail() {
   if (!request) return <Navigate to="/requests" replace />
   if (request.status === 'DRAFT') return <Navigate to={`/requests/${request.id}/edit`} replace />
 
-  const trainer = data.people.find((p) => p.id === request.trainerId)
+  const trainers = trainerIdsOf(request).map((trainerId) => data.people.find((person) => person.id === trainerId)).filter((person): person is NonNullable<typeof person> => !!person)
   const training = data.trainings.find((t) => t.id === request.trainingId)
 
   return (
@@ -67,11 +68,7 @@ export function RequestDetail() {
             <div>
               <h2 className="font-bold text-zinc-900">Approved</h2>
               <p className="mt-0.5 text-sm text-zinc-600">
-                {trainer ? (
-                  <>
-                    <span className="font-medium text-zinc-800">{trainer.name}</span> will run this training.{' '}
-                  </>
-                ) : null}
+                {trainers.length ? <><span className="font-medium text-zinc-800">{trainers.map((trainer) => trainer.name).join(', ')}</span> will run this training.{' '}</> : null}
                 {training ? 'It’s on the calendar.' : 'The trainer will confirm the date and time.'}
               </p>
             </div>

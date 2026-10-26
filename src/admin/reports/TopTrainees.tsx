@@ -7,6 +7,7 @@ import { useAdmin } from '../store'
 import { Avatar, Button, Card, CardTitle, Empty, ProgressBar, StatCard, Table, Tabs } from '../ui'
 import { AppreciationModal, type Recipient } from './AppreciationModal'
 import type { Sheet } from './export'
+import { useReportStatTrend } from './ReportParts'
 
 export type TraineeRow = {
   id: string
@@ -112,6 +113,8 @@ export function TopTraineesView({ rows }: { rows: TraineeRow[] }) {
   const people = showAll ? rows : rows.slice(0, 10)
   const top = rows[0]
   const { data } = useAdmin()
+  const traineeTrend = useReportStatTrend('Trainees')
+  const certificatesTrend = useReportStatTrend('Certificates')
   const [appreciating, setAppreciating] = useState<Recipient[] | null>(null)
   const lastSent = (id: string) => (data.appreciations ?? []).filter((a) => a.personId === id).sort((a, b) => b.at.localeCompare(a.at))[0]
   const reasonOf = (r: TraineeRow) =>
@@ -120,10 +123,10 @@ export function TopTraineesView({ rows }: { rows: TraineeRow[] }) {
   return (
     <>
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <StatCard icon={Users} tone="zinc" label="Trainees" value={rows.length} />
+        <StatCard icon={Users} tone="zinc" label="Trainees" value={rows.length} trend={traineeTrend} />
         <StatCard icon={Trophy} tone="amber" label="Top trainee" value={<span className="text-base sm:text-lg">{top?.name ?? '—'}</span>} hint={top ? `${top.certificates} certificate${top.certificates === 1 ? '' : 's'} · ${pct(top.completed, top.enrolled)}% complete` : undefined} />
         <StatCard icon={Building2} tone="red" label={by === 'department' ? 'Top department' : 'Top group'} value={<span className="text-base sm:text-lg">{ranks[0]?.label ?? '—'}</span>} hint={ranks[0] ? `${ranks[0].completion}% completion` : undefined} />
-        <StatCard icon={Award} tone="green" label="Certificates" value={rows.reduce((s, r) => s + r.certificates, 0)} />
+        <StatCard icon={Award} tone="green" label="Certificates" value={rows.reduce((s, r) => s + r.certificates, 0)} trend={certificatesTrend} />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)]">

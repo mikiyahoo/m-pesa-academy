@@ -1,28 +1,40 @@
 import { AlertTriangle, BadgeCheck, CalendarDays, Eye, GraduationCap, MapPin, Plus, QrCode, Repeat, Users } from 'lucide-react'
 import { RowMenu, type RowMenuItem } from '../../components/RowMenu'
-import { cn } from '../../lib/utils'
-import { loadView, ViewToggle } from '../../pages/Learning'
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { ViewToggle } from '../../pages/Learning'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { shortDate, time12 } from '../helpers'
 import { NewTrainingModal } from '../TrainingForm'
-import { conflictIndex } from '../scheduling'
+import { AdminCalendar, AdminTrainingStats } from './Calendar'
+import { conflictIndex, trainerIdsOf } from '../scheduling'
 import { useScope } from '../scope'
 import { useAdmin } from '../store'
 import type { AdminTraining, TrainingStatus } from '../types'
-import { Avatar, Badge, Button, Empty, PageHeader, SearchInput, Table, Tabs, trainingStatusTone } from '../ui'
+import { Avatar, Badge, Button, Empty, PageHeader, SearchInput, Table, TabBar, Tabs, trainingStatusTone } from '../ui'
 
 type Filter = 'ALL' | TrainingStatus
+type TrainingsAdminView = 'list' | 'calendar'
 
 export { NewTrainingModal, type TrainingPreset } from '../TrainingForm'
 
 export function AdminTrainings() {
   const { data } = useAdmin()
   const scope = useScope()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('ALL')
   const [creating, setCreating] = useState(false)
-  const [view, setView] = useState<'grid' | 'list'>(loadView)
+  const [view, setView] = useState<TrainingsAdminView>(() => searchParams.get('view') === 'calendar' ? 'calendar' : 'list')
+  useEffect(() => {
+    setView(searchParams.get('view') === 'calendar' ? 'calendar' : 'list')
+  }, [searchParams])
+  const changeView = (next: TrainingsAdminView) => {
+    setView(next)
+    const params = new URLSearchParams(searchParams)
+    if (next === 'calendar') params.set('view', 'calendar')
+    else params.delete('view')
+    setSearchParams(params, { replace: true })
+  }
   const conflicts = useMemo(() => conflictIndex(data.trainings, data.people), [data.trainings, data.people])
 
   const counts = useMemo(() => {
@@ -49,29 +61,30 @@ export function AdminTrainings() {
           )
         }
       />
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-5">
+        <AdminTrainingStats />
+      </div>
+      <TabBar>
         <Tabs<Filter>
           value={filter}
           onChange={setFilter}
           items={(['ALL', 'SCHEDULED', 'ONGOING', 'COMPLETED', 'CANCELLED'] as Filter[]).map((v) => ({ value: v, label: v === 'ALL' ? 'All' : v[0] + v.slice(1).toLowerCase(), count: counts[v] ?? 0 }))}
         />
-        <div className="flex w-full items-center gap-2 sm:w-auto">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
           <SearchInput value={q} onChange={setQ} placeholder="Search trainings…" className="flex-1 sm:w-64" />
-          <span className="hidden md:block">
-            <ViewToggle view={view} onChange={setView} />
-          </span>
+          <ViewToggle view={view} onChange={changeView} calendar grid={false} remember={false} />
         </div>
-      </div>
-      {rows.length ? (
+      </TabBar>
+      {view === 'calendar' ? <AdminCalendar embedded trainings={rows} /> : rows.length ? (
         <>
-          {/* Learner-style cards: phones always, desktop in grid view. */}
-          <div className={cn('grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3', view === 'list' && 'md:hidden')}>
+          {/* Keep the list compact on desktop and readable on phones. */}
+          <div className="grid grid-cols-1 gap-4 md:hidden">
             {rows.map((t) => (
               <TrainingTile key={t.id} t={t} conflict={conflicts.has(t.id)} />
             ))}
           </div>
-          {/* Table on desktop in list view. */}
-          <div className={cn('hidden', view === 'list' && 'md:block')}>
+          {/* Data table for the list view on desktop. */}
+          <div className="hidden md:block">
             <Table head={['Training', 'Journey', 'Date', 'Location', 'Participants', 'Status', '']}>
               {rows.map((t) => (
                 <tr key={t.id} className="hover:bg-zinc-50">
@@ -93,7 +106,7 @@ export function AdminTrainings() {
                         )}
                       </span>
                     )}
-                    <p className="text-xs text-zinc-500">{data.people.find((p) => p.id === t.trainerId)?.name}</p>
+                    <p className="text-xs text-zinc-500">{trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ')}</p>
                   </td>
                   <td className="px-4 py-3 text-zinc-600">{data.journeys.find((j) => j.id === t.journeyId)?.name}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-zinc-600">
@@ -141,20 +154,31 @@ const trainingMenu = (id: string, trainer: boolean): RowMenuItem[] => [
   { label: 'Open training', icon: Eye, to: `/admin/trainings/${id}`, primary: true },
   { label: 'Attendance & check-in', icon: QrCode, to: `/admin/trainings/${id}#attendance` },
   { label: 'Certificates', icon: BadgeCheck, to: '/admin/certificates' },
-  ...(trainer ? [] : [{ label: 'Calendar', icon: CalendarDays, to: '/admin/calendar' }]),
+      ...(trainer ? [] : [{ label: 'Calendar', icon: CalendarDays, to: '/admin/trainings?view=calendar' }]),
 ]
 
 /** Training as a learner-style card: banner with status and trainer, title, journey, when/where, participants. */
 function TrainingTile({ t, conflict }: { t: AdminTraining; conflict: boolean }) {
   const { data } = useAdmin()
-  const trainer = data.people.find((p) => p.id === t.trainerId)
+  const trainers = trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)).filter((person): person is NonNullable<typeof person> => !!person)
   const journey = data.journeys.find((j) => j.id === t.journeyId)
+  const cover = t.coverId ? data.trainingCovers?.[t.coverId] : undefined
+  const trainer = trainers[0]
   const [first, ...rest] = (trainer?.name ?? '').split(' ')
   return (
     <article className="group relative flex flex-col rounded-3xl border border-zinc-200/80 bg-surface p-3 transition hover:-translate-y-0.5 hover:shadow-xl focus-within:ring-2 focus-within:ring-brand-500">
       <div className="relative aspect-[16/7] overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 via-[#b3302f] to-[#6e1a15]">
-        <img src="/M-PESA Pattern.svg" alt="" className="absolute -right-6 -bottom-8 h-[150%] opacity-25 transition duration-300 group-hover:scale-105" aria-hidden />
-        <GraduationCap className="absolute top-1/2 left-5 size-10 -translate-y-1/2 text-white/25" aria-hidden />
+        {cover ? (
+          <>
+            <img src={cover} alt="" className="size-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+            <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" aria-hidden="true" />
+          </>
+        ) : (
+          <>
+            <img src="/M-PESA Pattern.svg" alt="" className="absolute -right-6 -bottom-8 h-[150%] opacity-25 transition duration-300 group-hover:scale-105" aria-hidden />
+            <GraduationCap className="absolute top-1/2 left-5 size-10 -translate-y-1/2 text-white/25" aria-hidden />
+          </>
+        )}
         <span className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
           <Badge tone={trainingStatusTone[t.status]} className="bg-white/95 backdrop-blur">
             {statusLabel(t.status)}
@@ -173,7 +197,7 @@ function TrainingTile({ t, conflict }: { t: AdminTraining; conflict: boolean }) 
         {trainer && (
           <span className="absolute right-2.5 bottom-2.5 flex max-w-[calc(100%-1.25rem)] items-center gap-1.5 rounded-full bg-black/25 py-0.5 pr-2.5 pl-0.5 text-[11px] font-medium text-white ring-1 ring-white/25 backdrop-blur-md">
             <Avatar name={trainer.name} size="sm" />
-            <span className="truncate">{rest.length ? `${first} ${rest[rest.length - 1][0]}.` : first}</span>
+            <span className="truncate">{rest.length ? `${first} ${rest[rest.length - 1][0]}.` : first}{trainers.length > 1 && ` +${trainers.length - 1}`}</span>
           </span>
         )}
       </div>

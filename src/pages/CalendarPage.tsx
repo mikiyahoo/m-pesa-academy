@@ -16,6 +16,7 @@ import {
   StatusPill,
   type Tone,
 } from "../components/CalendarParts";
+import { TrainingScheduleManager } from "../components/TrainingScheduleManager";
 import {
   cn,
   formatDate,
@@ -206,6 +207,8 @@ export function CalendarView({ trainings }: { trainings: Training[] }) {
               />
             </div>
           </section>
+
+          <TrainingScheduleManager />
         </div>
 
         <CalendarSidebar

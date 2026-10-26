@@ -1,5 +1,5 @@
-import { Ban, CalendarPlus, Copy, Download, GraduationCap, Mail, MoreHorizontal, Pencil, RotateCcw, Upload, UserPlus, Users } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { Ban, CalendarPlus, ChevronLeft, ChevronRight, Copy, Download, Eye, GraduationCap, Mail, MoreHorizontal, Pencil, RotateCcw, Upload, UserPlus, Users } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
 import { cn, localISO, todayISO } from '../../lib/utils'
@@ -8,8 +8,9 @@ import { EMAIL_RE, isInternalEmail, mergeParticipants, parseParticipants } from 
 import { uid, useAdmin } from '../store'
 import { acceptLink, accessLabel, accessState, addDays, DEFAULT_GRACE_DAYS, daysLeft, isTemporary, makeInviteToken, trainingsFor, type AccessState } from '../temporary'
 import type { Person, RequestParticipant } from '../types'
-import { Avatar, Badge, Button, Card, downloadCsv, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, Table, Tabs } from '../ui'
+import { Avatar, Badge, Button, Card, downloadCsv, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, TabBar, Tabs } from '../ui'
 import { FullPageDialog } from '../Wizard'
+import { useAuth } from '../../store/Auth'
 
 const stateTone: Record<AccessState, 'zinc' | 'green' | 'red' | 'amber' | 'blue'> = {
   pending: 'blue',
@@ -27,6 +28,7 @@ const stateTone: Record<AccessState, 'zinc' | 'green' | 'red' | 'amber' | 'blue'
 export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => void; trainingId?: string }) {
   const { data, update } = useAdmin()
   const { toast } = useFeedback()
+  const { user } = useAuth()
   const training = data.trainings.find((t) => t.id === trainingId)
   const today = todayISO()
   const [list, setList] = useState<RequestParticipant[]>([])
@@ -83,19 +85,20 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
       organization: org.trim() || undefined,
       groupIds: groupId ? [groupId] : [],
       createdAt: at.slice(0, 10),
+      createdBy: user.name,
       accessStart: start,
       accessEnd: end,
       inviteToken: makeInviteToken(),
       invitedAt: at,
-      invitedBy: 'Training team',
-      accessHistory: [{ at, by: 'Training team', change: `Invited · access ${shortDate(start)} – ${shortDate(end)}` }],
+      invitedBy: user.name,
+      accessHistory: [{ at, by: user.name, change: `Invited · access ${shortDate(start)} – ${shortDate(end)}` }],
     }))
     const ids = created.map((p) => p.id)
     update(
       (d) => ({
         ...d,
         people: [...created, ...d.people],
-        groups: groupId ? [...d.groups, { id: groupId, name: groupName.trim(), description: `Temporary trainees invited ${shortDate(today)}` }] : d.groups,
+        groups: groupId ? [...d.groups, { id: groupId, name: groupName.trim(), description: `Temporary trainees invited ${shortDate(today)}`, organization: org.trim() || undefined }] : d.groups,
         trainings: addTo ? d.trainings.map((t) => (t.id === addTo ? { ...t, participantIds: [...new Set([...t.participantIds, ...ids])] } : t)) : d.trainings,
       }),
       { action: `Invited ${created.length} temporary user${created.length === 1 ? '' : 's'}`, target: groupName.trim() || created[0]?.name || '', silent: true },
@@ -444,12 +447,60 @@ export function AdminTemporaryAccess() {
   const [editingPerson, setEditingPerson] = useState<Person | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
   const [viewing, setViewing] = useState<Person | null>(null)
+  const [page, setPage] = useState(0)
+  const [pageSizeOption, setPageSizeOption] = useState<number | 'fit'>('fit')
+  const [fitPageSize, setFitPageSize] = useState(10)
+  const filtersRef = useRef<HTMLDivElement>(null)
+  const tableRef = useRef<HTMLDivElement>(null)
+  const paginationRef = useRef<HTMLDivElement>(null)
 
   const temps = useMemo(() => data.people.filter(isTemporary).map((p) => ({ p, state: accessState(p) })), [data.people])
   const match = (s: AccessState, f: Filter) =>
     f === 'all' || (f === 'active' && (s === 'active' || s === 'expiring')) || (f === 'pending' && (s === 'pending' || s === 'scheduled')) || (f === 'expiring' && s === 'expiring') || (f === 'ended' && (s === 'expired' || s === 'revoked'))
   const rows = temps.filter(({ p, state }) => match(state, filter) && (!q || `${p.name} ${p.email} ${p.organization ?? ''}`.toLowerCase().includes(q.toLowerCase())))
+  const pageSize = pageSizeOption === 'fit' ? fitPageSize : pageSizeOption
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const current = Math.min(page, pages - 1)
+  const pageRows = rows.slice(current * pageSize, current * pageSize + pageSize)
   const count = (f: Filter) => temps.filter(({ state }) => match(state, f)).length
+
+  useEffect(() => {
+    const table = tableRef.current
+    const pagination = paginationRef.current
+    if (!table || !pagination) return
+
+    const measureFit = () => {
+      if (!window.matchMedia('(min-width: 768px)').matches) return
+      const firstRow = table.querySelector('tbody tr')
+      const rowHeight = firstRow?.getBoundingClientRect().height ?? 0
+      const headerHeight = table.querySelector('thead')?.getBoundingClientRect().height ?? 0
+      if (!rowHeight || !headerHeight) return
+
+      const scroller = table.closest('main')?.parentElement
+      const scrollerRect = scroller?.getBoundingClientRect()
+      const availableHeight = (scroller?.clientHeight ?? window.innerHeight) - 32
+      const top = scroller && scrollerRect
+        ? table.getBoundingClientRect().top - scrollerRect.top + scroller.scrollTop
+        : table.getBoundingClientRect().top
+      const pagerHeight = pagination.getBoundingClientRect().height
+      const pagerGap = Number.parseFloat(getComputedStyle(pagination).marginTop) || 0
+      const nextFit = Math.max(1, Math.min(50, Math.floor((availableHeight - top - headerHeight - pagerHeight - pagerGap) / rowHeight)))
+      setFitPageSize((currentFit) => currentFit === nextFit ? currentFit : nextFit)
+    }
+
+    const observer = new ResizeObserver(measureFit)
+    observer.observe(table)
+    observer.observe(pagination)
+    if (filtersRef.current) observer.observe(filtersRef.current)
+    window.addEventListener('resize', measureFit)
+    const frame = window.requestAnimationFrame(measureFit)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('resize', measureFit)
+      observer.disconnect()
+    }
+  }, [pageRows.length > 0])
 
   const copy = async (p: Person) => {
     if (!p.inviteToken) return
@@ -501,100 +552,156 @@ export function AdminTemporaryAccess() {
           </>
         }
       />
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Tabs<Filter>
-          value={filter}
-          onChange={setFilter}
-          items={(
-            [
-              ['all', 'All'],
-              ['active', 'Active'],
-              ['pending', 'Not signed in yet'],
-              ['expiring', 'Expiring soon'],
-              ['ended', 'Expired / revoked'],
-            ] as [Filter, string][]
-          ).map(([value, label]) => ({ value, label, count: count(value) }))}
-        />
-        <SearchInput value={q} onChange={setQ} placeholder="Search name, email, organisation…" className="w-full sm:w-72" />
+      <div ref={filtersRef}>
+        <TabBar>
+          <Tabs<Filter>
+            value={filter}
+            onChange={(next) => { setFilter(next); setPage(0) }}
+            items={(
+              [
+                ['all', 'All'],
+                ['active', 'Active'],
+                ['pending', 'Not signed in yet'],
+                ['expiring', 'Expiring soon'],
+                ['ended', 'Expired / revoked'],
+              ] as [Filter, string][]
+            ).map(([value, label]) => ({ value, label, count: count(value) }))}
+          />
+          <SearchInput value={q} onChange={(value) => { setQ(value); setPage(0) }} placeholder="Search by name/email…" className="w-full sm:w-[280px]" />
+        </TabBar>
       </div>
 
       {rows.length ? (
-        <Table head={['Name', 'Organisation', 'Access', 'Status', 'Trainings', 'Last sign-in', '']} minWidth={860}>
-          {rows.map(({ p, state }) => {
-            const left = daysLeft(p)
-            return (
-              <tr key={p.id} className="hover:bg-zinc-50">
-                <td className="px-4 py-3">
-                  <button onClick={() => setViewing(p)} className="flex items-center gap-3 text-left">
-                    <Avatar name={p.name} size="sm" />
-                    <span className="min-w-0">
-                      <span className="block font-medium text-zinc-900 hover:text-brand-600">{p.name}</span>
-                      <span className="block truncate text-xs text-zinc-500">{p.email}</span>
-                    </span>
-                  </button>
-                </td>
-                <td className="px-4 py-3 text-zinc-600">{p.organization ?? '—'}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-zinc-600">
-                  {p.accessStart ? shortDate(p.accessStart) : '—'} – {p.accessEnd ? shortDate(p.accessEnd) : '—'}
-                  {left !== null && state !== 'revoked' && (
-                    <span className={cn('block text-xs', left < 0 ? 'text-brand-600' : left <= 7 ? 'text-amber-700' : 'text-zinc-400')}>
-                      {left < 0 ? `ended ${-left} day${left === -1 ? '' : 's'} ago` : left === 0 ? 'ends today' : `${left} day${left === 1 ? '' : 's'} left`}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <Badge tone={stateTone[state]}>{accessLabel[state].toUpperCase()}</Badge>
-                </td>
-                <td className="px-4 py-3 text-zinc-600">{trainingsFor(p.id, data.trainings).length}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-zinc-600">{p.lastSignInAt ? dateTime(p.lastSignInAt) : p.acceptedAt ? dateTime(p.acceptedAt) : 'Never'}</td>
-                <td className="relative px-4 py-3 text-right">
-                  <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-full p-1 text-zinc-500 hover:bg-zinc-100" aria-label={`Actions for ${p.name}`}>
-                    <MoreHorizontal className="size-4" />
-                  </button>
-                  {menu === p.id && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setMenu(null)} />
-                      <div className="absolute right-4 z-20 mt-1 w-52 rounded-xl border border-zinc-200 bg-surface p-1 text-left text-sm shadow-lg">
-                        <button onClick={() => (setEditingPerson(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
-                          <Pencil className="size-4" /> Edit invite
+        <>
+          <div className="grid grid-cols-1 gap-3 md:hidden">
+            {pageRows.map(({ p, state }) => {
+              const left = daysLeft(p)
+              return (
+                <Card key={p.id} className="flex flex-col gap-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <button onClick={() => setViewing(p)} className="flex min-w-0 items-center gap-3 text-left">
+                      <Avatar name={p.name} size="sm" />
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-zinc-900">{p.name}</span>
+                        <span className="block truncate text-xs text-zinc-500">{p.email}</span>
+                      </span>
+                    </button>
+                    <Badge tone={stateTone[state]}>{accessLabel[state].toUpperCase()}</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 border-t border-zinc-100 pt-2 text-sm text-zinc-600">
+                    <span className="truncate">Organization: {p.organization || '—'}</span>
+                    <span className="truncate">Trainings: {trainingsFor(p.id, data.trainings).length}</span>
+                    <span className="truncate">Access: {p.accessStart ? shortDate(p.accessStart) : '—'} – {p.accessEnd ? shortDate(p.accessEnd) : '—'}</span>
+                    <span className="truncate">Last sign-in: {p.lastSignInAt ? dateTime(p.lastSignInAt) : p.acceptedAt ? dateTime(p.acceptedAt) : 'Never'}</span>
+                    {left !== null && state !== 'revoked' && (
+                      <span className={cn('col-span-2 text-xs', left < 0 ? 'text-brand-600' : left <= 7 ? 'text-amber-700' : 'text-zinc-500')}>
+                        {left < 0 ? `Ended ${-left} day${left === -1 ? '' : 's'} ago` : left === 0 ? 'Ends today' : `${left} day${left === 1 ? '' : 's'} left`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 border-t border-zinc-100 pt-2">
+                    <Button size="sm" variant="ghost" onClick={() => setViewing(p)}>View details</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingPerson(p)}>Edit invite</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setExtending(p)}>Extend access</Button>
+                    <Button size="sm" variant="ghost" onClick={() => copy(p)}>Copy sign-in link</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { update((d) => d, { action: 'Resent invite email', target: p.name, silent: true }); toast(`Invite email resent to ${p.email}`) }}>Resend invite</Button>
+                    {state === 'revoked' ? (
+                      <Button size="sm" variant="ghost" onClick={() => setRevoked(p, false)}>Restore access</Button>
+                    ) : (
+                      <Button size="sm" variant="ghost" onClick={() => setRevoked(p, true)}>Revoke access</Button>
+                    )}
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+
+          <div ref={tableRef} className="hidden overflow-visible rounded-2xl border border-zinc-200/80 bg-surface md:block">
+            <table className="w-full table-fixed text-left text-sm">
+              <thead className="border-b border-zinc-200/80 bg-zinc-50/75 text-xs font-semibold text-zinc-600">
+                <tr>
+                  <th className="w-[43%] px-1.5 py-3 sm:px-2 lg:w-[34%] xl:w-[30%]" scope="col">User</th>
+                  <th className="hidden px-1.5 py-3 sm:px-2 lg:table-cell lg:w-[18%] xl:w-[16%]" scope="col">Organization</th>
+                  <th className="w-[30%] px-1.5 py-3 sm:px-2 lg:w-[24%] xl:w-[21%]" scope="col">Access</th>
+                  <th className="w-[17%] px-1 py-3 sm:px-1 lg:w-[12%]" scope="col">Status</th>
+                  <th className="hidden px-1.5 py-3 sm:px-2 lg:table-cell lg:w-[8%] xl:w-[7%]" scope="col">Trainings</th>
+                  <th className="hidden px-1.5 py-3 sm:px-2 xl:table-cell xl:w-[10%]" scope="col">Last sign-in</th>
+                  <th className="w-[10%] px-0 py-3 text-center lg:w-[4%]" scope="col" title="Actions"><span className="sr-only">Actions</span><MoreHorizontal className="mx-auto size-4" /></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100/90 text-zinc-800">
+                {pageRows.map(({ p, state }) => {
+                  const left = daysLeft(p)
+                  return (
+                    <tr key={p.id} className="hover:bg-zinc-50">
+                      <td className="min-w-0 px-1.5 py-2 sm:px-2">
+                        <button onClick={() => setViewing(p)} className="flex min-w-0 items-center gap-2.5 text-left">
+                          <Avatar name={p.name} size="sm" />
+                          <span className="min-w-0 leading-tight">
+                            <span className="block truncate font-medium text-zinc-900">{p.name}</span>
+                            <span className="block truncate text-xs text-zinc-500" title={p.email}>{p.email}</span>
+                          </span>
                         </button>
-                        <button onClick={() => (setExtending(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
-                          <CalendarPlus className="size-4" /> Extend access
-                        </button>
-                        <button onClick={() => copy(p)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
-                          <Copy className="size-4" /> Copy sign-in link
-                        </button>
-                        <button
-                          onClick={() => {
-                            setMenu(null)
-                            update((d) => d, { action: 'Resent invite email', target: p.name, silent: true })
-                            toast(`Invite email resent to ${p.email}`)
-                          }}
-                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"
-                        >
-                          <Mail className="size-4" /> Resend invite
-                        </button>
-                        {state === 'revoked' ? (
-                          <button onClick={() => setRevoked(p, false)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
-                            <RotateCcw className="size-4" /> Restore access
-                          </button>
-                        ) : (
-                          <button onClick={() => setRevoked(p, true)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-brand-700 hover:bg-brand-50">
-                            <Ban className="size-4" /> Revoke access
-                          </button>
+                      </td>
+                      <td className="hidden px-1.5 py-2 text-sm text-zinc-600 lg:table-cell sm:px-2"><span className="block truncate" title={p.organization}>{p.organization || '—'}</span></td>
+                      <td className="px-1.5 py-2 text-sm text-zinc-600 sm:px-2">
+                        <span className="block truncate leading-tight">{p.accessStart ? shortDate(p.accessStart) : '—'} – {p.accessEnd ? shortDate(p.accessEnd) : '—'}</span>
+                        {left !== null && state !== 'revoked' && (
+                          <span className={cn('block truncate text-xs', left < 0 ? 'text-brand-600' : left <= 7 ? 'text-amber-700' : 'text-zinc-500')}>
+                            {left < 0 ? `Ended ${-left} day${left === -1 ? '' : 's'} ago` : left === 0 ? 'Ends today' : `${left} day${left === 1 ? '' : 's'} left`}
+                          </span>
                         )}
-                      </div>
-                    </>
-                  )}
-                </td>
-              </tr>
-            )
-          })}
-        </Table>
+                      </td>
+                      <td className="px-1 py-2 sm:px-1"><Badge className="max-w-full truncate px-1.5" tone={stateTone[state]}>{accessLabel[state].toUpperCase()}</Badge></td>
+                      <td className="hidden px-1.5 py-2 text-sm text-zinc-600 lg:table-cell sm:px-2">{trainingsFor(p.id, data.trainings).length}</td>
+                      <td className="hidden px-1.5 py-2 text-sm text-zinc-600 xl:table-cell" title={p.lastSignInAt ? dateTime(p.lastSignInAt) : p.acceptedAt ? dateTime(p.acceptedAt) : 'Never'}><span className="block truncate">{p.lastSignInAt ? dateTime(p.lastSignInAt) : p.acceptedAt ? dateTime(p.acceptedAt) : 'Never'}</span></td>
+                      <td className="relative px-0 py-2 text-center">
+                        <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-full p-1 text-zinc-500 hover:bg-zinc-100" aria-label={`Actions for ${p.name}`}>
+                          <MoreHorizontal className="size-4" />
+                        </button>
+                        {menu === p.id && (
+                          <>
+                            <div className="fixed inset-0 z-10" onClick={() => setMenu(null)} />
+                            <div className="absolute right-4 z-20 mt-1 w-52 rounded-xl border border-zinc-200 bg-surface p-1 text-left text-sm shadow-lg">
+                              <button onClick={() => (setViewing(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><Eye className="size-4" /> View details</button>
+                              <button onClick={() => (setEditingPerson(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><Pencil className="size-4" /> Edit invite</button>
+                              <button onClick={() => (setExtending(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><CalendarPlus className="size-4" /> Extend access</button>
+                              <button onClick={() => copy(p)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><Copy className="size-4" /> Copy sign-in link</button>
+                              <button onClick={() => { setMenu(null); update((d) => d, { action: 'Resent invite email', target: p.name, silent: true }); toast(`Invite email resent to ${p.email}`) }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><Mail className="size-4" /> Resend invite</button>
+                              {state === 'revoked' ? (
+                                <button onClick={() => setRevoked(p, false)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><RotateCcw className="size-4" /> Restore access</button>
+                              ) : (
+                                <button onClick={() => setRevoked(p, true)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-brand-700 hover:bg-brand-50"><Ban className="size-4" /> Revoke access</button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : (
         <Card>
           <Empty icon={Users} title="No temporary users here" text="Invite external trainees to give them time-limited access." action={<Button onClick={() => setInviting(true)}>Invite</Button>} />
         </Card>
+      )}
+
+      {!!rows.length && (
+        <div ref={paginationRef} className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
+          <span>Showing {current * pageSize + 1}–{Math.min(rows.length, (current + 1) * pageSize)} of {rows.length} users</span>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <label className="flex items-center gap-2">Rows per page<Select value={String(pageSizeOption)} onChange={(event) => { const value = event.target.value; setPageSizeOption(value === 'fit' ? 'fit' : Number(value)); setPage(0) }} className="w-auto! py-1.5! text-xs!"><option value="fit">Fit page ({fitPageSize})</option><option value="10">10</option><option value="25">25</option><option value="50">50</option></Select></label>
+            <span className="px-1">Page {current + 1} of {pages}</span>
+            <Button size="sm" aria-label="First page" disabled={current === 0} onClick={() => setPage(0)}><ChevronLeft className="size-3.5" /><ChevronLeft className="-ml-2 size-3.5" /></Button>
+            <Button size="sm" aria-label="Previous page" disabled={current === 0} onClick={() => setPage(current - 1)}><ChevronLeft className="size-3.5" /></Button>
+            <Button size="sm" aria-label="Next page" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}><ChevronRight className="size-3.5" /></Button>
+            <Button size="sm" aria-label="Last page" disabled={current >= pages - 1} onClick={() => setPage(pages - 1)}><ChevronRight className="size-3.5" /><ChevronRight className="-ml-2 size-3.5" /></Button>
+          </div>
+        </div>
       )}
 
       {inviting && <InviteTemporaryModal onClose={() => setInviting(false)} />}

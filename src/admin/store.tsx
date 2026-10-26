@@ -4,6 +4,8 @@ import { localISO } from '../lib/utils'
 import { useAuth } from '../store/Auth'
 import { freshAdminData, loadAdminData, saveAdminData } from './storage'
 import { scanAlerts } from './insights'
+import { resolveAuditEntity } from './audit'
+import { trainerIdsOf } from './scheduling'
 import type { AdminData, AdminTraining, AuditChange } from './types'
 
 type AdminStore = {
@@ -12,7 +14,7 @@ type AdminStore = {
    * Applies an immutable update. When `log` is given it is recorded in the audit log
    * and confirmed with a toast that offers Undo.
    */
-  update: (fn: (d: AdminData) => AdminData, log?: { action: string; target: string; silent?: boolean; changes?: AuditChange[] }) => void
+  update: (fn: (d: AdminData) => AdminData, log?: { action: string; target: string; silent?: boolean; changes?: AuditChange[]; entityId?: string; entityType?: string; remarks?: string }) => void
   reset: () => void
 }
 
@@ -52,7 +54,19 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         return
       }
       const changes = log.changes?.filter((c) => c.from !== c.to)
-      const entry = { id: uid('al'), actor: user.name, action: log.action, target: log.target, at: localISO(), ...(changes?.length ? { changes } : {}) }
+      const currentEntity = resolveAuditEntity(next, log.action, log.target)
+      const previousEntity = resolveAuditEntity(before, log.action, log.target)
+      const entry = {
+        id: uid('al'),
+        actor: user.name,
+        action: log.action,
+        target: log.target,
+        at: localISO(),
+        ...((log.entityId ?? currentEntity.entityId ?? previousEntity.entityId) ? { entityId: log.entityId ?? currentEntity.entityId ?? previousEntity.entityId } : {}),
+        entityType: log.entityType ?? currentEntity.entityType ?? previousEntity.entityType,
+        ...(log.remarks ? { remarks: log.remarks } : {}),
+        ...(changes?.length ? { changes } : {}),
+      }
       dataRef.current = { ...next, auditLogs: [entry, ...next.auditLogs] }
       setData(dataRef.current)
       if (!log.silent) toast(`${log.action} · ${log.target}`, { action: { label: 'Undo', onClick: () => setData(before) } })
@@ -71,7 +85,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 export function TrainerScope({ trainerId, children }: { trainerId: string; children: ReactNode }) {
   const ctx = useAdmin()
   const value = useMemo(() => {
-    const own = new Set(ctx.data.trainings.filter((t) => t.trainerId === trainerId).map((t) => t.id))
+    const own = new Set(ctx.data.trainings.filter((t) => trainerIdsOf(t).includes(trainerId)).map((t) => t.id))
     return {
       ...ctx,
       data: {
@@ -79,7 +93,7 @@ export function TrainerScope({ trainerId, children }: { trainerId: string; child
         trainings: ctx.data.trainings.filter((t) => own.has(t.id)),
         submissions: ctx.data.submissions.filter((s) => own.has(s.trainingId)),
         feedbackResponses: ctx.data.feedbackResponses.filter((r) => own.has(r.trainingId)),
-        requests: ctx.data.requests.filter((r) => r.trainerId === trainerId),
+        requests: ctx.data.requests.filter((r) => trainerIdsOf(r).includes(trainerId)),
         alerts: ctx.data.alerts.filter((a) => own.has(a.trainingId)),
       },
     }

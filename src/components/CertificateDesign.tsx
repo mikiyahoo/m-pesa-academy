@@ -1,8 +1,10 @@
 import QRCode from 'qrcode'
 import { useEffect, useId, useState, type ReactNode } from 'react'
+import { fillCertificatePdf } from '../lib/fillableCertificate'
 
 export type CertificateFields = {
   name: string
+  email?: string
   course: string
   score?: number
   issued: string // formatted date
@@ -403,8 +405,53 @@ function Tiles({ f, qr, gid }: { f: CertificateFields; qr: string; gid: string }
   )
 }
 
-/** M-PESA certificate in one of three layouts, each with a verify QR code and the certificate ID. */
-export function CertificateDesign({ fields, layout = 'border' }: { fields: CertificateFields; layout?: CertificateLayout }) {
+/** Renders either a built-in M-PESA design or an imported, filled PDF template. */
+function FillablePdfCertificate({ pdfTemplate, fields }: { pdfTemplate: string; fields: CertificateFields }) {
+  const [source, setSource] = useState('')
+  const [error, setError] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    let url = ''
+    setSource('')
+    setError(false)
+    fillCertificatePdf(pdfTemplate, {
+      name: fields.name,
+      email: fields.email ?? '',
+      training: fields.course,
+      date: fields.issued,
+      code: fields.certificateId,
+    }).then((bytes) => {
+      if (cancelled) return
+      url = URL.createObjectURL(new Blob([bytes.slice().buffer as ArrayBuffer], { type: 'application/pdf' }))
+      setSource(url)
+    }).catch(() => {
+      if (!cancelled) setError(true)
+    })
+    return () => {
+      cancelled = true
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [pdfTemplate, fields.name, fields.email, fields.course, fields.issued, fields.certificateId])
+
+  return (
+    <div className="relative aspect-[1.414] w-full overflow-hidden bg-white">
+      {source ? (
+        <iframe src={`${source}#toolbar=0&navpanes=0&view=FitH`} title="Filled certificate PDF preview" className="absolute inset-0 size-full border-0" />
+      ) : (
+        <div className="absolute inset-0 grid place-items-center px-4 text-center text-xs text-zinc-500">
+          {error ? 'Could not render this PDF template.' : 'Preparing certificate preview…'}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function CertificateDesign({ fields, layout = 'border', pdfTemplate }: { fields: CertificateFields; layout?: CertificateLayout; pdfTemplate?: string }) {
+  if (pdfTemplate) return <FillablePdfCertificate pdfTemplate={pdfTemplate} fields={fields} />
+  return <BuiltInCertificateDesign fields={fields} layout={layout} />
+}
+
+function BuiltInCertificateDesign({ fields, layout = 'border' }: { fields: CertificateFields; layout?: CertificateLayout }) {
   const gid = useId().replace(/:/g, '')
   const qr = useQr(fields.certificateId)
   if (layout === 'sweep') return <Sweep f={fields} qr={qr} gid={gid} />

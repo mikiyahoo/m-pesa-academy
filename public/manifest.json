@@ -1,0 +1,18 @@
+{
+  "name": "M-PESA Training Academy",
+  "short_name": "M-PESA Academy",
+  "description": "Learn, practice, and earn certified M-PESA accreditations anywhere, anytime.",
+  "start_url": "/trainings",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#e01e26",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

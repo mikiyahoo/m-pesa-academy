@@ -1,10 +1,65 @@
 import type { AdminData, Material } from './types'
 
-/**
- * Material files in the prototype. Only a file's name and size are stored, not its contents,
- * so a download hands over a sample file: the bundled deck for presentations, or a generated
- * PDF copy for documents. Videos and links open their source instead (videos never download).
- */
+/** Uploaded file bytes stay in browser IndexedDB; demo records without an uploaded file use sample downloads. */
+
+const FILE_DB = 'mpesa-learning-material-files'
+const FILE_STORE = 'files'
+
+type StoredMaterialFile = { blob: Blob; name: string }
+
+let fileDatabase: Promise<IDBDatabase> | undefined
+
+function openFileDatabase() {
+  if (!('indexedDB' in window)) return Promise.reject(new Error('File storage is unavailable in this browser.'))
+  if (!fileDatabase) {
+    fileDatabase = new Promise((resolve, reject) => {
+      const request = indexedDB.open(FILE_DB, 1)
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(FILE_STORE)) request.result.createObjectStore(FILE_STORE)
+      }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => {
+        fileDatabase = undefined
+        reject(request.error ?? new Error('Could not open file storage.'))
+      }
+    })
+  }
+  return fileDatabase
+}
+
+function transactionDone(transaction: IDBTransaction) {
+  return new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve()
+    transaction.onerror = () => reject(transaction.error ?? new Error('File storage failed.'))
+    transaction.onabort = () => reject(transaction.error ?? new Error('File storage was interrupted.'))
+  })
+}
+
+export async function saveMaterialFile(file: File) {
+  const db = await openFileDatabase()
+  const id = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  const transaction = db.transaction(FILE_STORE, 'readwrite')
+  transaction.objectStore(FILE_STORE).put({ blob: file, name: file.name } satisfies StoredMaterialFile, id)
+  await transactionDone(transaction)
+  return id
+}
+
+export async function getMaterialFile(id: string): Promise<StoredMaterialFile | null> {
+  const db = await openFileDatabase()
+  const transaction = db.transaction(FILE_STORE, 'readonly')
+  const request = transaction.objectStore(FILE_STORE).get(id)
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve((request.result as StoredMaterialFile | undefined) ?? null)
+    request.onerror = () => reject(request.error ?? new Error('Could not read the attached file.'))
+  })
+}
+
+export async function deleteMaterialFile(id: string) {
+  const db = await openFileDatabase()
+  const transaction = db.transaction(FILE_STORE, 'readwrite')
+  transaction.objectStore(FILE_STORE).delete(id)
+  await transactionDone(transaction)
+}
 
 export const formatBytes = (bytes?: number) =>
   bytes == null ? '' : bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
@@ -32,6 +87,12 @@ export async function downloadMaterial(m: Material): Promise<boolean> {
     return true
   }
   const name = materialFileName(m)
+  if (m.fileId) {
+    const uploaded = await getMaterialFile(m.fileId)
+    if (!uploaded) return false
+    save(uploaded.blob, name || uploaded.name)
+    return true
+  }
   if (m.type === 'PRESENTATION' || name.toLowerCase().endsWith('.pptx')) {
     const res = await fetch('/trainings/Sample Training.pptx')
     save(await res.blob(), name.toLowerCase().endsWith('.pptx') ? name : `${name}.pptx`)

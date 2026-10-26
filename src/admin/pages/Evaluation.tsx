@@ -1,13 +1,17 @@
-import { AlertTriangle, CheckCircle2, ClipboardList, Copy, FileQuestion, FileText, Library, ListChecks, MessageSquare, Plus, Settings2, Star, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ClipboardList, Copy, FileQuestion, FileText, FileUp, Library, ListChecks, MessageSquare, Plus, Settings2, Sparkles, Star, Trash2, Wand2 } from 'lucide-react'
 import { Wizard, WizardCard } from '../Wizard'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
 import { cn } from '../../lib/utils'
 import { uid, useAdmin } from '../store'
 import { feedbackAverage, responseAverage } from '../insights'
-import type { Assessment, AssessmentKind, AssessmentQuestion, AssessmentSubmission, FeedbackForm, FeedbackQuestionType, QuestionType } from '../types'
-import { Avatar, Badge, Button, Card, CardTitle, downloadCsv, Empty, Field, Input, Modal, PageHeader, Select, StatCard, Table, Tabs, Textarea } from '../ui'
+import type { Assessment, AssessmentKind, AssessmentQuestion, AssessmentSubmission, FeedbackForm, FeedbackQuestionType, QuestionBankItem, QuestionType } from '../types'
+import { Avatar, Badge, Button, Card, CardTitle, downloadCsv, Empty, Field, Input, Modal, PageHeader, Select, StatCard, Table, TabBar, Tabs, Textarea } from '../ui'
+import { ImportQuestionsModal } from '../ImportQuestionsModal'
+import { ImportFeedbackModal } from '../ImportFeedbackModal'
+import type { ParsedFeedbackQuestion } from '../ImportFeedbackModal'
+import { autoGradeSubmission, scoreDescriptiveAnswer } from '../../lib/aiGrading'
 
 function Stars({ value }: { value: number }) {
   return (
@@ -99,6 +103,7 @@ function FormModal({ form, onClose }: { form?: FeedbackForm; onClose: () => void
   const [questions, setQuestions] = useState<DraftQuestion[]>(form ? form.questions.map((q, i) => ({ question: q, type: form.questionTypes?.[i] ?? 'likert' })) : [{ question: '', type: 'likert' }])
   const [types, setTypes] = useState<string[]>(form?.trainingTypeIds ?? [])
   const [bank, setBank] = useState(false)
+  const [importFile, setImportFile] = useState(false)
   const valid = title.trim() && questions.some((q) => q.question.trim())
   const setQ = (i: number, patch: Partial<DraftQuestion>) => setQuestions(questions.map((x, j) => (j === i ? { ...x, ...patch } : x)))
   const move = (i: number, by: number) => {
@@ -191,6 +196,9 @@ function FormModal({ form, onClose }: { form?: FeedbackForm; onClose: () => void
             <Button size="sm" variant="ghost" onClick={() => setBank(true)}>
               <ClipboardList className="size-3.5" /> Add from bank
             </Button>
+            <Button size="sm" variant="ghost" onClick={() => setImportFile(true)}>
+              <FileUp className="size-3.5" /> Import from file
+            </Button>
           </div>
         </div>
         <div>
@@ -217,6 +225,17 @@ function FormModal({ form, onClose }: { form?: FeedbackForm; onClose: () => void
         </div>
       </div>
       {bank && <FeedbackBankPicker onClose={() => setBank(false)} onAdd={(qs) => setQuestions([...questions.filter((q) => q.question.trim()), ...qs])} />}
+      {importFile && (
+        <ImportFeedbackModal
+          open
+          onClose={() => setImportFile(false)}
+          existingCount={questions.filter((q) => q.question.trim()).length}
+          onImport={(imported: ParsedFeedbackQuestion[], mode) => {
+            const mapped: DraftQuestion[] = imported.map((q) => ({ question: q.question, type: q.type }))
+            setQuestions(mode === 'replace' ? mapped : [...questions.filter((q) => q.question.trim()), ...mapped])
+          }}
+        />
+      )}
     </Modal>
   )
 }
@@ -287,17 +306,11 @@ export function AdminFeedbackForms() {
       <PageHeader
         title="Feedback Forms"
         description="Forms, a reusable question bank and the template used for each training type."
-        actions={
-          tab === 'forms' && (
-            <Button variant="primary" onClick={() => setEditing('new')}>
-              <Plus className="size-4" /> New form
-            </Button>
-          )
-        }
       />
-      <div className="mb-4">
+      <TabBar>
         <Tabs value={tab} onChange={setTab} items={[{ value: 'forms', label: 'Forms', count: data.feedbackForms.length }, { value: 'bank', label: 'Question bank', count: data.feedbackBank.length }]} />
-      </div>
+        {tab === 'forms' && <Button variant="primary" onClick={() => setEditing('new')}><Plus className="size-4" /> New form</Button>}
+      </TabBar>
       {tab === 'bank' ? (
         <FeedbackBank />
       ) : (
@@ -556,6 +569,22 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
     assessment?.questions ?? [{ id: uid('q'), type: 'mcq', question: '', options: ['', '', ''], answer: 0, weight: 1 }],
   )
   const [bankOpen, setBankOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+
+  const handleImport = (importedQuestions: AssessmentQuestion[], mode: 'append' | 'replace') => {
+    if (mode === 'replace') {
+      setQuestions(importedQuestions)
+    } else {
+      const isSingleBlank =
+        questions.length === 1 && !questions[0].question.trim() && (questions[0].options ?? []).every((o) => !o.trim())
+      if (isSingleBlank) {
+        setQuestions(importedQuestions)
+      } else {
+        setQuestions([...questions, ...importedQuestions])
+      }
+    }
+    toast(`Imported ${importedQuestions.length} questions`)
+  }
 
   const valid =
     title.trim() &&
@@ -682,9 +711,14 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
           icon={ListChecks}
           title={`Questions (${questions.length})`}
           action={
-            <Button size="sm" onClick={() => setBankOpen(true)}>
-              <Library className="size-3.5" /> Add from bank
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                <FileUp className="size-3.5" /> Import from doc
+              </Button>
+              <Button size="sm" onClick={() => setBankOpen(true)}>
+                <Library className="size-3.5" /> Add from bank
+              </Button>
+            </div>
           }
         >
       <div className="space-y-4">
@@ -737,9 +771,14 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
             {q.type === 'upload' && <p className="mt-3 text-xs text-zinc-500">Learners upload a file — graded manually against the model answer.</p>}
           </div>
         ))}
-        <Button size="sm" onClick={() => setQuestions([...questions, { id: uid('q'), type: 'mcq', question: '', options: ['', '', ''], answer: 0, weight: 1 }])}>
-          <Plus className="size-3.5" /> Add question
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={() => setQuestions([...questions, { id: uid('q'), type: 'mcq', question: '', options: ['', '', ''], answer: 0, weight: 1 }])}>
+            <Plus className="size-3.5" /> Add question
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setImportOpen(true)}>
+            <FileUp className="size-3.5" /> Import from doc
+          </Button>
+        </div>
       </div>
         </WizardCard>
       )}
@@ -780,6 +819,14 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
             setBankOpen(false)
           }}
           onClose={() => setBankOpen(false)}
+        />
+      )}
+      {importOpen && (
+        <ImportQuestionsModal
+          open
+          onClose={() => setImportOpen(false)}
+          onImport={handleImport}
+          existingCount={questions.length}
         />
       )}
     </Wizard>
@@ -859,8 +906,29 @@ export function AdminAssessments() {
   const [editing, setEditing] = useState<Assessment | 'new' | null>(null)
   const [viewing, setViewing] = useState<Assessment | null>(null)
   const [bankOpen, setBankOpen] = useState(false)
+  const [bankImportOpen, setBankImportOpen] = useState(false)
   const list = data.assessments.filter((a) => a.kind === kind)
   const label = kind === 'PRE' ? 'Pre-Assessments' : 'Post-Assessments'
+
+  const handleBankImport = (importedQuestions: AssessmentQuestion[], mode: 'append' | 'replace') => {
+    const items: QuestionBankItem[] = importedQuestions.map((q) => ({
+      id: uid('qb'),
+      category: 'General',
+      type: q.type,
+      question: q.question,
+      options: q.options,
+      answer: q.answer,
+      weight: q.weight ?? 1,
+    }))
+    update(
+      (d) => ({
+        ...d,
+        questionBank: mode === 'replace' ? items : [...d.questionBank, ...items],
+      }),
+      { action: `Imported ${items.length} questions to bank`, target: `${items.length} questions` },
+    )
+    toast(`Imported ${items.length} questions to bank`)
+  }
 
   const clone = (a: Assessment) => {
     const copy: Assessment = { ...a, id: uid('a'), title: `${a.title} (copy)`, templateOf: a.id }
@@ -886,24 +954,22 @@ export function AdminAssessments() {
       <PageHeader
         title={label}
         description={kind === 'PRE' ? 'Measure what participants know before a training.' : 'Certify what participants learned after a training.'}
-        actions={
-          <>
-            {tab === 'bank' && (
-              <Button variant="primary" onClick={() => setBankOpen(true)}>
-                <Plus className="size-4" /> New bank question
-              </Button>
-            )}
-            {tab === 'list' && (
-              <Button variant="primary" onClick={() => setEditing('new')}>
-                <Plus className="size-4" /> New assessment
-              </Button>
-            )}
-          </>
-        }
       />
-      <div className="mb-4">
+      <TabBar>
         <Tabs value={tab} onChange={setTab} items={[{ value: 'list', label: 'Assessments', count: list.length }, { value: 'bank', label: 'Question bank', count: data.questionBank.length }]} />
-      </div>
+        {tab === 'bank' ? (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setBankImportOpen(true)}>
+              <FileUp className="size-4" /> Import from doc
+            </Button>
+            <Button variant="primary" onClick={() => setBankOpen(true)}>
+              <Plus className="size-4" /> New bank question
+            </Button>
+          </div>
+        ) : (
+          <Button variant="primary" onClick={() => setEditing('new')}><Plus className="size-4" /> New assessment</Button>
+        )}
+      </TabBar>
 
       {tab === 'bank' ? (
         <Table head={['Category', 'Type', 'Question', 'Correct answer / model', '']} minWidth={860}>
@@ -977,6 +1043,14 @@ export function AdminAssessments() {
 
       {editing && <AssessmentModal kind={kind} assessment={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
       {bankOpen && <BankQuestionModal onClose={() => setBankOpen(false)} />}
+      {bankImportOpen && (
+        <ImportQuestionsModal
+          open
+          onClose={() => setBankImportOpen(false)}
+          onImport={handleBankImport}
+          existingCount={data.questionBank.length}
+        />
+      )}
       {viewing && (
         <Modal open onClose={() => setViewing(null)} title={viewing.title} description={`${viewing.questions.length} questions`} wide>
           <ol className="space-y-4">
@@ -1010,11 +1084,24 @@ export function AdminAssessments() {
 
 /* -------------------------------- Submissions --------------------------------- */
 
-function GradeModal({ submission, onClose }: { submission: { id: string; score?: number; comment?: string }; onClose: () => void }) {
-  const { update } = useAdmin()
+function GradeModal({ submission, onClose }: { submission: AssessmentSubmission; onClose: () => void }) {
+  const { data, update } = useAdmin()
   const { toast } = useFeedback()
   const [score, setScore] = useState(String(submission.score ?? ''))
   const [comment, setComment] = useState(submission.comment ?? '')
+
+  const assessment = data.assessments.find((a) => a.id === submission.assessmentId)
+  const aiSuggestion = useMemo(() => {
+    if (!assessment) return null
+    return autoGradeSubmission(assessment, submission)
+  }, [assessment, submission])
+
+  const applyAiGrading = () => {
+    if (!aiSuggestion) return
+    setScore(String(aiSuggestion.overallScore))
+    setComment(aiSuggestion.summaryComment)
+    toast('Applied AI score & feedback!')
+  }
 
   const save = () => {
     update(
@@ -1034,6 +1121,34 @@ function GradeModal({ submission, onClose }: { submission: { id: string; score?:
       <Button variant="primary" disabled={score === ''} onClick={save}>Save grade</Button>
     </>}>
       <div className="space-y-4">
+        {aiSuggestion && (
+          <div className="rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50/70 via-indigo-50/30 to-white p-3.5 shadow-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
+                <Sparkles className="size-4 text-purple-600" /> AI Grading Assistant
+              </span>
+              <button
+                type="button"
+                onClick={applyAiGrading}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-2.5 py-1 text-xs font-semibold text-white shadow-xs hover:bg-purple-700 transition"
+              >
+                <Wand2 className="size-3.5" /> Apply AI Evaluation
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-purple-950">
+              AI Suggested Score: <strong className="text-sm font-black text-purple-700">{aiSuggestion.overallScore}%</strong>
+              {aiSuggestion.descriptiveCount > 0 && (
+                <span className="ml-1 text-zinc-500 font-normal">
+                  ({aiSuggestion.descriptiveCount} descriptive questions evaluated)
+                </span>
+              )}
+            </p>
+            <p className="mt-1 text-[11px] text-zinc-600 italic bg-white/70 p-2 rounded-lg border border-purple-100">
+              "{aiSuggestion.summaryComment}"
+            </p>
+          </div>
+        )}
+
         <Field label="Score (%)">
           <Input type="number" min={0} max={100} value={score} onChange={(e) => setScore(e.target.value)} autoFocus />
         </Field>
@@ -1055,6 +1170,11 @@ function SubmissionView({ submission, onClose }: { submission: AssessmentSubmiss
       <ol className="space-y-4">
         {assessment?.questions.map((q) => {
           const answer = submission.answers[q.id]
+          const isDescriptive = q.type === 'descriptive'
+          const evalResult = isDescriptive && typeof answer === 'string' && typeof q.answer === 'string'
+            ? scoreDescriptiveAnswer(answer, q.answer)
+            : null
+
           return (
             <li key={q.id}>
               <p className="text-sm font-medium text-zinc-900">{q.question}</p>
@@ -1062,15 +1182,47 @@ function SubmissionView({ submission, onClose }: { submission: AssessmentSubmiss
                 <div className="mt-1.5 text-sm">
                   <span className="text-zinc-600">Answer: {q.options?.[typeof answer === 'number' ? answer : -1] ?? '—'}</span>
                   {typeof q.answer === 'number' && (
-                    <span className={cn('ml-2', answer === q.answer ? 'text-mpesa-600' : 'text-brand-600')}>
+                    <span className={cn('ml-2 font-medium', answer === q.answer ? 'text-mpesa-600' : 'text-brand-600')}>
                       {answer === q.answer ? '· correct' : `· correct: ${q.options?.[q.answer] ?? '—'}`}
                     </span>
                   )}
                 </div>
               ) : (
-                <div className="mt-1.5 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
-                  {typeof answer === 'string' && answer ? answer : <span className="italic text-zinc-400">No answer</span>}
-                  {typeof q.answer === 'string' && q.answer && <p className="mt-2 border-t border-zinc-200 pt-2 text-xs text-zinc-500">Model answer: {q.answer}</p>}
+                <div className="mt-1.5 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 text-sm text-zinc-700">
+                  <div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 block mb-1">Learner Response</span>
+                    {typeof answer === 'string' && answer ? answer : <span className="italic text-zinc-400">No answer</span>}
+                  </div>
+                  {typeof q.answer === 'string' && q.answer && (
+                    <div className="border-t border-zinc-200/80 pt-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 block mb-0.5">Model Answer</span>
+                      <p className="text-xs text-zinc-600">{q.answer}</p>
+                    </div>
+                  )}
+
+                  {evalResult && (
+                    <div className="border-t border-purple-200/80 pt-2.5 mt-2 bg-purple-50/50 p-2.5 rounded-lg">
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="flex items-center gap-1 font-bold text-purple-900">
+                          <Sparkles className="size-3.5 text-purple-600" /> AI Concept Evaluation
+                        </span>
+                        <span className="font-bold text-purple-800">Match: {evalResult.score}%</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mb-1.5">
+                        {evalResult.matchedKeywords.map((kw) => (
+                          <span key={kw} className="inline-flex items-center gap-0.5 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
+                            ✓ {kw}
+                          </span>
+                        ))}
+                        {evalResult.missingKeywords.map((kw) => (
+                          <span key={kw} className="inline-flex items-center gap-0.5 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                            − {kw}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-purple-950 font-medium">{evalResult.feedback}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </li>
@@ -1082,10 +1234,11 @@ function SubmissionView({ submission, onClose }: { submission: AssessmentSubmiss
 }
 
 export function AdminSubmissions() {
-  const { data } = useAdmin()
+  const { data, update } = useAdmin()
+  const { toast } = useFeedback()
   const [assessmentId, setAssessmentId] = useState('')
-  const [grading, setGrading] = useState<string | null>(null)
-  const [viewing, setViewing] = useState<string | null>(null)
+  const [grading, setGrading] = useState<AssessmentSubmission | null>(null)
+  const [viewing, setViewing] = useState<AssessmentSubmission | null>(null)
 
   const rows = data.submissions.filter((s) => !assessmentId || s.assessmentId === assessmentId)
   const graded = rows.filter((s) => s.status === 'graded' && s.score !== undefined)
@@ -1095,8 +1248,6 @@ export function AdminSubmissions() {
     const a = data.assessments.find((x) => x.id === s.assessmentId)
     return a && a.passMark > 0 && (s.score ?? 0) < a.passMark
   }).length
-  const gradingRow = rows.find((s) => s.id === grading)
-  const viewingRow = rows.find((s) => s.id === viewing)
 
   return (
     <>
@@ -1105,6 +1256,37 @@ export function AdminSubmissions() {
         description="Results and grading for learner attempts."
         actions={
           <>
+          {needsGrading > 0 && (
+            <Button
+              variant="primary"
+              className="bg-purple-600! hover:bg-purple-700! ring-purple-600/30 text-white"
+              onClick={() => {
+                let count = 0
+                update((d) => {
+                  const updated = d.submissions.map((sub) => {
+                    if (sub.status !== 'needs-grading') return sub
+                    const assess = d.assessments.find((a) => a.id === sub.assessmentId)
+                    if (!assess) return sub
+                    count++
+                    const res = autoGradeSubmission(assess, sub)
+                    return {
+                      ...sub,
+                      status: 'graded' as const,
+                      score: res.overallScore,
+                      comment: res.summaryComment,
+                    }
+                  })
+                  return { ...d, submissions: updated }
+                }, {
+                  action: `AI auto-graded ${needsGrading} submissions`,
+                  target: 'Assessment Submissions',
+                })
+                toast(`AI auto-graded ${count} submissions successfully!`)
+              }}
+            >
+              <Sparkles className="size-4" /> AI Auto-Grade All ({needsGrading})
+            </Button>
+          )}
           <Select value={assessmentId} onChange={(e) => setAssessmentId(e.target.value)} aria-label="Assessment" className="w-auto">
             <option value="">All assessments</option>
             {data.assessments.map((a) => (
@@ -1177,12 +1359,12 @@ export function AdminSubmissions() {
               <td className="px-4 py-3 whitespace-nowrap text-zinc-600">{s.submittedAt}</td>
               <td className="px-4 py-3">
                 <div className="flex justify-end gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => setViewing(s.id)}>
+                  <Button size="sm" variant="ghost" onClick={() => setViewing(s)}>
                     View
                   </Button>
                   {s.status === 'needs-grading' && (
-                    <Button size="sm" variant="ghost" onClick={() => setGrading(s.id)}>
-                      Grade
+                    <Button size="sm" variant="ghost" className="text-purple-700 hover:text-purple-800 hover:bg-purple-50" onClick={() => setGrading(s)}>
+                      <Sparkles className="size-3.5" /> Grade
                     </Button>
                   )}
                 </div>
@@ -1196,8 +1378,8 @@ export function AdminSubmissions() {
           <Empty icon={ClipboardList} title="No submissions yet" text="Submissions appear once learners complete an assessment." />
         </Card>
       )}
-      {gradingRow && <GradeModal submission={gradingRow} onClose={() => setGrading(null)} />}
-      {viewingRow && <SubmissionView submission={viewingRow} onClose={() => setViewing(null)} />}
+      {grading && <GradeModal submission={grading} onClose={() => setGrading(null)} />}
+      {viewing && <SubmissionView submission={viewing} onClose={() => setViewing(null)} />}
     </>
   )
 }

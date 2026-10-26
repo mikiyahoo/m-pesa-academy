@@ -1,20 +1,21 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AdminLayout } from './admin/AdminLayout'
 import { AdminAssignments } from './admin/pages/Assignments'
-import { AdminCalendar } from './admin/pages/Calendar'
 import { AdminCategories } from './admin/pages/Categories'
 import { AdminCertificates } from './admin/pages/Certificates'
 import { AdminTemporaryAccess } from './admin/pages/TemporaryAccess'
 import { AdminJourneyDetail, AdminJourneys, AdminMaterials } from './admin/pages/Content'
 import { AdminDashboard } from './admin/pages/Dashboard'
 import { AdminAssessments, AdminFeedbackForms, AdminFeedbackResponses, AdminSubmissions } from './admin/pages/Evaluation'
-import { AdminGroups, AdminUsers } from './admin/pages/People'
+import { AdminGroups, AdminUserView, AdminUsers } from './admin/pages/People'
 import { AdminReports } from './admin/pages/Reports'
 import { AdminRequests } from './admin/pages/Requests'
-import { AdminAuditLogs, AdminCertificateTemplates, AdminTrainingTypes } from './admin/pages/Settings'
+import { AdminAuditLogs } from './admin/pages/AuditLogs'
+import { AdminCertificateTemplates, AdminTrainingTypes } from './admin/pages/Settings'
 import { AdminTrainingDetail } from './admin/pages/TrainingDetail'
 import { AdminTrainings } from './admin/pages/Trainings'
 import { TrainerDashboard } from './admin/pages/TrainerDashboard'
+import { AdminLeaderboard } from './admin/pages/Leaderboard'
 import { AdminStoreProvider } from './admin/store'
 import { Layout } from './components/Layout'
 import { AcceptInvite } from './pages/auth/AcceptInvite'
@@ -36,6 +37,10 @@ import { RequesterDashboard } from './requester/RequesterDashboard'
 import { RequesterLayout } from './requester/RequesterLayout'
 import { RequesterReports } from './requester/RequesterReports'
 import { useAuth } from './store/Auth'
+import { OfflineNetworkBanner } from './components/OfflineCourseToggle'
+import { registerServiceWorker } from './lib/offlineManager'
+
+registerServiceWorker()
 
 export default function App() {
   const { stage, role, personId } = useAuth()
@@ -60,7 +65,7 @@ export default function App() {
             <Route path="trainings" element={<AdminTrainings />} />
             <Route path="trainings/:id" element={<AdminTrainingDetail />} />
             <Route path="requests" element={<AdminRequests />} />
-            <Route path="calendar" element={<AdminCalendar />} />
+            <Route path="calendar" element={<Navigate to="/admin/trainings?view=calendar" replace />} />
             <Route path="categories" element={<AdminCategories />} />
             <Route path="journeys" element={<AdminJourneys />} />
             <Route path="journeys/:id" element={<AdminJourneyDetail />} />
@@ -75,12 +80,14 @@ export default function App() {
             <Route path="certificates" element={<AdminCertificates />} />
             <Route path="certificate-templates" element={<AdminCertificateTemplates />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="users/:id" element={<AdminUserView />} />
             <Route path="temporary-access" element={<AdminTemporaryAccess />} />
             <Route path="groups" element={<AdminGroups />} />
             <Route path="training-types" element={<AdminTrainingTypes />} />
             <Route path="training-types/categories" element={<AdminTrainingTypes byCategory />} />
             <Route path="audit-logs" element={<AdminAuditLogs />} />
             <Route path="reports" element={<AdminReports />} />
+            <Route path="leaderboard" element={<AdminLeaderboard />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/admin" replace />} />
@@ -98,7 +105,7 @@ export default function App() {
             <Route index element={<TrainerDashboard />} />
             <Route path="trainings" element={<AdminTrainings />} />
             <Route path="trainings/:id" element={<AdminTrainingDetail />} />
-            <Route path="calendar" element={<AdminCalendar />} />
+            <Route path="calendar" element={<Navigate to="/admin/trainings?view=calendar" replace />} />
             <Route path="materials" element={<AdminMaterials />} />
             <Route path="submissions" element={<AdminSubmissions />} />
             <Route path="certificates" element={<AdminCertificates />} />
@@ -122,7 +129,7 @@ export default function App() {
       <Route path="/calendar" element={<Navigate to="/learning?view=calendar" replace />} />
       <Route path="/report" element={<Report />} />
       <Route path="/learning" element={<Learning />} />
-      <Route path="/journeys" element={<Navigate to="/learning" replace />} />
+      <Route path="/journeys" element={<Navigate to="/learning?tab=Paths" replace />} />
       <Route path="/help" element={<Help />} />
       <Route path="/profile" element={<Profile />} />
     </>
@@ -150,14 +157,15 @@ export default function App() {
 
   return (
     <TemporaryGate>
-    <Routes>
-      {/* The course player has its own full-screen shell. */}
-      <Route path="/trainings/:id/learn/:itemId?" element={<CoursePlayer />} />
-      <Route element={<Layout />}>
-        {traineePages}
-        <Route path="*" element={<Navigate to="/trainings" replace />} />
-      </Route>
-    </Routes>
+      <OfflineNetworkBanner />
+      <Routes>
+        {/* The course player has its own full-screen shell. */}
+        <Route path="/trainings/:id/learn/:itemId?" element={<CoursePlayer />} />
+        <Route element={<Layout />}>
+          {traineePages}
+          <Route path="*" element={<Navigate to="/trainings" replace />} />
+        </Route>
+      </Routes>
     </TemporaryGate>
   )
 }

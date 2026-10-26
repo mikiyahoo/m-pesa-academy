@@ -1,11 +1,11 @@
-import { Check, Download, FileClock, Plus, Settings2 } from 'lucide-react'
+import { Check, FileText, Plus, Settings2, Upload, X } from 'lucide-react'
 import { CERTIFICATE_LAYOUTS, CertificateDesign } from '../../components/CertificateDesign'
 import { useState } from 'react'
 import { cn } from '../../lib/utils'
-import { dateTime } from '../helpers'
+import { CERTIFICATE_PDF_FIELDS, inspectCertificatePdf } from '../../lib/fillableCertificate'
 import { uid, useAdmin } from '../store'
 import type { CertificateTemplate, TrainingType } from '../types'
-import { Badge, Button, Card, downloadCsv, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, Table, Textarea } from '../ui'
+import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Textarea } from '../ui'
 
 /* ---------------------------- Certificate templates --------------------------- */
 
@@ -15,6 +15,7 @@ export function CertificatePreview({
   name = 'Participant Name',
   course = 'M-PESA Call Center Training',
   trainer = 'Trainer Name',
+  email = 'participant@example.com',
   certificateId = 'MPL-SAMPLE-0001',
   issued,
   score,
@@ -23,6 +24,7 @@ export function CertificatePreview({
   name?: string
   course?: string
   trainer?: string
+  email?: string
   certificateId?: string
   issued?: string
   score?: number
@@ -30,7 +32,8 @@ export function CertificatePreview({
   return (
     <CertificateDesign
       layout={template.layout ?? 'border'}
-      fields={{ name, course, trainer, certificateId, score, issued: issued ?? new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) }}
+      pdfTemplate={template.pdfTemplateData}
+      fields={{ name, email, course, trainer, certificateId, score, issued: issued ?? new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) }}
     />
   )
 }
@@ -45,7 +48,14 @@ function TemplateModal({ template, onClose }: { template?: CertificateTemplate; 
     layout: template?.layout ?? ('border' as NonNullable<CertificateTemplate['layout']>),
     assignedTypeIds: template?.assignedTypeIds ?? [],
   })
-  const draft: CertificateTemplate = { id: template?.id ?? uid('ct'), isDefault: template?.isDefault ?? false, ...form }
+  const draft: CertificateTemplate = {
+    id: template?.id ?? uid('ct'),
+    isDefault: template?.isDefault ?? false,
+    pdfTemplateData: template?.pdfTemplateData,
+    pdfFileName: template?.pdfFileName,
+    pdfFileSize: template?.pdfFileSize,
+    ...form,
+  }
   const typeNames = (ids: string[]) => ids.map((id) => data.trainingTypes.find((t) => t.id === id)?.name ?? id).join(', ') || '—'
 
   const save = () => {
@@ -96,28 +106,35 @@ function TemplateModal({ template, onClose }: { template?: CertificateTemplate; 
           <Field label="Certificate title">
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           </Field>
-          <div>
-            <p className="mb-1.5 text-sm font-medium text-zinc-700">Layout</p>
-            <div className="space-y-2">
-              {CERTIFICATE_LAYOUTS.map((l) => (
-                <button
-                  key={l.value}
-                  type="button"
-                  onClick={() => setForm({ ...form, layout: l.value })}
-                  aria-pressed={form.layout === l.value}
-                  className={cn('flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition', form.layout === l.value ? 'border-brand-500 bg-brand-50/60' : 'border-zinc-200 hover:bg-zinc-50')}
-                >
-                  <span className={cn('mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border', form.layout === l.value ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-300')}>
-                    {form.layout === l.value && <Check className="size-3" />}
-                  </span>
-                  <span>
-                    <span className="block text-sm font-medium text-zinc-900">{l.label}</span>
-                    <span className="block text-xs text-zinc-500">{l.hint}</span>
-                  </span>
-                </button>
-              ))}
+          {template?.pdfTemplateData ? (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3.5">
+              <p className="text-sm font-semibold text-blue-900">Imported fillable PDF</p>
+              <p className="mt-1 break-all text-xs text-blue-800">{template.pdfFileName}</p>
             </div>
-          </div>
+          ) : (
+            <div>
+              <p className="mb-1.5 text-sm font-medium text-zinc-700">Layout</p>
+              <div className="space-y-2">
+                {CERTIFICATE_LAYOUTS.map((l) => (
+                  <button
+                    key={l.value}
+                    type="button"
+                    onClick={() => setForm({ ...form, layout: l.value })}
+                    aria-pressed={form.layout === l.value}
+                    className={cn('flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition', form.layout === l.value ? 'border-brand-500 bg-brand-50/60' : 'border-zinc-200 hover:bg-zinc-50')}
+                  >
+                    <span className={cn('mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border', form.layout === l.value ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-300')}>
+                      {form.layout === l.value && <Check className="size-3" />}
+                    </span>
+                    <span>
+                      <span className="block text-sm font-medium text-zinc-900">{l.label}</span>
+                      <span className="block text-xs text-zinc-500">{l.hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="overflow-hidden rounded-xl border border-zinc-200 shadow-sm">
           <CertificatePreview template={draft} />
@@ -150,9 +167,119 @@ function TemplateModal({ template, onClose }: { template?: CertificateTemplate; 
   )
 }
 
+function ImportTemplateModal({ onClose }: { onClose: () => void }) {
+  const { update } = useAdmin()
+  const [name, setName] = useState('')
+  const [file, setFile] = useState<{ data: string; fileName: string; size: number } | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [dragging, setDragging] = useState(false)
+
+  const readFile = async (candidate?: File) => {
+    if (!candidate) return
+    setError('')
+    setBusy(true)
+    try {
+      setFile(await inspectCertificatePdf(candidate))
+    } catch (reason) {
+      setFile(null)
+      setError(reason instanceof Error ? reason.message : 'Could not read this PDF template.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const save = () => {
+    if (!file || !name.trim()) return
+    const template: CertificateTemplate = {
+      id: uid('ct'),
+      name: name.trim(),
+      title: 'Certificate of Completion',
+      accent: 'red',
+      layout: 'border',
+      isDefault: false,
+      pdfTemplateData: file.data,
+      pdfFileName: file.fileName,
+      pdfFileSize: file.size,
+      assignedTypeIds: [],
+    }
+    update((data) => ({ ...data, templates: [...data.templates, template] }), {
+      action: 'Imported certificate template',
+      target: template.name,
+      changes: [{ field: 'PDF file', from: '', to: file.fileName }],
+    })
+    onClose()
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Import certificate template"
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" disabled={!name.trim() || !file || busy} onClick={save}>Import template</Button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <Field label="Template name">
+          <Input value={name} onChange={(event) => setName(event.target.value)} autoFocus placeholder="e.g. All training feedback" />
+        </Field>
+        <Field label="Fillable PDF template">
+          <div
+            onDragOver={(event) => { event.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(event) => { event.preventDefault(); setDragging(false); void readFile(event.dataTransfer.files[0]) }}
+            className={cn('rounded-xl border border-dashed p-5 transition', dragging ? 'border-brand-500 bg-brand-50/60' : 'border-zinc-300 bg-zinc-50/60 hover:border-brand-300 hover:bg-brand-50/30')}
+          >
+            <input
+              id="certificate-template-pdf"
+              type="file"
+              accept="application/pdf,.pdf"
+              className="sr-only"
+              onChange={(event) => { void readFile(event.target.files?.[0]); event.currentTarget.value = '' }}
+            />
+            {file ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600"><FileText className="size-5" /></span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-zinc-900">{file.fileName}</span>
+                    <span className="text-xs text-zinc-500">{(file.size / 1024).toFixed(0)} KB · Fillable PDF</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="certificate-template-pdf" className="cursor-pointer text-xs font-semibold text-brand-700 hover:underline">Replace file</label>
+                  <button type="button" onClick={() => setFile(null)} aria-label="Remove selected PDF" className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-200"><X className="size-4" /></button>
+                </div>
+              </div>
+            ) : (
+              <label htmlFor="certificate-template-pdf" className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 text-center">
+                <span className="grid size-10 place-items-center rounded-xl bg-white text-brand-600 shadow-sm"><Upload className="size-5" /></span>
+                <span className="text-sm font-semibold text-zinc-800">{busy ? 'Checking PDF fields…' : 'Drag and drop or click to upload'}</span>
+                <span className="text-xs text-zinc-500">PDF up to 2 MB</span>
+              </label>
+            )}
+          </div>
+          {error && <p role="alert" className="mt-2 text-xs font-medium text-brand-600">{error}</p>}
+        </Field>
+        <div className="rounded-xl border border-brand-200 bg-brand-50 p-2.5 text-brand-700">
+          <p className="text-xs font-semibold">Supported PDF placeholders</p>
+          <div className="scrollbar-none mt-1.5 flex flex-nowrap gap-1 overflow-x-auto">
+            {CERTIFICATE_PDF_FIELDS.map((fieldName) => <code key={fieldName} className="shrink-0 whitespace-nowrap rounded-md border border-brand-200 bg-white/80 px-1 py-0.5 font-mono text-[10px] text-brand-700">{fieldName}</code>)}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 export function AdminCertificateTemplates() {
   const { data, update } = useAdmin()
   const [editing, setEditing] = useState<CertificateTemplate | 'new' | null>(null)
+  const [importing, setImporting] = useState(false)
 
   const makeDefault = (t: CertificateTemplate) =>
     update((d) => ({ ...d, templates: d.templates.map((x) => ({ ...x, isDefault: x.id === t.id })) }), { action: 'Set default certificate template', target: t.name })
@@ -163,9 +290,10 @@ export function AdminCertificateTemplates() {
         title="Certificate Templates"
         description="Assign templates to training types; every other type gets the default."
         actions={
-          <Button variant="primary" onClick={() => setEditing('new')}>
-            <Plus className="size-4" /> New template
-          </Button>
+          <>
+            <Button onClick={() => setImporting(true)}><Upload className="size-4" /> Import template</Button>
+            <Button variant="primary" onClick={() => setEditing('new')}><Plus className="size-4" /> New template</Button>
+          </>
         }
       />
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -179,9 +307,10 @@ export function AdminCertificateTemplates() {
             <div className="flex items-center justify-between gap-3 p-4">
               <div className="min-w-0">
                 <p className="flex items-center gap-2 font-semibold text-zinc-900">
-                  {t.name} {t.isDefault && <Badge tone="green">DEFAULT</Badge>}
+                  {t.name} {t.pdfTemplateData && <Badge tone="blue">PDF</Badge>} {t.isDefault && <Badge tone="green">DEFAULT</Badge>}
                 </p>
                 <p className="truncate text-xs text-zinc-500">{t.title}</p>
+                {t.pdfFileName && <p className="truncate text-xs text-zinc-500">{t.pdfFileName}</p>}
                 <p className="mt-0.5 truncate text-xs text-zinc-500">
                   {t.assignedTypeIds?.length ? 'Used for ' + t.assignedTypeIds.map((id) => data.trainingTypes.find((x) => x.id === id)?.name ?? id).join(', ') : t.isDefault ? 'Used for all other types' : 'Not assigned'}
                 </p>
@@ -201,6 +330,7 @@ export function AdminCertificateTemplates() {
         ))}
       </div>
       {editing && <TemplateModal template={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
+      {importing && <ImportTemplateModal onClose={() => setImporting(false)} />}
     </>
   )
 }
@@ -329,67 +459,3 @@ export function AdminTrainingTypes({ byCategory = false }: { byCategory?: boolea
   )
 }
 
-/* ---------------------------------- Audit logs -------------------------------- */
-
-export function AdminAuditLogs() {
-  const { data } = useAdmin()
-  const [q, setQ] = useState('')
-  const [actor, setActor] = useState('')
-  const actors = [...new Set(data.auditLogs.map((l) => l.actor))]
-  const rows = data.auditLogs
-    .filter((l) => (!actor || l.actor === actor) && (!q || `${l.action} ${l.target}`.toLowerCase().includes(q.toLowerCase())))
-    .sort((a, b) => b.at.localeCompare(a.at))
-
-  return (
-    <>
-      <PageHeader
-        title="Audit Logs"
-        description="Every change made in the admin dashboard, with before and after values where a field changed."
-        actions={
-          <Button onClick={() => downloadCsv('audit-logs.csv', ['When', 'Actor', 'Action', 'Target', 'Changes (before → after)'], rows.map((l) => [l.at, l.actor, l.action, l.target, (l.changes ?? []).map((c) => c.field + ': ' + (c.from || '—') + ' → ' + (c.to || '—')).join('; ')]))}>
-            <Download className="size-4" /> Export
-          </Button>
-        }
-      />
-      <div className="mb-4 flex flex-wrap gap-3">
-        <SearchInput value={q} onChange={setQ} placeholder="Search actions or targets…" className="w-full sm:w-72" />
-        <Select value={actor} onChange={(e) => setActor(e.target.value)} className="w-full sm:w-56">
-          <option value="">All people</option>
-          {actors.map((a) => (
-            <option key={a}>{a}</option>
-          ))}
-        </Select>
-      </div>
-      {rows.length ? (
-        <Table head={['When', 'Who', 'Action', 'Target']}>
-          {rows.map((l) => (
-            <tr key={l.id} className="hover:bg-zinc-50">
-              <td className="px-4 py-3 whitespace-nowrap text-zinc-500">{dateTime(l.at)}</td>
-              <td className="px-4 py-3 font-medium text-zinc-900">{l.actor}</td>
-              <td className="px-4 py-3 text-zinc-700">{l.action}</td>
-              <td className="px-4 py-3 text-zinc-600">
-                {l.target}
-                {l.changes && l.changes.length > 0 && (
-                  <ul className="mt-1.5 space-y-0.5 text-xs">
-                    {l.changes.map((c) => (
-                      <li key={c.field} className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-medium text-zinc-700">{c.field}:</span>
-                        <span className="rounded bg-brand-50 px-1.5 text-brand-700 line-through decoration-brand-300">{c.from || '—'}</span>
-                        <span className="text-zinc-400">→</span>
-                        <span className="rounded bg-mpesa-500/10 px-1.5 text-mpesa-700">{c.to || '—'}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </td>
-            </tr>
-          ))}
-        </Table>
-      ) : (
-        <Card>
-          <Empty icon={FileClock} title="No log entries match" />
-        </Card>
-      )}
-    </>
-  )
-}

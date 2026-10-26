@@ -24,7 +24,7 @@ import { Link, useParams } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { useFeedback } from '../../components/Feedback'
 import { CancelModal, ChangeTrainerModal, ConflictList, InviteModal, RescheduleModal, ScheduleHistory } from '../ScheduleModals'
-import { describeRecurrence, findConflicts } from '../scheduling'
+import { describeRecurrence, findConflicts, trainerIdsOf } from '../scheduling'
 import { InviteTemporaryModal } from './TemporaryAccess'
 import { MaterialPreview } from '../MaterialPreview'
 import { AttendancePanel } from '../teams/AttendancePanel'
@@ -34,6 +34,18 @@ import { longDate, shortDate, time12 } from '../helpers'
 import { classProgress, participantProgress, useAdmin } from '../store'
 import type { AdminTraining, AssessmentKind, Material, TrainingStatus } from '../types'
 import { Avatar, Badge, Button, Card, CardTitle, Empty, Field, Modal, ProgressBar, Select, trainingStatusTone } from '../ui'
+
+const scheduledDuration = (startTime: string, endTime: string) => {
+  const minutes = (time: string) => {
+    const [hours, mins] = time.split(':').map(Number)
+    return hours * 60 + mins
+  }
+  const totalMinutes = Math.max(0, minutes(endTime) - minutes(startTime))
+  const hours = Math.floor(totalMinutes / 60)
+  const remainingMinutes = totalMinutes % 60
+  if (!hours) return `${remainingMinutes}Min`
+  return `${hours}Hr${remainingMinutes ? ` ${remainingMinutes}Min` : ''}`
+}
 
 function AttachAssessmentModal({ training, kind, onClose }: { training: AdminTraining; kind: AssessmentKind; onClose: () => void }) {
   const { data, update } = useAdmin()
@@ -160,7 +172,7 @@ export function AdminTrainingDetail() {
   }
 
   const moduleIds = journey?.modules.map((m) => m.id) ?? []
-  const trainer = data.people.find((p) => p.id === training.trainerId)
+  const trainers = trainerIdsOf(training).map((trainerId) => data.people.find((person) => person.id === trainerId)).filter((person): person is NonNullable<typeof person> => !!person)
   const pre = data.assessments.find((a) => a.id === training.preAssessmentId)
   const post = data.assessments.find((a) => a.id === training.postAssessmentId)
   const form = data.feedbackForms.find((f) => f.id === training.feedbackFormId)
@@ -236,7 +248,7 @@ export function AdminTrainingDetail() {
 
       {conflicts.length > 0 && (
         <div className="mb-5">
-          <ConflictList conflicts={conflicts} data={data} trainerId={training.trainerId} />
+          <ConflictList conflicts={conflicts} data={data} trainerIds={trainerIdsOf(training)} />
         </div>
       )}
 
@@ -303,7 +315,7 @@ export function AdminTrainingDetail() {
             <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               {[
                 [CalendarDays, 'Training Date', shortDate(training.date)],
-                [Clock, 'Training Time', `${time12(training.startTime)} - ${time12(training.endTime)}`],
+                [Clock, 'Training Time', `${time12(training.startTime)} - ${time12(training.endTime)} (${scheduledDuration(training.startTime, training.endTime)})`],
                 [MapPin, training.delivery === 'Online' || training.location === 'ONLINE' ? 'Delivery' : 'Location', training.location === 'ONLINE' ? 'Online · Microsoft Teams' : training.location],
                 [RefreshCw, 'Recurring', training.recurrence ? describeRecurrence(training.recurrence, seriesSessions[0]?.date) : 'No'],
                 [Layers, 'Category', category ? `${category.name}${subcategory ? ` › ${subcategory.name}` : ''}` : '—'],
@@ -334,15 +346,19 @@ export function AdminTrainingDetail() {
                 )
               }
             >
-              Trainer
+              Trainers
             </CardTitle>
-            {trainer ? (
-              <div className="flex items-center gap-3">
-                <Avatar name={trainer.name} />
-                <div>
-                  <p className="text-sm font-medium text-zinc-900">{trainer.name}</p>
-                  <p className="text-xs text-zinc-500">{trainer.email}</p>
-                </div>
+            {trainers.length ? (
+              <div className="space-y-2">
+                {trainers.map((trainer) => (
+                  <div key={trainer.id} className="flex items-center gap-3">
+                    <Avatar name={trainer.name} />
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">{trainer.name}</p>
+                      <p className="text-xs text-zinc-500">{trainer.email}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="text-sm text-zinc-500">No trainer assigned.</p>

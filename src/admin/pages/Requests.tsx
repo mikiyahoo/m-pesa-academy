@@ -1,14 +1,15 @@
-import { AlertTriangle, CalendarPlus, Check, Eye, FileQuestion, MapPin, Users, Video, X } from 'lucide-react'
+import { AlertTriangle, CalendarPlus, Check, Eye, FileQuestion, MapPin, Plus, Users, Video, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { localISO } from '../../lib/utils'
+import { useFeedback } from '../../components/Feedback'
 import { DuplicateWarning, JoinLink, RequestDetails, RequestStatusPill, RequestTimeline } from '../RequestParts'
 import { dateTime, shortDate, time12 } from '../helpers'
 import { findDuplicates, makeJoinLink, personByEmail, REJECTION_REASONS } from '../requests'
 import { useAdmin } from '../store'
 import type { RequestStatus, TrainingRequest } from '../types'
-import { Avatar, Button, Card, Empty, Field, Modal, PageHeader, Select, Tabs, Textarea } from '../ui'
+import { Avatar, Button, Card, Empty, Field, Modal, PageHeader, Select, TabBar, Tabs, Textarea } from '../ui'
 import { NewTrainingModal, type TrainingPreset } from './Trainings'
 
 type Filter = 'ALL' | Exclude<RequestStatus, 'DRAFT'>
@@ -68,13 +69,58 @@ function RejectModal({ request, onClose }: { request: TrainingRequest; onClose: 
   )
 }
 
-function ApproveModal({ request, onClose, onApproved }: { request: TrainingRequest; onClose: () => void; onApproved: (trainerId: string) => void }) {
+function ApproveModal({ request, onClose, onApproved }: { request: TrainingRequest; onClose: () => void; onApproved: (trainerIds: string[]) => void }) {
   const { data, update } = useAdmin()
+  const { confirm } = useFeedback()
   const trainers = data.people.filter((p) => p.role === 'Trainer' && p.status === 'Active')
-  const [trainerId, setTrainerId] = useState(trainers.find((t) => t.canApprove)?.id ?? trainers[0]?.id ?? '')
+  const [trainerIds, setTrainerIds] = useState(() => {
+    const existing = (request.trainerIds?.length ? request.trainerIds : [request.trainerId ?? '']).filter((id) => trainers.some((trainer) => trainer.id === id))
+    const selected = [...new Set(existing)]
+    if (!selected.length) {
+      const defaultTrainer = trainers.find((trainer) => trainer.canApprove) ?? trainers[0]
+      if (defaultTrainer) selected.push(defaultTrainer.id)
+    }
+    if (selected.length < 2) {
+      const secondTrainer = trainers.find((trainer) => !selected.includes(trainer.id))
+      if (secondTrainer) selected.push(secondTrainer.id)
+    }
+    return selected
+  })
+  const [addingTrainer, setAddingTrainer] = useState(false)
+  const [candidateTrainerId, setCandidateTrainerId] = useState('')
+  const assignedTrainers = trainerIds.map((id) => trainers.find((trainer) => trainer.id === id)).filter((trainer): trainer is (typeof trainers)[number] => !!trainer)
+  const availableTrainers = trainers.filter((trainer) => !trainerIds.includes(trainer.id))
+
+  const removeTrainer = async (trainerId: string) => {
+    const trainer = assignedTrainers.find((item) => item.id === trainerId)
+    if (!trainer) return
+    const confirmed = await confirm({
+      title: `Remove ${trainer.name} from this request?`,
+      message: 'This trainer will no longer be assigned to the request. You can add another trainer before approving.',
+      confirmLabel: 'Remove trainer',
+      danger: true,
+    })
+    if (confirmed) setTrainerIds((ids) => ids.filter((id) => id !== trainerId))
+  }
+
+  const addTrainer = async () => {
+    const candidate = availableTrainers.find((item) => item.id === candidateTrainerId)
+    if (!candidate) return
+    const confirmed = await confirm({
+      title: `Assign ${candidate.name} to this request?`,
+      message: 'This trainer will be assigned when you approve the request.',
+      confirmLabel: 'Add trainer',
+    })
+    if (confirmed) {
+      setTrainerIds((ids) => [...new Set([...ids, candidate.id])])
+      setAddingTrainer(false)
+      setCandidateTrainerId('')
+    }
+  }
 
   const approve = () => {
-    const trainer = data.people.find((p) => p.id === trainerId)
+    const assignedTrainers = data.people.filter((person) => trainerIds.includes(person.id))
+    const trainerId = trainerIds[0] ?? ''
     update(
       (d) => ({
         ...d,
@@ -84,15 +130,16 @@ function ApproveModal({ request, onClose, onApproved }: { request: TrainingReque
                 ...r,
                 status: 'APPROVED',
                 trainerId,
+                trainerIds,
                 joinLink: makeJoinLink(r.id),
-                history: [...r.history, { at: now(), by: 'Training team', label: 'Approved', detail: `Trainer: ${trainer?.name ?? '—'}` }],
+                history: [...r.history, { at: now(), by: 'Training team', label: 'Approved', detail: `Trainers: ${assignedTrainers.map((trainer) => trainer.name).join(', ') || '—'}` }],
               }
             : r,
         ),
       }),
       { action: 'Approved training request', target: request.topic },
     )
-    onApproved(trainerId)
+    onApproved(trainerIds)
   }
 
   return (
@@ -100,24 +147,49 @@ function ApproveModal({ request, onClose, onApproved }: { request: TrainingReque
       open
       onClose={onClose}
       title="Approve request"
-      description="Assign the trainer who will run this training. The requester gets a join link to share with their team."
+      description="Assign one or more trainers to run this training. The requester gets a join link to share with their team."
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!trainerId} onClick={approve}>
+          <Button variant="primary" disabled={!trainerIds.length} onClick={approve}>
             <Check className="size-4" /> Approve and assign
           </Button>
         </>
       }
     >
-      <Field label="Trainer">
-        <Select value={trainerId} onChange={(e) => setTrainerId(e.target.value)} autoFocus>
-          {trainers.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name} — {t.department}
-            </option>
+      <Field label="Trainers">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {assignedTrainers.map((trainer) => (
+            <div key={trainer.id} className="flex items-center gap-3 rounded-xl border border-zinc-200 px-3 py-2">
+              <Avatar name={trainer.name} size="sm" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-zinc-900">{trainer.name}</span>
+                <span className="block truncate text-xs text-zinc-500">{trainer.department}</span>
+              </span>
+              <button type="button" onClick={() => void removeTrainer(trainer.id)} aria-label={`Remove ${trainer.name}`} title="Remove trainer" className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700 transition hover:bg-brand-100">
+                <X className="size-4" />
+              </button>
+            </div>
           ))}
-        </Select>
+          {addingTrainer ? (
+            <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+              <Select className="min-w-0 flex-1" value={candidateTrainerId} onChange={(event) => setCandidateTrainerId(event.target.value)} autoFocus>
+                <option value="">Choose another trainer…</option>
+                {availableTrainers.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name} — {item.department}</option>
+                ))}
+              </Select>
+              <Button size="sm" variant="primary" disabled={!candidateTrainerId} onClick={() => void addTrainer()}>
+                <Plus className="size-3.5" /> Add
+              </Button>
+              <Button size="sm" onClick={() => setAddingTrainer(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <Button size="sm" disabled={!availableTrainers.length} onClick={() => { setCandidateTrainerId(availableTrainers[0]?.id ?? ''); setAddingTrainer(true) }}>
+              <Plus className="size-3.5" /> Add trainer
+            </Button>
+          )}
+        </div>
       </Field>
     </Modal>
   )
@@ -137,10 +209,11 @@ export function AdminRequests() {
   const viewed = data.requests.find((r) => r.id === viewing)
   const acting = data.requests.find((r) => r.id === modal?.id)
 
-  const presetFor = (r: TrainingRequest, trainerId?: string): TrainingPreset => ({
+  const presetFor = (r: TrainingRequest, trainerIds?: string[]): TrainingPreset => ({
     name: r.topic,
     typeId: r.trainingTypeId,
-    trainerId: trainerId ?? r.trainerId,
+    trainerId: trainerIds?.[0] ?? r.trainerId,
+    trainerIds: trainerIds ?? r.trainerIds,
     date: r.preferredDate,
     startTime: r.preferredTime,
     location: r.delivery === 'Online' ? 'ONLINE' : r.location,
@@ -150,14 +223,14 @@ export function AdminRequests() {
 
   return (
     <>
-      <PageHeader title="Training Requests" description="Requests submitted by team representatives. Approve to assign a trainer and schedule, or reject with a reason." />
-      <div className="mb-4">
+      <PageHeader title="Training Requests" description="Requests submitted by team representatives. Approve to assign trainers and schedule, or reject with a reason." />
+      <TabBar>
         <Tabs<Filter>
           value={filter}
           onChange={setFilter}
           items={(['PENDING', 'APPROVED', 'REJECTED', 'ALL'] as Filter[]).map((v) => ({ value: v, label: v === 'ALL' ? 'All' : v[0] + v.slice(1).toLowerCase(), count: count(v) }))}
         />
-      </div>
+      </TabBar>
 
       {rows.length ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -216,7 +289,7 @@ export function AdminRequests() {
                 )}
                 {r.status === 'APPROVED' && (
                   <p className="text-xs text-zinc-600">
-                    Trainer: <span className="font-medium text-zinc-900">{data.people.find((p) => p.id === r.trainerId)?.name ?? '—'}</span>
+                    Trainers: <span className="font-medium text-zinc-900">{(r.trainerIds?.length ? r.trainerIds : [r.trainerId].filter((id): id is string => !!id)).map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ') || '—'}</span>
                     {training ? (
                       <>
                         {' · '}
@@ -298,9 +371,9 @@ export function AdminRequests() {
         <ApproveModal
           request={acting}
           onClose={() => setModal(null)}
-          onApproved={(trainerId) => {
+          onApproved={(trainerIds) => {
             setModal(null)
-            setScheduling(presetFor(acting, trainerId))
+            setScheduling(presetFor(acting, trainerIds))
           }}
         />
       )}

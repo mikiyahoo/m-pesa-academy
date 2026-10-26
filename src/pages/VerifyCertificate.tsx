@@ -1,4 +1,5 @@
-import { BadgeCheck, CalendarDays, CircleX, GraduationCap, Hash, Star, UserRound } from 'lucide-react'
+import { BadgeCheck, CalendarDays, Check, CircleX, Copy, GraduationCap, Hash, Star, UserRound } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { currentUser, LATE_WINDOW_MINUTES } from '../data/trainings'
 import { certificateChecks, certificateId, formatDate } from '../lib/utils'
@@ -15,6 +16,7 @@ export function VerifyCertificate({ id }: { id: string }) {
   const training = trainings.find((t) => certificateId(t) === id)
   const p = training ? progress[training.id] : undefined
   const valid = !!training && certificateChecks(training, p, LATE_WINDOW_MINUTES).eligible
+  const [copied, setCopied] = useState(false)
 
   const rows = training
     ? [
@@ -63,6 +65,49 @@ export function VerifyCertificate({ id }: { id: string }) {
                 </div>
               ))}
           </dl>
+
+          {valid && (
+            <div className="border-t border-zinc-100 bg-zinc-50/60 p-4">
+              <p className="mb-2.5 text-center text-xs font-semibold text-zinc-700">Share this verified credential</p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(window.location.href)
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 2000)
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-xs hover:bg-zinc-50 transition"
+                >
+                  {copied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5 text-zinc-500" />}
+                  {copied ? 'Copied!' : 'Copy link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = `🎓 Verified M-PESA Academy certificate for "${training?.title}": ${window.location.href}`
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer')
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition"
+                >
+                  WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`, '_blank', 'noopener,noreferrer')
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a66c2] px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#004182] transition"
+                >
+                  LinkedIn
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <p className="mt-6 text-center text-xs text-zinc-500">

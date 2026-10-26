@@ -1,9 +1,9 @@
 import { BarChart3, ChevronDown, Download, FileSpreadsheet, FileText, Printer, X } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '../../lib/utils'
 import { useAdmin } from '../store'
 import { REGIONS } from '../temporary'
-import { Button, Card, Select, StatCard } from '../ui'
+import { Button, Card, Select, StatCard, type StatCardTrend } from '../ui'
 import { exportCsv, exportXlsx, printReport, type Sheet } from './export'
 import type { ReportFilters } from './filters'
 import { EmptyState } from '../../components/EmptyState'
@@ -36,7 +36,7 @@ export function FilterBar({
         </button>
         <div className={cn('w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap', open ? 'grid' : 'hidden')}>
           {show('typeId') && (
-            <Select value={filters.typeId} onChange={(e) => set({ typeId: e.target.value })} aria-label="Training type" className="w-auto! py-1.5! text-xs!">
+            <Select value={filters.typeId} onChange={(e) => set({ typeId: e.target.value })} aria-label="Training type" title={data.trainingTypes.find((t) => t.id === filters.typeId)?.name ?? 'All types'} className="w-full sm:w-[14rem] h-10 py-0 text-xs truncate">
               <option value="">All types</option>
               {data.trainingTypes.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -46,7 +46,7 @@ export function FilterBar({
             </Select>
           )}
           {show('groupId') && (
-            <Select value={filters.groupId} onChange={(e) => set({ groupId: e.target.value })} aria-label="Team" className="w-auto! py-1.5! text-xs!">
+            <Select value={filters.groupId} onChange={(e) => set({ groupId: e.target.value })} aria-label="Team" title={data.groups.find((g) => g.id === filters.groupId)?.name ?? 'All teams'} className="w-full sm:w-[11rem] h-10 py-0 text-xs truncate">
               <option value="">All teams</option>
               {data.groups.map((g) => (
                 <option key={g.id} value={g.id}>
@@ -56,7 +56,7 @@ export function FilterBar({
             </Select>
           )}
           {show('region') && (
-            <Select value={filters.region} onChange={(e) => set({ region: e.target.value })} aria-label="Region" className="w-auto! py-1.5! text-xs!">
+            <Select value={filters.region} onChange={(e) => set({ region: e.target.value })} aria-label="Region" title={filters.region || 'All regions'} className="w-full sm:w-[11rem] h-10 py-0 text-xs truncate">
               <option value="">All regions</option>
               {REGIONS.map((r) => (
                 <option key={r}>{r}</option>
@@ -64,7 +64,7 @@ export function FilterBar({
             </Select>
           )}
           {show('trainerId') && (
-            <Select value={filters.trainerId} onChange={(e) => set({ trainerId: e.target.value })} aria-label="Trainer" className="w-auto! py-1.5! text-xs!">
+            <Select value={filters.trainerId} onChange={(e) => set({ trainerId: e.target.value })} aria-label="Trainer" title={trainers.find((p) => p.id === filters.trainerId)?.name ?? 'All trainers'} className="w-full sm:w-[13rem] h-10 py-0 text-xs truncate">
               <option value="">All trainers</option>
               {trainers.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -74,7 +74,7 @@ export function FilterBar({
             </Select>
           )}
           {show('status') && (
-            <Select value={filters.status} onChange={(e) => set({ status: e.target.value as ReportFilters['status'] })} aria-label="Status" className="w-auto! py-1.5! text-xs!">
+            <Select value={filters.status} onChange={(e) => set({ status: e.target.value as ReportFilters['status'] })} aria-label="Status" title={filters.status || 'Any status'} className="w-full sm:w-[9rem] h-10 py-0 text-xs truncate">
               <option value="">Any status</option>
               {['SCHEDULED', 'ONGOING', 'COMPLETED', 'CANCELLED'].map((s) => (
                 <option key={s} value={s}>
@@ -84,7 +84,7 @@ export function FilterBar({
             </Select>
           )}
           {show('delivery') && (
-            <Select value={filters.delivery} onChange={(e) => set({ delivery: e.target.value as ReportFilters['delivery'] })} aria-label="Delivery mode" className="w-auto! py-1.5! text-xs!">
+            <Select value={filters.delivery} onChange={(e) => set({ delivery: e.target.value as ReportFilters['delivery'] })} aria-label="Delivery mode" title={filters.delivery || 'Online & physical'} className="w-full sm:w-[11rem] h-10 py-0 text-xs truncate">
               <option value="">Online &amp; physical</option>
               <option>Online</option>
               <option>Physical</option>
@@ -161,9 +161,20 @@ export function ExportMenu({ filename, title, sheets, personal = false }: { file
   )
 }
 
-/** Report stat: the shared admin StatCard, with an optional icon. */
+const statTrends = createContext<Record<string, StatCardTrend | null>>({})
+
+export function StatTrendProvider({ trends, children }: { trends: Record<string, StatCardTrend | null>; children: ReactNode }) {
+  return <statTrends.Provider value={trends}>{children}</statTrends.Provider>
+}
+
+export function useReportStatTrend(label: string) {
+  return useContext(statTrends)[label] ?? undefined
+}
+
+/** Report stat: the shared admin StatCard, with its matching recent-period comparison. */
 export function Stat({ label, value, hint, tone = 'zinc', icon }: { label: string; value: ReactNode; hint?: string; tone?: 'zinc' | 'red' | 'green' | 'amber'; icon?: React.ComponentType<{ className?: string }> }) {
-  return <StatCard label={label} value={value} hint={hint} tone={tone} icon={icon} />
+  const trend = useReportStatTrend(label)
+  return <StatCard label={label} value={value} hint={hint} tone={tone} icon={icon} trend={trend} />
 }
 
 /** Horizontal bars: label, bar, value. */
@@ -200,6 +211,57 @@ export function Trend({ points, format = (v) => String(v), tone = 'red' }: { poi
           <span className="truncate text-[11px] text-zinc-500">{p.label}</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+/** Responsive grouped month bars with a same-month last-year comparison. */
+export function ComparisonBars({
+  points,
+  currentLabel,
+  previousLabel,
+}: {
+  points: { label: string; current: number; previous: number }[]
+  currentLabel: string
+  previousLabel: string
+}) {
+  if (!points.length) return <EmptyState compact icon={BarChart3} title="No enrolment data for these filters" text="Widen the date range or clear a filter." />
+  const maximum = Math.max(1, ...points.flatMap((point) => [point.current, point.previous]))
+  const ticks = [100, 75, 50, 25, 0]
+  const bar = (value: number, color: string, label: string) => {
+    const height = value ? Math.max(3, (value / maximum) * 76) : 0
+    return (
+      <div className="relative flex h-full min-w-0 flex-1 items-end justify-center" title={`${label}: ${value}`}>
+        <span className="absolute z-10 mb-1 text-[10px] font-medium leading-none text-zinc-700 tabular-nums" style={{ bottom: `calc(${height}% + 4px)` }}>{value}</span>
+        <div className={cn('w-full max-w-7 rounded-t-md transition-[height]', color)} style={{ height: `${height}%` }} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-h-[220px] flex-col">
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-600">
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-brand-600" />{currentLabel}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-zinc-300" />{previousLabel}</span>
+      </div>
+      <div className="min-h-[174px] flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin">
+        <div className="relative h-full min-h-[174px]" style={{ minWidth: `${Math.max(520, points.length * 48)}px` }}>
+          <div className="absolute inset-x-0 top-1 bottom-7 flex flex-col justify-between" aria-hidden="true">
+            {ticks.map((tick) => <div key={tick} className="border-t border-dashed border-zinc-200" />)}
+          </div>
+          <div className="relative flex h-full items-stretch gap-1 px-1">
+            {points.map((point) => (
+              <div key={point.label} className="flex min-w-0 flex-1 flex-col items-center justify-end">
+                <div className="flex h-[148px] w-full items-end justify-center gap-1">
+                  {bar(point.current, 'bg-brand-600', `${point.label} · ${currentLabel}`)}
+                  {bar(point.previous, 'bg-zinc-300', `${point.label} · ${previousLabel}`)}
+                </div>
+                <span className="mt-1 h-6 max-w-full truncate text-[11px] text-zinc-500" title={point.label}>{point.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

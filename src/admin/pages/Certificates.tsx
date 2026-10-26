@@ -1,12 +1,14 @@
 import { AlertTriangle, BadgeCheck, CheckCircle2, ChevronRight, Circle, Download, Play, Printer, RotateCcw } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { downloadCertificatePdf, printCertificate } from '../../lib/certificateExport'
+import { downloadPdfBytes, fillCertificatePdf, printPdfBytes } from '../../lib/fillableCertificate'
 import { Link } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
 import { cn, localISO } from '../../lib/utils'
 import { shortDate } from '../helpers'
 import { anonymiser, attendanceMap, bestScore, eligibility, runIssuing, templateFor } from '../insights'
 import { filterTrainings, useReportFilters } from '../reports/filters'
+import { trainerIdsOf } from '../scheduling'
 import { ExportMenu, FilterBar, Stat } from '../reports/ReportParts'
 import { useScope } from '../scope'
 import { useAdmin } from '../store'
@@ -42,14 +44,26 @@ export function AdminCertificates() {
     const node = previewArt.current?.firstElementChild as HTMLElement | null
     if (!node || !preview) return
     try {
-      if (kind === 'pdf') await downloadCertificatePdf(node, `Certificate - ${name(preview.c.personId)} - ${preview.t.name}`)
+      const template = data.templates.find((item) => item.id === preview.c.templateId) ?? templateFor(data, preview.t)
+      if (template?.pdfTemplateData) {
+        const participant = data.people.find((person) => person.id === preview.c.personId)
+        const bytes = await fillCertificatePdf(template.pdfTemplateData, {
+          name: participant?.name ?? preview.c.personId,
+          email: participant?.email ?? '',
+          training: preview.t.name,
+          date: new Date(preview.c.issuedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          code: `MPL-${preview.t.date.replaceAll('-', '')}-${preview.t.id.toUpperCase()}-${preview.c.personId.toUpperCase()}`,
+        })
+        if (kind === 'pdf') downloadPdfBytes(bytes, `Certificate - ${name(preview.c.personId)} - ${preview.t.name}`)
+        else printPdfBytes(bytes)
+      } else if (kind === 'pdf') await downloadCertificatePdf(node, `Certificate - ${name(preview.c.personId)} - ${preview.t.name}`)
       else await printCertificate(node)
     } catch {
       toast('Could not prepare the certificate — please try again', { tone: 'error' })
     }
   }
 
-  const base = data.trainings.filter((t) => t.status !== 'CANCELLED' && (!scope.trainerId || t.trainerId === scope.trainerId))
+  const base = data.trainings.filter((t) => t.status !== 'CANCELLED' && (!scope.trainerId || trainerIdsOf(t).includes(scope.trainerId)))
   const trainings = useMemo(() => filterTrainings(data, filters, base).sort((a, b) => b.date.localeCompare(a.date)), [data, filters, base])
   const rows = useMemo(
     () =>
@@ -61,6 +75,7 @@ export function AdminCertificates() {
   )
   const notTriggered = rows.filter((r) => r.t.status === 'COMPLETED' && !r.t.certificatesRunAt)
   const name = (pid: string) => data.people.find((p) => p.id === pid)?.name ?? pid
+  const trainerNames = (t: AdminTraining) => trainerIdsOf(t).map(name).join(', ') || '—'
 
   const run = (t: AdminTraining) => {
     const before = (t.certificates ?? []).length
@@ -101,7 +116,7 @@ export function AdminCertificates() {
             sheets={(anon) => {
               const a = anon ? anonymiser() : undefined
               return [
-                { name: 'Sessions', header: ['Training', 'Date', 'Trainer', 'Participants', 'Eligible', 'Issued', 'Pending', 'Issuing run'], rows: rows.map((r) => [r.t.name, r.t.date, name(r.t.trainerId), r.t.participantIds.length, r.eligible, r.issued, r.pending, r.t.certificatesRunAt?.slice(0, 10) ?? 'Not yet']) },
+                { name: 'Sessions', header: ['Training', 'Date', 'Trainers', 'Participants', 'Eligible', 'Issued', 'Pending', 'Issuing run'], rows: rows.map((r) => [r.t.name, r.t.date, trainerNames(r.t), r.t.participantIds.length, r.eligible, r.issued, r.pending, r.t.certificatesRunAt?.slice(0, 10) ?? 'Not yet']) },
                 {
                   name: 'Trainees',
                   header: ['Training', 'Trainee', 'Attendance', 'Feedback', 'Score', 'Eligible', 'Certificate', 'Issued', 'Method', 'Reason'],
@@ -161,7 +176,7 @@ export function AdminCertificates() {
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium text-zinc-900">{r.t.name}</span>
                     <span className="block text-xs text-zinc-500">
-                      {shortDate(r.t.date)} · {name(r.t.trainerId)} · template {tpl?.name}
+                      {shortDate(r.t.date)} · {trainerNames(r.t)} · template {tpl?.name}
                     </span>
                   </span>
                   <span className="flex items-center gap-2 text-xs">
@@ -270,8 +285,9 @@ export function AdminCertificates() {
             <CertificatePreview
               template={data.templates.find((t) => t.id === preview.c.templateId) ?? templateFor(data, preview.t)}
               name={name(preview.c.personId)}
+              email={data.people.find((person) => person.id === preview.c.personId)?.email ?? ''}
               course={preview.t.name}
-              trainer={name(preview.t.trainerId)}
+              trainer={trainerNames(preview.t)}
               certificateId={`MPL-${preview.t.date.replaceAll('-', '')}-${preview.t.id.toUpperCase()}-${preview.c.personId.toUpperCase()}`}
               issued={new Date(preview.c.issuedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
               score={bestScore(data, preview.t, preview.c.personId)}
