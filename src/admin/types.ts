@@ -204,6 +204,8 @@ export type AdminTraining = {
   journeyId: string
   /** Every journey in this training, in learning order; journeyId is the first one. */
   journeyIds?: string[]
+  /** Extra library materials added to this training only, shown after the journey modules. */
+  extraMaterialIds?: string[]
   typeId: string
   /** Primary trainer, kept for compatibility with existing records. */
   trainerId: string

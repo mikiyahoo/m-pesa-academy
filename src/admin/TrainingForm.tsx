@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Download,
   FileSpreadsheet,
+  FileText,
   ImagePlus,
   Layers,
   MapPin,
@@ -226,6 +227,8 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
     postAssessmentId: '',
     delivery: (presetOnline ? 'Online' : preset?.location ? 'Physical' : 'Online') as 'Online' | 'Physical',
     isPublic: false,
+    /** Library materials added to this training on top of its journeys. */
+    extraMaterialIds: [] as string[],
     /** Optional existing Teams meeting; left empty, one is created for the session. */
     teamsUrl: '',
     location: presetOnline ? '' : (preset?.location ?? ''),
@@ -282,6 +285,10 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   const category = data.categories.find((c) => c.id === f.categoryId)
   const chosenJourneys = f.journeyIds.map((id) => data.journeys.find((j) => j.id === id)).filter((j): j is Journey => !!j)
   const otherJourneys = data.journeys.filter((j) => !f.journeyIds.includes(j.id))
+  // Materials already in the chosen journeys aren't offered again as extras.
+  const journeyMaterialIds = new Set(chosenJourneys.flatMap((j) => j.modules.flatMap((m) => m.materialIds)))
+  const extraMaterials = f.extraMaterialIds.map((id) => data.materials.find((m) => m.id === id)).filter((m): m is NonNullable<typeof m> => !!m)
+  const otherMaterials = data.materials.filter((m) => !f.extraMaterialIds.includes(m.id) && !journeyMaterialIds.has(m.id))
   const moveJourney = (i: number, by: -1 | 1) => {
     const next = [...f.journeyIds]
     ;[next[i], next[i + by]] = [next[i + by], next[i]]
@@ -398,6 +405,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
         name: f.name.trim(),
         journeyId: f.journeyIds[0],
         journeyIds: f.journeyIds.length > 1 ? f.journeyIds : undefined,
+        extraMaterialIds: f.extraMaterialIds.length ? f.extraMaterialIds : undefined,
         typeId: f.typeId,
         trainerId: f.trainerIds[0],
         trainerIds: f.trainerIds,
@@ -657,6 +665,42 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                   </Select>
                 )}
                 {err1('journeyId') && <p className="mt-1 text-xs text-brand-600">{err1('journeyId')}</p>}
+              </div>
+
+              <div className="sm:col-span-2">
+                <span className="block text-sm font-medium text-zinc-900">Additional materials (optional)</span>
+                <span className="mb-1.5 block text-xs text-zinc-500">Extra documents, videos or slides for this training only. Learners get them after the journey modules.</span>
+                {extraMaterials.length > 0 && (
+                  <ul className="mb-2 flex flex-wrap gap-2">
+                    {extraMaterials.map((m) => (
+                      <li key={m.id} className="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-200 bg-surface py-1 pr-1 pl-3 text-sm">
+                        <FileText className="size-3.5 shrink-0 text-brand-600" />
+                        <span className="truncate font-medium text-zinc-800">{m.title}</span>
+                        <span className="shrink-0 text-[11px] text-zinc-500">{m.type.toLowerCase()}</span>
+                        <button
+                          type="button"
+                          onClick={() => set('extraMaterialIds', f.extraMaterialIds.filter((x) => x !== m.id))}
+                          aria-label={`Remove ${m.title}`}
+                          className="grid size-6 shrink-0 place-items-center rounded-full text-zinc-400 hover:bg-brand-50 hover:text-brand-600"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {otherMaterials.length > 0 ? (
+                  <Select value="" onChange={(e) => e.target.value && set('extraMaterialIds', [...f.extraMaterialIds, e.target.value])}>
+                    <option value="">+ Add a material from the library…</option>
+                    {otherMaterials.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.title} · {m.type.toLowerCase()}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <p className="text-xs text-zinc-500">All library materials are already part of this training.</p>
+                )}
               </div>
 
               <Field label="Training type">
@@ -1085,6 +1129,14 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                 <span className="inline-flex items-center gap-1 font-medium">
                   <Layers className="size-3 text-zinc-400" /> {chosenJourneys.length > 1 ? 'Journeys' : 'Journey'}: {chosenJourneys.map((j) => j.name).join(' → ') || 'None'}
                 </span>
+                {extraMaterials.length > 0 && (
+                  <>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      <FileText className="size-3 text-zinc-400" /> +{extraMaterials.length} additional material{extraMaterials.length === 1 ? '' : 's'}
+                    </span>
+                  </>
+                )}
                 <span>·</span>
                 <span className="inline-flex items-center gap-1 font-medium">
                   <Repeat className="size-3 text-zinc-400" /> {dates.length} scheduled session{dates.length === 1 ? '' : 's'}

@@ -46,7 +46,13 @@ export function adminToLearnerTraining(data: AdminData, t: AdminTraining): Train
   const trainer = trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ') || 'Training team'
   const type = data.trainingTypes.find((x) => x.id === t.typeId)
   const material = (id?: string) => data.materials.find((m) => m.id === id)
-  const modules = (journey?.modules ?? []).map((jm, i) => toModule(`${t.id}-${jm.id}`, jm.title, material(jm.materialIds[0]), i))
+  const journeyModules = (journey?.modules ?? []).map((jm, i) => toModule(`${t.id}-${jm.id}`, jm.title, material(jm.materialIds[0]), i))
+  // Additional materials picked for this training come after the journey modules.
+  const extras = (t.extraMaterialIds ?? [])
+    .map((id) => material(id))
+    .filter((m): m is Material => !!m)
+    .map((m, i) => toModule(`${t.id}-extra-${m.id}`, m.title, m, journeyModules.length + i))
+  const modules = [...journeyModules, ...extras]
   const post = data.assessments.find((a) => a.id === t.postAssessmentId)
   const mcq = (post?.questions ?? []).filter((q) => q.type === 'mcq' && q.options?.length && typeof q.answer === 'number')
   return {

@@ -6,13 +6,13 @@ import {
   ChevronUp,
   Clock,
   FileText,
+  Layers,
+  Link2,
   MapPin,
   MessageSquare,
   MoreHorizontal,
   PlayCircle,
   Plus,
-  Link2,
-  Layers,
   RefreshCw,
   UserCog,
   UserPlus,
@@ -34,7 +34,7 @@ import { longDate, shortDate, time12 } from '../helpers'
 import { classProgress, participantProgress, useAdmin } from '../store'
 import type { AdminTraining, AssessmentKind, Material, TrainingStatus } from '../types'
 import { Avatar, Badge, Button, Card, CardTitle, Empty, Field, Modal, ProgressBar, Select, trainingStatusTone } from '../ui'
-import { combinedJourney } from '../journeys'
+import { combinedJourney, trainingJourneys } from '../journeys'
 
 const scheduledDuration = (startTime: string, endTime: string) => {
   const minutes = (time: string) => {
@@ -158,6 +158,72 @@ function StatusMenu({ training, onCancel }: { training: AdminTraining; onCancel:
         </div>
       )}
     </div>
+  )
+}
+
+/** Library materials added to this training on top of its journeys (shown to learners after the journey). */
+function ExtraMaterialsCard({ training, onPreview }: { training: AdminTraining; onPreview: (m: Material) => void }) {
+  const { data, update } = useAdmin()
+  const ids = training.extraMaterialIds ?? []
+  const extras = ids.map((id) => data.materials.find((m) => m.id === id)).filter((m): m is Material => !!m)
+  const inJourneys = new Set(trainingJourneys(data, training).flatMap((j) => j.modules.flatMap((m) => m.materialIds)))
+  const available = data.materials.filter((m) => !ids.includes(m.id) && !inJourneys.has(m.id))
+  const save = (next: string[], action: string, target: string) =>
+    update((d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, extraMaterialIds: next.length ? next : undefined } : t)) }), { action, target })
+  return (
+    <Card>
+      <CardTitle
+        action={
+          available.length > 0 && (
+            <Select
+              value=""
+              onChange={(e) => {
+                const m = data.materials.find((x) => x.id === e.target.value)
+                if (m) save([...ids, m.id], 'Added material to training', `${m.title} → ${training.name}`)
+              }}
+              className="w-48"
+            >
+              <option value="">+ Add material…</option>
+              {available.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.title}
+                </option>
+              ))}
+            </Select>
+          )
+        }
+      >
+        Additional materials
+      </CardTitle>
+      {extras.length ? (
+        <div className="space-y-2">
+          {extras.map((mat) => (
+            <div key={mat.id} className="flex items-center justify-between gap-3 rounded-xl bg-zinc-50 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-zinc-900">{mat.title}</p>
+                <p className="text-[10px] tracking-wide text-zinc-500 uppercase">
+                  {mat.type} · {mat.minutes} mins
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button onClick={() => onPreview(mat)} className="flex items-center gap-1.5 rounded-xl px-2 py-1 text-sm font-medium text-zinc-800 hover:bg-zinc-200/60">
+                  <PlayCircle className="size-4" /> Preview
+                </button>
+                <button
+                  onClick={() => save(ids.filter((x) => x !== mat.id), 'Removed material from training', `${mat.title} → ${training.name}`)}
+                  aria-label={`Remove ${mat.title}`}
+                  className="grid size-8 place-items-center rounded-xl text-zinc-400 hover:bg-brand-50 hover:text-brand-600"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-500">None yet. Add documents, videos or slides that only this training needs.</p>
+      )}
+    </Card>
   )
 }
 
@@ -324,6 +390,8 @@ export function AdminTrainingDetail() {
               })}
             </div>
           </Card>
+
+          <ExtraMaterialsCard training={training} onPreview={setPreview} />
 
           <Card>
             <CardTitle>Schedule</CardTitle>
