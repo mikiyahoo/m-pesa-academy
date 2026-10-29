@@ -32,7 +32,7 @@ import { uid, useAdmin } from './store'
 import { demoMeeting } from './teams/attendance'
 import type { AdminTraining, Journey, Recurrence, RecurrenceFreq, TrainingLevel } from './types'
 import { ADD_TRAINER_OPTION, AddTrainerModal } from './TrainerModal'
-import { Avatar, Badge, Button, Card, Field, Input, Modal, Select, Textarea } from './ui'
+import { Avatar, Badge, Button, Card, Field, Input, Select, Textarea } from './ui'
 
 /** Accepts Microsoft Teams join links (work and personal Teams). */
 const TEAMS_URL_RE = /^https:\/\/teams\.(microsoft|live)\.com\/\S+$/
@@ -145,43 +145,6 @@ async function prepareTrainingCover(file: File) {
   }
 }
 
-function QuickJourneyModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
-  const { update } = useAdmin()
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const save = () => {
-    const j: Journey = { id: uid('j'), name: name.trim(), description: description.trim(), modules: [] }
-    update((d) => ({ ...d, journeys: [...d.journeys, j] }), { action: 'Created journey', target: j.name })
-    onCreated(j.id)
-    onClose()
-  }
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Create new journey"
-      description="Create a learning journey right from here and assign it to this session."
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!name.trim()} onClick={save}>
-            Create & select
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <Field label="Journey name">
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. KYC & Customer Registration" autoFocus />
-        </Field>
-        <Field label="Description">
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Summary of what this journey covers" />
-        </Field>
-      </div>
-    </Modal>
-  )
-}
-
 type StepId = 1 | 2 | 3 | 4
 const STEPS = [
   { id: 1 as StepId, label: 'Basics', desc: 'Title & category' },
@@ -196,7 +159,6 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   const navigate = useNavigate()
   const [step, setStep] = useState<StepId>(1)
   const [triedSteps, setTriedSteps] = useState<Record<number, boolean>>({})
-  const [newJourneyOpen, setNewJourneyOpen] = useState(false)
   const [addingTrainer, setAddingTrainer] = useState(false)
   const [choosingTrainer, setChoosingTrainer] = useState(false)
   const [candidateTrainerId, setCandidateTrainerId] = useState('')
@@ -619,18 +581,9 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <div className="mb-1.5 flex items-center justify-between gap-3">
-                  <span>
-                    <span className="block text-sm font-medium text-zinc-900">Training journeys</span>
-                    <span className="block text-xs text-zinc-500">Add one or more. Learners take them in this order.</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setNewJourneyOpen(true)}
-                    className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
-                  >
-                    <Plus className="size-3" /> New journey
-                  </button>
+                <div className="mb-1.5">
+                  <span className="block text-sm font-medium text-zinc-900">Training journeys</span>
+                  <span className="block text-xs text-zinc-500">Pick one or more from your journeys. Learners take them in this order.</span>
                 </div>
                 <ol className="space-y-2">
                   {chosenJourneys.map((j, i) => (
@@ -1173,7 +1126,6 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
         )}
       </div>
 
-      {newJourneyOpen && <QuickJourneyModal onClose={() => setNewJourneyOpen(false)} onCreated={(id) => set('journeyIds', [...f.journeyIds, id])} />}
       {addingTrainer && <AddTrainerModal onClose={() => setAddingTrainer(false)} onCreated={(id) => set('trainerIds', [...new Set([...f.trainerIds, id])])} />}
     </FullPageDialog>
   )
