@@ -141,6 +141,19 @@ function StatusMenu({ training, onCancel }: { training: AdminTraining; onCancel:
               {s === training.status && <span className="text-xs text-zinc-400">current</span>}
             </button>
           ))}
+          <p className="mt-1 border-t border-zinc-100 px-3 pt-2 pb-1.5 text-xs text-zinc-500">Who can join</p>
+          <button
+            onClick={() => {
+              update((d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, isPublic: !training.isPublic || undefined } : t)) }), {
+                action: training.isPublic ? 'Made training invite-only' : 'Made training public',
+                target: training.name,
+              })
+              setOpen(false)
+            }}
+            className="flex w-full items-center rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100"
+          >
+            {training.isPublic ? 'Make invite-only' : 'Make public (open to guests)'}
+          </button>
         </div>
       )}
     </div>
@@ -206,6 +219,7 @@ export function AdminTrainingDetail() {
           <h1 className="flex flex-wrap items-center gap-3 text-2xl leading-tight font-bold tracking-tight text-zinc-900">
             {training.name}
             <Badge tone={trainingStatusTone[training.status]}>{training.status}</Badge>
+            {training.isPublic && <Badge tone="green">PUBLIC</Badge>}
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-5 text-sm text-zinc-500">
             <span className="flex items-center gap-1.5">

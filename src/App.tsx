@@ -21,6 +21,7 @@ import { Layout } from './components/Layout'
 import { AcceptInvite } from './pages/auth/AcceptInvite'
 import { Login } from './pages/auth/Login'
 import { TemporaryGate } from './pages/auth/TemporaryGate'
+import { SignUp } from './pages/auth/SignUp'
 import { Otp } from './pages/auth/Otp'
 import { CertificateView, Certificates } from './pages/Certificates'
 import { CoursePlayer } from './pages/learn/CoursePlayer'
@@ -53,6 +54,8 @@ export default function App() {
   // Invite links work before sign-in (TE-1.2).
   const invite = pathname.match(/^\/accept\/([^/]+)/)?.[1]
   if (stage === 'signedOut' && invite) return <AcceptInvite token={decodeURIComponent(invite)} />
+  // Guests can create their own account for public trainings.
+  if (stage === 'signedOut' && pathname === '/signup') return <SignUp />
   if (stage === 'signedOut') return <Login />
   if (stage === 'otp') return <Otp />
 

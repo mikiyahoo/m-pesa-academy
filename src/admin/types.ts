@@ -98,6 +98,8 @@ export type Person = {
   acceptedAt?: string
   lastSignInAt?: string
   revokedAt?: string
+  /** How an external person got access: invited by the training team, or signed up as a guest. */
+  source?: 'invite' | 'self-signup'
   /** Access-window changes kept for audit. */
   accessHistory?: { at: string; by: string; change: string }[]
 }
@@ -236,6 +238,8 @@ export type AdminTraining = {
   certificatesRunAt?: string
   /** participantId -> moduleId -> percent complete */
   progress: Record<string, Record<string, number>>
+  /** Open to guests and external users who sign up themselves; they join it when they start it. */
+  isPublic?: boolean
 }
 
 /** A certificate issued to one participant (X02): automatic on eligibility, or manual with a reason. */
@@ -480,6 +484,15 @@ export type AdminData = {
   appreciations?: { personId: string; at: string; by: string; subject: string }[]
   /** Gamification: per-person point events and earned badges. */
   gamification?: GamificationData
+  /** Self sign-up for external users (guest access to public trainings). */
+  publicAccess?: PublicAccessSettings
+}
+
+export type PublicAccessSettings = {
+  /** Whether people outside the company can create a guest account. */
+  enabled: boolean
+  /** How long a new guest account stays active. */
+  accessDays: number
 }
 
 // ─── Gamification ────────────────────────────────────────────────────────────

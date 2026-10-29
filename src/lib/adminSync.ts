@@ -12,18 +12,21 @@ import { localISO } from './utils'
 
 const adminId = (learnerTrainingId: string) => (learnerTrainingId.startsWith(ADMIN_TRAINING_PREFIX) ? learnerTrainingId.slice(ADMIN_TRAINING_PREFIX.length) : null)
 
-function withTraining(learnerTrainingId: string, fn: (d: AdminData, t: AdminTraining) => AdminData) {
+const replaceTraining = (d: AdminData, t: AdminTraining): AdminData => ({ ...d, trainings: d.trainings.map((x) => (x.id === t.id ? t : x)) })
+
+function withTraining(learnerTrainingId: string, personId: string, fn: (d: AdminData, t: AdminTraining) => AdminData) {
   const id = adminId(learnerTrainingId)
   if (!id) return
   const data = loadAdminData()
-  const t = data.trainings.find((x) => x.id === id)
-  if (t) saveAdminData(fn(data, t))
+  const found = data.trainings.find((x) => x.id === id)
+  if (!found) return
+  // Anyone who starts a public training joins it, so they show up in its attendance and reports.
+  const t = found.isPublic && !found.participantIds.includes(personId) ? { ...found, participantIds: [...found.participantIds, personId] } : found
+  saveAdminData(fn(t === found ? data : replaceTraining(data, t), t))
 }
 
-const replaceTraining = (d: AdminData, t: AdminTraining): AdminData => ({ ...d, trainings: d.trainings.map((x) => (x.id === t.id ? t : x)) })
-
 export function syncCheckIn(learnerTrainingId: string, personId: string, method: CheckInMethod) {
-  withTraining(learnerTrainingId, (d, t) => {
+  withTraining(learnerTrainingId, personId, (d, t) => {
     if (t.checkins?.some((c) => c.personId === personId)) return d
     const at = localISO()
     const [h, m] = t.startTime.split(':').map(Number)
@@ -42,14 +45,14 @@ export function syncCheckIn(learnerTrainingId: string, personId: string, method:
 
 /** Learner module ids are `<adminTrainingId>-<journeyModuleId>`. */
 export function syncModules(learnerTrainingId: string, personId: string, completedModuleIds: string[]) {
-  withTraining(learnerTrainingId, (d, t) => {
+  withTraining(learnerTrainingId, personId, (d, t) => {
     const done = Object.fromEntries(completedModuleIds.filter((m) => m.startsWith(`${t.id}-`)).map((m) => [m.slice(t.id.length + 1), 100]))
     return replaceTraining(d, { ...t, progress: { ...t.progress, [personId]: { ...t.progress[personId], ...done } } })
   })
 }
 
 export function syncQuiz(learnerTrainingId: string, personId: string, score: number, attempt: number) {
-  withTraining(learnerTrainingId, (d, t) => {
+  withTraining(learnerTrainingId, personId, (d, t) => {
     if (!t.postAssessmentId) return d
     const at = localISO()
     return {
@@ -63,7 +66,7 @@ export function syncQuiz(learnerTrainingId: string, personId: string, score: num
 }
 
 export function syncFeedback(learnerTrainingId: string, personId: string, f: FeedbackSubmission) {
-  withTraining(learnerTrainingId, (d, t) => {
+  withTraining(learnerTrainingId, personId, (d, t) => {
     if (d.feedbackResponses.some((r) => r.trainingId === t.id && r.participantId === personId)) return d
     const formId = t.feedbackFormId ?? d.feedbackForms[0]?.id ?? 'form'
     return {

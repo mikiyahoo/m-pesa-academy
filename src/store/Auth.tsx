@@ -1,6 +1,8 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import { loadAdminData, saveAdminData } from '../admin/storage'
-import { accessBlock } from '../admin/temporary'
+import { accessBlock, isTemporary } from '../admin/temporary'
+import type { Person } from '../admin/types'
+import { createGuest, validateGuest, type GuestSignUp, type GuestSignUpErrors } from '../lib/publicAccess'
 import { adminUser, currentUser, DEMO_PASSWORD, requesterUser, trainerUser } from '../data/trainings'
 import { localISO } from '../lib/utils'
 import type { User } from '../types'
@@ -31,6 +33,10 @@ type Auth = {
   login: (email: string, password: string) => string | null
   /** Starts sign-in from an invite link (TE-1.2). Returns an error message or null. */
   loginWithInvite: (token: string) => string | null
+  /** Passwordless sign-in for guests and external trainees: a code goes to their phone. */
+  loginWithCode: (emailOrPhone: string) => string | null
+  /** Creates a guest account (public trainings only) and sends a code to confirm the phone. */
+  signUp: (form: GuestSignUp) => GuestSignUpErrors | null
   resendOtp: () => void
   verifyOtp: (code: string) => string | null
   cancelOtp: () => void
@@ -45,6 +51,18 @@ const AuthContext = createContext<Auth | null>(null)
 const OTP_TTL_MS = 5 * 60 * 1000
 
 const newCode = () => String(Math.floor(100000 + Math.random() * 900000))
+
+/** Signing-in identity for an external person (invited trainee or self sign-up guest). */
+const externalIdentity = (person: Person): Identity => ({
+  role: 'learner',
+  personId: person.id,
+  user: {
+    name: person.name,
+    email: person.email,
+    phone: person.phone,
+    role: `${person.source === 'self-signup' ? 'Guest' : 'Temporary trainee'}${person.organization ? ` · ${person.organization}` : ''}`,
+  },
+})
 
 function loadSession(): Identity | null {
   try {
@@ -88,7 +106,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login: (email, password) => {
         const id = email.trim().toLowerCase()
         const account = accounts.find((a) => a.user.email === id || a.user.phone === id)
-        if (!account) return 'No account found for that email or phone number. Temporary trainees sign in with the link in their invite email.'
+        if (!account) {
+          const external = loadAdminData().people.some((p) => isTemporary(p) && (p.email.toLowerCase() === id || p.phone === id))
+          return external
+            ? 'Guests and external trainees don’t use a password. Choose “Sign in with a code” instead.'
+            : 'No account found for that email or phone number. New here? Create a guest account to join public trainings.'
+        }
         if (password !== DEMO_PASSWORD) return 'Incorrect password. Please try again.'
         setNotice(null)
         setPending({ ...account, phone: account.user.phone, code: newCode(), expiresAt: Date.now() + OTP_TTL_MS })
@@ -101,14 +124,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const blocked = accessBlock(person)
         if (blocked) return blocked
         setNotice(null)
-        setPending({
-          role: 'learner',
-          personId: person.id,
-          user: { name: person.name, email: person.email, phone: person.phone, role: `Temporary trainee${person.organization ? ` · ${person.organization}` : ''}` },
-          phone: person.phone,
-          code: newCode(),
-          expiresAt: Date.now() + OTP_TTL_MS,
-        })
+        setPending({ ...externalIdentity(person), phone: person.phone, code: newCode(), expiresAt: Date.now() + OTP_TTL_MS })
+        return null
+      },
+      loginWithCode: (emailOrPhone) => {
+        const id = emailOrPhone.trim().toLowerCase().replace(/[\s-]/g, '')
+        const person = loadAdminData().people.find((p) => isTemporary(p) && (p.email.toLowerCase() === id || p.phone === id))
+        if (!person) {
+          return accounts.some((a) => a.user.email === id || a.user.phone === id)
+            ? 'Company staff sign in with their password.'
+            : 'No guest account found for that email or phone. Create a guest account first.'
+        }
+        const blocked = accessBlock(person)
+        if (blocked) return blocked
+        setNotice(null)
+        setPending({ ...externalIdentity(person), phone: person.phone, code: newCode(), expiresAt: Date.now() + OTP_TTL_MS })
+        return null
+      },
+      signUp: (form) => {
+        const data = loadAdminData()
+        const errors = validateGuest(form, data)
+        if (Object.keys(errors).length) return errors
+        const created = createGuest(data, form)
+        saveAdminData(created.data)
+        setNotice(null)
+        setPending({ ...externalIdentity(created.person), phone: created.person.phone, code: newCode(), expiresAt: Date.now() + OTP_TTL_MS })
         return null
       },
       resendOtp: () => setPending((p) => p && { ...p, code: newCode(), expiresAt: Date.now() + OTP_TTL_MS }),

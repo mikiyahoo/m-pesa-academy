@@ -1,4 +1,4 @@
-import { Ban, CalendarPlus, ChevronLeft, ChevronRight, Copy, Download, Eye, GraduationCap, Mail, MoreHorizontal, Pencil, RotateCcw, Upload, UserPlus, Users } from 'lucide-react'
+import { Ban, CalendarPlus, ChevronLeft, ChevronRight, Copy, Download, Eye, Globe2, GraduationCap, Mail, MoreHorizontal, Pencil, RotateCcw, Upload, UserPlus, Users } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
@@ -11,6 +11,7 @@ import type { Person, RequestParticipant } from '../types'
 import { Avatar, Badge, Button, Card, downloadCsv, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, TabBar, Tabs } from '../ui'
 import { FullPageDialog } from '../Wizard'
 import { useAuth } from '../../store/Auth'
+import { isGuest, publicAccessSettings } from '../../lib/publicAccess'
 
 const stateTone: Record<AccessState, 'zinc' | 'green' | 'red' | 'amber' | 'blue'> = {
   pending: 'blue',
@@ -435,7 +436,66 @@ function EditInvitedUserModal({ person, onClose }: { person: Person; onClose: ()
   )
 }
 
-type Filter = 'all' | 'active' | 'pending' | 'expiring' | 'ended'
+type Filter = 'all' | 'active' | 'pending' | 'expiring' | 'ended' | 'guests'
+
+/** Turns guest self sign-up on or off and sets how long new guest accounts last. */
+function GuestSignupModal({ onClose }: { onClose: () => void }) {
+  const { data, update } = useAdmin()
+  const current = publicAccessSettings(data)
+  const [enabled, setEnabled] = useState(current.enabled)
+  const [days, setDays] = useState(String(current.accessDays))
+  const valid = Number(days) >= 1 && Number(days) <= 365
+  const publicCount = data.trainings.filter((t) => t.isPublic && t.status !== 'CANCELLED').length
+  const save = () => {
+    update((d) => ({ ...d, publicAccess: { enabled, accessDays: Number(days) } }), {
+      action: 'Updated guest sign-up',
+      target: enabled ? `Open · ${days} days` : 'Closed',
+      changes: [
+        { field: 'Sign-up', from: current.enabled ? 'Open' : 'Closed', to: enabled ? 'Open' : 'Closed' },
+        { field: 'Access days', from: String(current.accessDays), to: days },
+      ],
+    })
+    onClose()
+  }
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Guest sign-up"
+      description="People outside the company can create a guest account from the sign-in page and join public trainings."
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" disabled={!valid} onClick={save}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-zinc-200/90 p-4 transition hover:bg-zinc-50/80">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-brand-600" />
+          <span>
+            <span className="block text-sm font-semibold text-zinc-900">Allow guest sign-up</span>
+            <span className="mt-0.5 block text-xs text-zinc-500">Shows “Create a guest account” on the sign-in page. Existing guests can still sign in when it’s off.</span>
+          </span>
+        </label>
+        <Field label="New guest accounts last (days)" hint="Between 1 and 365. You can extend any guest later.">
+          <Input type="number" min={1} max={365} value={days} onChange={(e) => setDays(e.target.value)} disabled={!enabled} />
+        </Field>
+        <p className="rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-600">
+          Guests see <b>{publicCount} public training{publicCount === 1 ? '' : 's'}</b> right now, plus the public built-in courses. Make a training public from its page (⋯ → Make public) or when scheduling it.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+const GuestPill = () => (
+  <span className="shrink-0 rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-brand-700 uppercase" title="Signed up as a guest">
+    Guest
+  </span>
+)
 
 export function AdminTemporaryAccess() {
   const { data, update } = useAdmin()
@@ -443,6 +503,7 @@ export function AdminTemporaryAccess() {
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [inviting, setInviting] = useState(false)
+  const [guestSettings, setGuestSettings] = useState(false)
   const [extending, setExtending] = useState<Person | null>(null)
   const [editingPerson, setEditingPerson] = useState<Person | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
@@ -457,12 +518,13 @@ export function AdminTemporaryAccess() {
   const temps = useMemo(() => data.people.filter(isTemporary).map((p) => ({ p, state: accessState(p) })), [data.people])
   const match = (s: AccessState, f: Filter) =>
     f === 'all' || (f === 'active' && (s === 'active' || s === 'expiring')) || (f === 'pending' && (s === 'pending' || s === 'scheduled')) || (f === 'expiring' && s === 'expiring') || (f === 'ended' && (s === 'expired' || s === 'revoked'))
-  const rows = temps.filter(({ p, state }) => match(state, filter) && (!q || `${p.name} ${p.email} ${p.organization ?? ''}`.toLowerCase().includes(q.toLowerCase())))
+  const inFilter = (p: Person, s: AccessState, f: Filter) => (f === 'guests' ? isGuest(p) : match(s, f))
+  const rows = temps.filter(({ p, state }) => inFilter(p, state, filter) && (!q || `${p.name} ${p.email} ${p.organization ?? ''}`.toLowerCase().includes(q.toLowerCase())))
   const pageSize = pageSizeOption === 'fit' ? fitPageSize : pageSizeOption
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const current = Math.min(page, pages - 1)
   const pageRows = rows.slice(current * pageSize, current * pageSize + pageSize)
-  const count = (f: Filter) => temps.filter(({ state }) => match(state, f)).length
+  const count = (f: Filter) => temps.filter(({ p, state }) => inFilter(p, state, f)).length
 
   useEffect(() => {
     const table = tableRef.current
@@ -532,9 +594,12 @@ export function AdminTemporaryAccess() {
     <>
       <PageHeader
         title="Temporary access"
-        description="External trainees invited by email. Each has an access window; they sign in with their personal link and a code."
+        description="External trainees invited by email and guests who signed up themselves. Each has an access window; they sign in with a code."
         actions={
           <>
+            <Button onClick={() => setGuestSettings(true)}>
+              <Globe2 className="size-4" /> Guest sign-up
+            </Button>
             <Button
               onClick={() =>
                 downloadCsv(
@@ -564,6 +629,7 @@ export function AdminTemporaryAccess() {
                 ['pending', 'Not signed in yet'],
                 ['expiring', 'Expiring soon'],
                 ['ended', 'Expired / revoked'],
+                ['guests', 'Guests'],
               ] as [Filter, string][]
             ).map(([value, label]) => ({ value, label, count: count(value) }))}
           />
@@ -582,7 +648,10 @@ export function AdminTemporaryAccess() {
                     <button onClick={() => setViewing(p)} className="flex min-w-0 items-center gap-3 text-left">
                       <Avatar name={p.name} size="sm" />
                       <span className="min-w-0">
-                        <span className="block truncate font-medium text-zinc-900">{p.name}</span>
+                        <span className="flex min-w-0 items-center gap-1.5 font-medium text-zinc-900">
+                          <span className="truncate">{p.name}</span>
+                          {isGuest(p) && <GuestPill />}
+                        </span>
                         <span className="block truncate text-xs text-zinc-500">{p.email}</span>
                       </span>
                     </button>
@@ -638,7 +707,10 @@ export function AdminTemporaryAccess() {
                         <button onClick={() => setViewing(p)} className="flex min-w-0 items-center gap-2.5 text-left">
                           <Avatar name={p.name} size="sm" />
                           <span className="min-w-0 leading-tight">
-                            <span className="block truncate font-medium text-zinc-900">{p.name}</span>
+                            <span className="flex min-w-0 items-center gap-1.5 font-medium text-zinc-900">
+                              <span className="truncate">{p.name}</span>
+                              {isGuest(p) && <GuestPill />}
+                            </span>
                             <span className="block truncate text-xs text-zinc-500" title={p.email}>{p.email}</span>
                           </span>
                         </button>
@@ -705,6 +777,7 @@ export function AdminTemporaryAccess() {
       )}
 
       {inviting && <InviteTemporaryModal onClose={() => setInviting(false)} />}
+      {guestSettings && <GuestSignupModal onClose={() => setGuestSettings(false)} />}
       {extending && <ExtendModal person={extending} onClose={() => setExtending(null)} />}
       {editingPerson && <EditInvitedUserModal person={editingPerson} onClose={() => setEditingPerson(null)} />}
       {viewing && (

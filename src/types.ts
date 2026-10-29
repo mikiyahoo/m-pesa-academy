@@ -57,6 +57,8 @@ export type Training = {
   modules: Module[]
   quiz: QuizQuestion[]
   quizSettings?: QuizSettings
+  /** Open to guests and external users, not only to people invited to it. */
+  isPublic?: boolean
 }
 
 /** Post-training feedback (TA-4.1, TE-4.1, URS 2.6). Likert scores are 1 (strongly disagree) to 5. */

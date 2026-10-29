@@ -1,3 +1,4 @@
+import { GuestNotice } from '../components/GuestNotice'
 import { ArrowRight, Award, BookOpen, BookOpenCheck, CalendarDays, ChevronRight, Crown, Star, TrendingDown, TrendingUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -90,6 +91,7 @@ export function Trainings() {
 
   return (
     <div className="space-y-6">
+      <GuestNotice />
       {/* Hero */}
       <section className="grid grid-cols-1 gap-4 sm:gap-5 sm:rounded-3xl sm:border sm:border-zinc-200/80 sm:bg-white sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_355px] 2xl:gap-x-6">
         {/* Intro: soft pink panel with the target illustration in the corner. */}

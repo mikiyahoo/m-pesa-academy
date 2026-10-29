@@ -89,6 +89,7 @@ export const trainings: Training[] = [
   },
   {
     id: 'mpesa-training-test',
+    isPublic: true,
     cover: '/covers/mpesa-training-test.jpg',
     title: 'M-PESA TRAINING TEST',
     trainer: 'Mariamawit Fekadeselase',
@@ -228,6 +229,7 @@ export const trainings: Training[] = [
   },
   {
     id: 'fraud-awareness',
+    isPublic: true,
     cover: '/covers/fraud-awareness.jpg',
     title: 'Fraud Awareness & Customer Protection',
     trainer: 'Mariamawit Fekadeselase',
@@ -255,6 +257,7 @@ export const trainings: Training[] = [
   },
   {
     id: 'mpesa-app-features',
+    isPublic: true,
     cover: '/covers/mpesa-app-features.jpg',
     title: 'Getting the Most from the M-PESA Super App',
     trainer: 'Dereje Desta',

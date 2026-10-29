@@ -66,9 +66,10 @@ export function adminToLearnerTraining(data: AdminData, t: AdminTraining): Train
     modules: modules.length ? modules : [toModule(`${t.id}-intro`, 'Session overview', undefined, 0)],
     quiz: mcq.length ? mcq.map((q) => ({ id: q.id, question: q.question, options: q.options!, answer: q.answer as number })) : fallbackQuiz(t.name),
     quizSettings: post ? { timeLimitMinutes: post.timeLimitMinutes, maxAttempts: post.maxAttempts, shuffle: post.shuffle } : undefined,
+    isPublic: t.isPublic,
   }
 }
 
-/** Admin-scheduled trainings this person is invited to (cancelled sessions are left out). */
+/** Admin-scheduled trainings this person is invited to, plus public ones open to everyone (cancelled sessions are left out). */
 export const adminTrainingsFor = (data: AdminData, personId: string): Training[] =>
-  data.trainings.filter((t) => t.status !== 'CANCELLED' && t.participantIds.includes(personId)).map((t) => adminToLearnerTraining(data, t))
+  data.trainings.filter((t) => t.status !== 'CANCELLED' && (t.participantIds.includes(personId) || t.isPublic)).map((t) => adminToLearnerTraining(data, t))

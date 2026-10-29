@@ -1,3 +1,4 @@
+import { GuestNotice } from "../components/GuestNotice";
 import {
   BookOpenCheck,
   CalendarDays,
@@ -184,6 +185,7 @@ export function Learning() {
 
   return (
     <div className="space-y-6">
+      <GuestNotice />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl leading-tight font-bold tracking-tight text-zinc-900">

@@ -192,6 +192,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
     preAssessmentId: '',
     postAssessmentId: '',
     delivery: (presetOnline ? 'Online' : preset?.location ? 'Physical' : 'Online') as 'Online' | 'Physical',
+    isPublic: false,
     location: presetOnline ? '' : (preset?.location ?? ''),
     date: startDate,
     startTime: preset?.startTime || '09:00',
@@ -368,6 +369,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
         postAssessmentId: f.postAssessmentId || undefined,
         feedbackFormId: (data.feedbackForms.find((ff) => ff.trainingTypeIds?.includes(f.typeId)) ?? data.feedbackForms[0])?.id,
         teamsMeeting: f.delivery === 'Online' ? demoMeeting(id) : undefined,
+        isPublic: f.isPublic || undefined,
         inviteLink: makeInviteLink(id),
         history: [{ at, by: 'Training team', action: 'Created', detail: seriesId ? describeRecurrence(rule, f.date) : undefined }],
         progress: {},
@@ -651,6 +653,14 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                 </div>
               )}
             </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-zinc-200/90 p-4 transition hover:bg-zinc-50/80">
+              <input type="checkbox" checked={f.isPublic} onChange={(e) => set('isPublic', e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-brand-600" />
+              <span>
+                <span className="block text-sm font-semibold text-zinc-900">Public training</span>
+                <span className="mt-0.5 block text-xs text-zinc-500">Guests and external people who sign up can see and join it, not only the people you invite.</span>
+              </span>
+            </label>
 
             <div className="space-y-4 rounded-2xl border border-zinc-200/90 bg-zinc-50/50 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">

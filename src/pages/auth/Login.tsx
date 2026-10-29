@@ -1,6 +1,6 @@
-import { Eye, EyeOff, Info, Loader2, Lock, Mail, X } from "lucide-react";
+import { Eye, EyeOff, Info, Loader2, Lock, Mail, MessageSquareText, UserPlus, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   adminUser,
   currentUser,
@@ -14,7 +14,14 @@ import { AuthShell } from "./AuthShell";
 const DEMO_HINT_KEY = "mpesa-learning:demo-hint";
 
 export function Login() {
-  const { login, notice } = useAuth();
+  const { login, loginWithCode, notice } = useAuth();
+  const [params, setParams] = useSearchParams();
+  // Guests and external trainees sign in with a code to their phone instead of a password.
+  const codeMode = params.get("mode") === "code";
+  const setCodeMode = (on: boolean) => {
+    setError(null);
+    setParams(on ? { mode: "code" } : {}, { replace: true });
+  };
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
@@ -41,23 +48,23 @@ export function Login() {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!identifier.trim() || !password) {
-      setError("Enter your email or phone number and password.");
+    if (!identifier.trim() || (!codeMode && !password)) {
+      setError(codeMode ? "Enter the email or phone number you signed up with." : "Enter your email or phone number and password.");
       return;
     }
     setLoading(true);
     // Simulated network latency.
     setTimeout(() => {
-      setError(login(identifier, password));
+      setError(codeMode ? loginWithCode(identifier) : login(identifier, password));
       setLoading(false);
     }, 700);
   };
 
   return (
     <AuthShell>
-      <h2 className="text-2xl font-bold tracking-tight">Welcome back</h2>
+      <h2 className="text-2xl font-bold tracking-tight">{codeMode ? "Sign in with a code" : "Welcome back"}</h2>
       <p className="mt-1 text-sm text-zinc-500">
-        Sign in to continue to M-PESA Academy.
+        {codeMode ? "For guests and external trainees. We’ll text a 6-digit code to your phone." : "Sign in to continue to M-PESA Academy."}
       </p>
       {notice && (
         <p className="mt-4 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
@@ -83,6 +90,7 @@ export function Login() {
           </div>
         </label>
 
+        {!codeMode && (
         <label className="block">
           <span className="flex items-center justify-between text-sm font-medium text-zinc-700">
             Password
@@ -117,6 +125,7 @@ export function Login() {
             </button>
           </div>
         </label>
+        )}
 
         <label className="flex items-center gap-2 text-sm text-zinc-600">
           <input
@@ -139,9 +148,25 @@ export function Login() {
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-70"
         >
           {loading && <Loader2 className="size-4 animate-spin" />}
-          Sign in
+          {codeMode ? "Send code" : "Sign in"}
         </button>
       </form>
+
+      <button
+        type="button"
+        onClick={() => setCodeMode(!codeMode)}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+      >
+        {codeMode ? <Lock className="size-4" /> : <MessageSquareText className="size-4" />}
+        {codeMode ? "Staff sign-in with password" : "Guest or external trainee? Sign in with a code"}
+      </button>
+
+      <p className="mt-6 text-center text-sm text-zinc-500">
+        New to M-PESA Academy?{" "}
+        <Link to="/signup" className="inline-flex items-center gap-1 font-semibold text-brand-600 hover:underline">
+          <UserPlus className="size-3.5" /> Create a guest account
+        </Link>
+      </p>
 
       {!showDemo ? (
         <button

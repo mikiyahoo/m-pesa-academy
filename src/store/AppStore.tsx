@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { ADMIN_SAVED_EVENT, loadAdminData } from '../admin/storage'
 import { seedProgress, trainings as staticTrainings } from '../data/trainings'
 import { adminTrainingsFor } from '../lib/adminBridge'
+import { isExternalPerson, trainingsForExternal } from '../lib/publicAccess'
 import { syncCheckIn, syncFeedback, syncModules, syncQuiz } from '../lib/adminSync'
 import { resolveLearner, scopedKey, setActiveLearner } from '../lib/learner'
 import { useAuth } from './Auth'
@@ -85,7 +86,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
   const trainings = useMemo(
-    () => [...staticTrainings, ...adminTrainingsFor(loadAdminData(), learner.personId)],
+    () => {
+      const data = loadAdminData()
+      // Guests and invited external trainees only see public trainings and the ones they were invited to.
+      const builtIn = isExternalPerson(data, learner.personId) ? trainingsForExternal(staticTrainings) : staticTrainings
+      return [...builtIn, ...adminTrainingsFor(data, learner.personId)]
+    },
     // adminVersion re-reads admin data after it changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [learner.personId, adminVersion],
