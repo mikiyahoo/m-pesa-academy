@@ -139,6 +139,8 @@ export type CheckinSession = {
   startedAt: string
   token: string
   closedAt?: string
+  /** 'fixed' (default): one QR for the whole session, easy to print or project. 'rotating': changes every 10 s. */
+  qr?: 'fixed' | 'rotating'
 }
 
 /** Mirrors Microsoft Graph `attendanceRecord` (only the fields we use). */

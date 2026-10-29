@@ -5,7 +5,7 @@ import { useFeedback } from '../../components/Feedback'
 import { localISO } from '../../lib/utils'
 import { useAdmin } from '../store'
 import { parseParticipants } from '../requests'
-import { addCheckin, checkinLink, rotatingToken, statusFor, tokenCountdown } from './checkin'
+import { addCheckin, checkinLink, fixedToken, rotatingToken, statusFor, tokenCountdown } from './checkin'
 import { Avatar, Badge, Button, Card, downloadCsv, Empty, Field, Modal, Select, Textarea } from '../ui'
 import type { AdminTraining, Checkin, CheckinMethod, CheckinStatus } from '../types'
 
@@ -189,14 +189,15 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
   const checkins = training.checkins ?? []
   const lateMinutes = rules.lateMinutes
 
-  // Tick while a session is open so the QR token rotates every 10 s.
+  const rotating = session?.qr === 'rotating'
+  // Tick while a session is open so a changing QR token rotates every 10 s.
   useEffect(() => {
-    if (!open) return
+    if (!open || !rotating) return
     const id = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(id)
-  }, [open])
+  }, [open, rotating])
 
-  const token = session ? rotatingToken(session.token, now) : ''
+  const token = session ? (rotating ? rotatingToken(session.token, now) : fixedToken(session.token)) : ''
   const link = token ? checkinLink(training.id, token) : ''
   const [qr, setQr] = useState('')
   useEffect(() => {
@@ -232,6 +233,28 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
       { action: 'Started attendance', target: training.name },
     )
     toast('Attendance started — the QR code and link are live')
+  }
+
+  const setQrMode = (qr: 'fixed' | 'rotating') => {
+    if (!session) return
+    update((d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, checkinSession: { ...session, qr } } : t)) }), {
+      action: qr === 'fixed' ? 'Switched to one QR code' : 'Switched to a changing QR code',
+      target: training.name,
+      silent: true,
+    })
+  }
+
+  // A large copy of the fixed code to print or put on a slide.
+  const downloadQr = async () => {
+    try {
+      const url = await QRCode.toDataURL(link, { width: 1024, margin: 2, color: { dark: '#18181b', light: '#ffffff' } })
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `check-in-${training.name.replace(/[^\w]+/g, '-').toLowerCase()}.png`
+      a.click()
+    } catch {
+      toast('Couldn’t create the QR image', { tone: 'error' })
+    }
   }
 
   const close = () => {
@@ -351,18 +374,44 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
             )}
             <div>
               <p className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
-                <CountdownRing seconds={tokenCountdown(now)} total={10} /> Scanning code
+                {rotating && <CountdownRing seconds={tokenCountdown(now)} total={10} />} {rotating ? 'Changing code' : 'Session QR code'}
               </p>
               <p className="mt-1 max-w-[240px] truncate text-xs text-zinc-500" title={link}>
                 {link}
               </p>
-              <p className="mt-0.5 text-[11px] text-zinc-400">The code changes every 10 s — screenshots expire.</p>
+              <p className="mt-0.5 max-w-[240px] text-[11px] text-zinc-400">
+                {rotating ? 'Changes every 10 s — screenshots expire.' : 'One code for the whole session. Works only while attendance is open; each person checks in once.'}
+              </p>
+              <div className="mt-2 inline-flex rounded-xl border border-zinc-200 p-0.5 text-[11px] font-semibold" role="radiogroup" aria-label="QR code type">
+                {(
+                  [
+                    ['fixed', 'One QR'],
+                    ['rotating', 'Changing'],
+                  ] as const
+                ).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    role="radio"
+                    aria-checked={(rotating ? 'rotating' : 'fixed') === v}
+                    onClick={() => setQrMode(v)}
+                    className={(rotating ? 'rotating' : 'fixed') === v ? 'rounded-lg bg-charcoal px-2.5 py-1 text-white' : 'rounded-lg px-2.5 py-1 text-zinc-600 hover:bg-zinc-100'}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <div className="flex flex-col gap-2">
             <Button size="sm" onClick={copy}>
               <Link2 className="size-3.5" /> Copy unique link
             </Button>
+            {!rotating && (
+              <Button size="sm" onClick={downloadQr}>
+                <Download className="size-3.5" /> Download QR
+              </Button>
+            )}
             <Button size="sm" variant="ghost" onClick={simulate}>
               <UserPlus className="size-3.5" /> Simulate a scan
             </Button>

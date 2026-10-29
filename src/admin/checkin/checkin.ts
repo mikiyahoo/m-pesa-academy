@@ -37,6 +37,11 @@ export function rotatingToken(sessionToken: string, now = Date.now()): string {
   return hash(`${sessionToken}:${Math.floor(now / 10_000)}`)
 }
 
+/** One QR for the whole session: it only works while attendance is open, and each person can check in once. */
+export function fixedToken(sessionToken: string): string {
+  return hash(sessionToken)
+}
+
 /** The unique link a participant opens to check in. */
 export function checkinLink(trainingId: string, token: string): string {
   return `${window.location.origin}/checkin/${trainingId}?t=${token}`
