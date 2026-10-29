@@ -34,6 +34,7 @@ import { longDate, shortDate, time12 } from '../helpers'
 import { classProgress, participantProgress, useAdmin } from '../store'
 import type { AdminTraining, AssessmentKind, Material, TrainingStatus } from '../types'
 import { Avatar, Badge, Button, Card, CardTitle, Empty, Field, Modal, ProgressBar, Select, trainingStatusTone } from '../ui'
+import { combinedJourney } from '../journeys'
 
 const scheduledDuration = (startTime: string, endTime: string) => {
   const minutes = (time: string) => {
@@ -175,7 +176,7 @@ export function AdminTrainingDetail() {
   const [modal, setModal] = useState<null | 'reschedule' | 'invite' | 'invite-new' | 'cancel' | 'trainer' | 'PRE' | 'POST'>(null)
   const { toast } = useFeedback()
 
-  const journey = data.journeys.find((j) => j.id === training?.journeyId)
+  const journey = combinedJourney(data, training)
   useEffect(() => {
     if (journey?.modules[0]) setOpenModules([journey.modules[0].id])
   }, [journey?.id]) // eslint-disable-line react-hooks/exhaustive-deps

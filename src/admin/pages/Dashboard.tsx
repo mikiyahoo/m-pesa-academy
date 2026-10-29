@@ -9,6 +9,7 @@ import { DateRangePicker } from '../../components/DateRangePicker'
 import { filterActivityLogs, isInRange, type DateRange } from '../reports/filters'
 import { Badge, Button, Card, CardTitle, Empty, PageHeader, StatCard, trainingStatusTone, type StatCardTrend } from '../ui'
 import { NewTrainingModal } from './Trainings'
+import { combinedJourney } from '../journeys'
 
 function dateAtOffset(date: string, offset: number) {
   const shifted = new Date(`${date}T00:00:00`)
@@ -46,7 +47,7 @@ export function AdminDashboard() {
   const completionRates = filtered
     .filter((t) => t.participantIds.length)
     .map((t) => {
-      const mids = data.journeys.find((j) => j.id === t.journeyId)?.modules.map((m) => m.id) ?? []
+      const mids = combinedJourney(data, t)?.modules.map((m) => m.id) ?? []
       return t.participantIds.reduce((s, pid) => s + participantProgress(t, pid, mids), 0) / t.participantIds.length
     })
   const avgCompletion = completionRates.length ? completionRates.reduce((a, b) => a + b, 0) / completionRates.length : 0
@@ -59,7 +60,7 @@ export function AdminDashboard() {
     const periodTrainings = trainings.filter((t) => t.date >= from && t.date <= to)
     const participantIds = new Set(periodTrainings.flatMap((t) => t.participantIds))
     const completionRates = periodTrainings.filter((t) => t.participantIds.length).map((t) => {
-      const moduleIds = data.journeys.find((journey) => journey.id === t.journeyId)?.modules.map((module) => module.id) ?? []
+      const moduleIds = combinedJourney(data, t)?.modules.map((module) => module.id) ?? []
       return t.participantIds.reduce((sum, participantId) => sum + participantProgress(t, participantId, moduleIds), 0) / t.participantIds.length
     })
     const periodRatings = data.feedbackResponses

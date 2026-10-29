@@ -9,6 +9,7 @@ import type { Sheet } from './export'
 import { participantProgress } from '../store'
 import type { AdminData, AdminTraining } from '../types'
 import { Badge, Button, Card, ProgressBar, Table } from '../ui'
+import { combinedJourney } from '../journeys'
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0)
 
@@ -35,7 +36,7 @@ export function buildFunnelReport(
   // 2. Read material (>50% module progress)
   const materialDoneCount = live.reduce((s, t) => {
     const ps = filteredParticipants(data, t, filters)
-    const journey = data.journeys.find((j) => j.id === t.journeyId)
+    const journey = combinedJourney(data, t)
     const mids = journey?.modules.map((m) => m.id) ?? []
     return s + ps.filter((pid) => participantProgress(t, pid, mids) >= 50).length
   }, 0)
@@ -209,7 +210,7 @@ export function buildHeatmapReport(
   for (const t of live) {
     const ps = filteredParticipants(data, t, filters)
     const m = marks.get(t.id)
-    const journey = data.journeys.find((j) => j.id === t.journeyId)
+    const journey = combinedJourney(data, t)
     const mids = journey?.modules.map((mod) => mod.id) ?? []
     const certPids = (t.certificates ?? []).map((c) => c.personId)
 
@@ -386,7 +387,7 @@ export function buildAtRiskReport(
   for (const t of live) {
     const ps = filteredParticipants(data, t, filters)
     const m = marks.get(t.id)
-    const journey = data.journeys.find((j) => j.id === t.journeyId)
+    const journey = combinedJourney(data, t)
     const mids = journey?.modules.map((mod) => mod.id) ?? []
 
     for (const pid of ps) {

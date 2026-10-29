@@ -4,6 +4,7 @@
  */
 import type { AdminData, GamificationData, PersonGamification, PointEvent, EarnedBadge, BadgeId } from './types'
 import { ALL_BADGES } from './types'
+import { combinedJourney } from './journeys'
 
 // ─── Point values ────────────────────────────────────────────────────────────
 export const POINTS = {
@@ -35,7 +36,7 @@ export function deriveGamification(data: AdminData): GamificationData {
 
   // 1. Training completion (progress == 100% across all modules)
   for (const t of data.trainings) {
-    const journey = data.journeys.find(j => j.id === t.journeyId)
+    const journey = combinedJourney(data, t)
     if (!journey) continue
     const moduleIds = journey.modules.map(m => m.id)
     for (const pid of t.participantIds) {

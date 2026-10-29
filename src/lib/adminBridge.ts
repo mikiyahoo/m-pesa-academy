@@ -2,6 +2,7 @@ import type { AdminData, AdminTraining, Material } from '../admin/types'
 import type { BannerTheme, Module, QuizQuestion, Training } from '../types'
 import { TEAMS_DEMO } from '../data/trainings'
 import { trainerIdsOf } from '../admin/scheduling'
+import { combinedJourney } from '../admin/journeys'
 
 /**
  * Turns trainings scheduled in the admin portal into learner trainings, so a session an admin
@@ -41,7 +42,7 @@ const fallbackQuiz = (name: string): QuizQuestion[] => [
 ]
 
 export function adminToLearnerTraining(data: AdminData, t: AdminTraining): Training {
-  const journey = data.journeys.find((j) => j.id === t.journeyId)
+  const journey = combinedJourney(data, t)
   const trainer = trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ') || 'Training team'
   const type = data.trainingTypes.find((x) => x.id === t.typeId)
   const material = (id?: string) => data.materials.find((m) => m.id === id)

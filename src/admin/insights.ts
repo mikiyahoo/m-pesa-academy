@@ -2,6 +2,7 @@ import { localISO, todayISO } from '../lib/utils'
 import { participantProgress } from './store'
 import { attendanceRows, type AttendanceStatus } from './teams/attendance'
 import type { AdminAlert, AdminData, AdminTraining, FeedbackForm, FeedbackResponse, IssuedCertificate } from './types'
+import { combinedJourney } from './journeys'
 
 /*
  * Derived numbers shared by reports, the certification tracker, the trainer
@@ -57,7 +58,7 @@ export function passed(data: AdminData, t: AdminTraining, pid: string) {
     const s = bestScore(data, t, pid)
     return s !== undefined && s >= a.passMark
   }
-  const mids = data.journeys.find((j) => j.id === t.journeyId)?.modules.map((m) => m.id) ?? []
+  const mids = combinedJourney(data, t)?.modules.map((m) => m.id) ?? []
   return participantProgress(t, pid, mids) >= 100
 }
 

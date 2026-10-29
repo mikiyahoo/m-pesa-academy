@@ -14,6 +14,7 @@ import { uid, useAdmin } from '../store'
 import type { Journey, Material, MaterialType, TrainingLevel } from '../types'
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, Table, TabBar, Tabs, Textarea } from '../ui'
 import { Wizard, WizardCard, type WizardStep } from '../Wizard'
+import { journeyIdsOf } from '../journeys'
 
 const LEVELS: TrainingLevel[] = ['Novice', 'Beginner', 'Intermediate', 'Advanced']
 const THUMBNAILS = ['red', 'fayda', 'green', 'blue', 'amber', 'zinc'] as const
@@ -85,7 +86,7 @@ export function AdminJourneys() {
         {data.journeys.map((j) => {
           const materials = new Set(j.modules.flatMap((m) => m.materialIds))
           const minutes = [...materials].reduce((s, id) => s + (data.materials.find((m) => m.id === id)?.minutes ?? 0), 0)
-          const used = data.trainings.filter((t) => t.journeyId === j.id).length
+          const used = data.trainings.filter((t) => journeyIdsOf(t).includes(j.id)).length
           return (
             <Link key={j.id} to={`/admin/journeys/${j.id}`} className="group rounded-2xl border border-zinc-200/80 bg-surface p-5 transition hover:border-zinc-300 hover:shadow-md">
               <span className="grid size-10 place-items-center rounded-xl bg-brand-50 text-brand-600">
@@ -575,7 +576,7 @@ function ReplaceFileModal({ material, onClose }: { material: Material; onClose: 
   const audience = () => {
     const journeyIds = new Set(data.journeys.filter((j) => j.modules.some((m) => m.materialIds.includes(material.id))).map((j) => j.id))
     const people = new Set<string>()
-    data.trainings.filter((t) => t.journeyId && journeyIds.has(t.journeyId)).forEach((t) => t.participantIds.forEach((p) => people.add(p)))
+    data.trainings.filter((t) => journeyIdsOf(t).some((id) => journeyIds.has(id))).forEach((t) => t.participantIds.forEach((p) => people.add(p)))
     return people.size
   }
 

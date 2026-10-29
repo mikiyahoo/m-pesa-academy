@@ -202,6 +202,8 @@ export type AdminTraining = {
   /** Reference to a shared uploaded cover, stored once even for recurring sessions. */
   coverId?: string
   journeyId: string
+  /** Every journey in this training, in learning order; journeyId is the first one. */
+  journeyIds?: string[]
   typeId: string
   /** Primary trainer, kept for compatibility with existing records. */
   trainerId: string

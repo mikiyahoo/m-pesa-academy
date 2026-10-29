@@ -13,6 +13,7 @@ import { Badge, Card, CardTitle, PageHeader, ProgressBar, Table, TabBar, Tabs, t
 import { useScope } from '../scope'
 import { TopTraineesView, traineeRows, traineeSheets } from '../reports/TopTrainees'
 import { buildAtRiskReport, buildFunnelReport, buildHeatmapReport } from '../reports/AdvancedAnalytics'
+import { combinedJourney } from '../journeys'
 
 type Tab = 'overview' | 'funnel' | 'heatmap' | 'atrisk' | 'trainees' | 'attendance' | 'assessments' | 'feedback' | 'certificates' | 'requests' | 'trainers' | 'content'
 
@@ -276,7 +277,7 @@ function buildReport(tab: Tab, data: AdminData, trainings: AdminTraining[], filt
         const ps = filteredParticipants(data, t, filters)
         const m = marks.get(t.id)
         const done = ps.filter((pid) => m && m.get(pid) !== 'Not yet')
-        const mids = data.journeys.find((j) => j.id === t.journeyId)?.modules.map((x) => x.id) ?? []
+        const mids = combinedJourney(data, t)?.modules.map((x) => x.id) ?? []
         const completion = ps.length ? Math.round(ps.reduce((s, pid) => s + participantProgress(t, pid, mids), 0) / ps.length) : 0
         const fb = feedbackAverage(data, responses.filter((r) => r.trainingId === t.id))
         return { t, ps, rate: done.length ? pct(done.filter((pid) => attended(m!.get(pid))).length, done.length) : null, completion, fb }

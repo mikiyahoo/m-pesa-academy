@@ -11,6 +11,7 @@ import { useScope } from '../scope'
 import { useAdmin } from '../store'
 import type { AdminTraining, TrainingStatus } from '../types'
 import { Avatar, Badge, Button, Empty, PageHeader, SearchInput, Table, TabBar, Tabs, trainingStatusTone } from '../ui'
+import { combinedJourney } from '../journeys'
 
 type Filter = 'ALL' | TrainingStatus
 type TrainingsAdminView = 'list' | 'calendar'
@@ -108,7 +109,7 @@ export function AdminTrainings() {
                     )}
                     <p className="text-xs text-zinc-500">{trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ')}</p>
                   </td>
-                  <td className="px-4 py-3 text-zinc-600">{data.journeys.find((j) => j.id === t.journeyId)?.name}</td>
+                  <td className="px-4 py-3 text-zinc-600">{combinedJourney(data, t)?.name}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-zinc-600">
                     <span className="flex items-center gap-1.5">
                       <CalendarDays className="size-3.5" /> {shortDate(t.date)}
@@ -161,7 +162,7 @@ const trainingMenu = (id: string, trainer: boolean): RowMenuItem[] => [
 function TrainingTile({ t, conflict }: { t: AdminTraining; conflict: boolean }) {
   const { data } = useAdmin()
   const trainers = trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)).filter((person): person is NonNullable<typeof person> => !!person)
-  const journey = data.journeys.find((j) => j.id === t.journeyId)
+  const journey = combinedJourney(data, t)
   const cover = t.coverId ? data.trainingCovers?.[t.coverId] : undefined
   const trainer = trainers[0]
   const [first, ...rest] = (trainer?.name ?? '').split(' ')

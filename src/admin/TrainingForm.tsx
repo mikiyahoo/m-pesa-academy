@@ -1,10 +1,13 @@
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   CalendarRange,
   Check,
   CheckCircle2,
+  Download,
   FileSpreadsheet,
   ImagePlus,
   Layers,
@@ -12,14 +15,14 @@ import {
   Plus,
   Repeat,
   Sparkles,
-  Users,
   Upload,
+  Users,
   Video,
   X,
 } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { read, utils } from 'xlsx'
+import { read, utils, writeFile } from 'xlsx'
 import { FullPageDialog } from './Wizard'
 import { cn, localISO, todayISO } from '../lib/utils'
 import { shortDate, time12 } from './helpers'
@@ -30,9 +33,13 @@ import type { AdminTraining, Journey, Recurrence, RecurrenceFreq, TrainingLevel 
 import { ADD_TRAINER_OPTION, AddTrainerModal } from './TrainerModal'
 import { Avatar, Badge, Button, Card, Field, Input, Modal, Select, Textarea } from './ui'
 
+/** Accepts Microsoft Teams join links (work and personal Teams). */
+const TEAMS_URL_RE = /^https:\/\/teams\.(microsoft|live)\.com\/\S+$/
+
 export type TrainingPreset = {
   name?: string
   journeyId?: string
+  journeyIds?: string[]
   typeId?: string
   trainerId?: string
   trainerIds?: string[]
@@ -56,30 +63,54 @@ const weekdayOf = (iso: string) => {
 
 const PARTICIPANT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+/** A spreadsheet row that didn't contain a usable email; row numbers match what Excel shows. */
+type InvalidEmailRow = { row: number; value: string }
+
 async function parseParticipantEmailSheet(file: File) {
   if (!/\.(xlsx|xls|csv)$/i.test(file.name)) throw new Error('Choose an Excel or CSV file.')
   const workbook = read(await file.arrayBuffer(), { type: 'array' })
   const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
   if (!firstSheet) throw new Error('The spreadsheet has no worksheets.')
-  const rows = utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: '' })
+  const rows = utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: '', blankrows: true })
   if (!rows.length) throw new Error('The first worksheet is empty.')
 
   const headerIndex = (rows[0] ?? []).findIndex((cell) => ['email', 'emailaddress', 'participantemail', 'participantemails', 'useremail', 'emailid'].includes(String(cell).toLowerCase().replace(/[^a-z]/g, '')))
-  const values = headerIndex >= 0
-    ? rows.slice(1).map((row) => row[headerIndex])
-    : rows.flat()
+  // With an "Email" heading only that column is read; otherwise every cell in the row.
+  const firstDataRow = headerIndex >= 0 ? 1 : 0
   const emails = new Set<string>()
-  let invalidRows = 0
-  for (const value of values) {
-    const text = String(value ?? '').trim()
-    if (!text) continue
-    const found = text.match(/[\w.+%'-]+@[\w.-]+\.[A-Za-z]{2,}/g) ?? []
-    const valid = found.map((email) => email.toLowerCase()).filter((email) => PARTICIPANT_EMAIL_RE.test(email))
-    if (!valid.length) invalidRows += 1
-    valid.forEach((email) => emails.add(email))
+  const invalid: InvalidEmailRow[] = []
+  let duplicates = 0
+  rows.slice(firstDataRow).forEach((row, i) => {
+    const cells = (headerIndex >= 0 ? [row[headerIndex]] : row).map((c) => String(c ?? '').trim()).filter(Boolean)
+    if (!cells.length) return
+    const found = cells
+      .flatMap((text) => text.match(/[\w.+%'-]+@[\w.-]+\.[A-Za-z]{2,}/g) ?? [])
+      .map((e) => e.toLowerCase())
+      .filter((e) => PARTICIPANT_EMAIL_RE.test(e))
+    if (!found.length) {
+      invalid.push({ row: firstDataRow + i + 1, value: cells.join(' ').slice(0, 40) })
+      return
+    }
+    found.forEach((email) => (emails.has(email) ? (duplicates += 1) : emails.add(email)))
+  })
+  if (!emails.size) {
+    const where = invalid.length ? ` Check ${invalid.slice(0, 3).map((x) => `row ${x.row}`).join(', ')}${invalid.length > 3 ? '…' : ''}.` : ''
+    throw new Error(`No valid email addresses were found.${where} Use the template: one email per row under an “Email” heading.`)
   }
-  if (!emails.size) throw new Error('No valid email addresses were found in the spreadsheet.')
-  return { emails: [...emails], invalidRows }
+  return { emails: [...emails], invalid, duplicates }
+}
+
+/** A ready-to-fill participant list: an Email column (required) and a Name column (optional). */
+function downloadParticipantTemplate() {
+  const sheet = utils.aoa_to_sheet([
+    ['Email', 'Name (optional)'],
+    ['firstname.lastname@safaricom.et', 'Firstname Lastname'],
+    ['partner.name@example.com', 'Partner Name'],
+  ])
+  sheet['!cols'] = [{ wch: 36 }, { wch: 24 }]
+  const book = utils.book_new()
+  utils.book_append_sheet(book, sheet, 'Participants')
+  writeFile(book, 'participants-template.xlsx')
 }
 
 async function prepareTrainingCover(file: File) {
@@ -170,6 +201,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   const [candidateTrainerId, setCandidateTrainerId] = useState('')
   const [emailImportError, setEmailImportError] = useState('')
   const [emailImportSummary, setEmailImportSummary] = useState('')
+  const [invalidEmailRows, setInvalidEmailRows] = useState<InvalidEmailRow[]>([])
   const [readingEmailFile, setReadingEmailFile] = useState(false)
   const emailFileRef = useRef<HTMLInputElement>(null)
   const coverFileRef = useRef<HTMLInputElement>(null)
@@ -187,12 +219,15 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
     description: '',
     typeId: preset?.typeId ?? data.trainingTypes[0]?.id ?? '',
     level: 'Beginner' as TrainingLevel,
-    journeyId: preset?.journeyId ?? data.journeys[0]?.id ?? '',
+    /** Ordered: learners take the journeys in this order. */
+    journeyIds: preset?.journeyIds?.length ? preset.journeyIds : [preset?.journeyId ?? data.journeys[0]?.id ?? ''].filter(Boolean),
     trainerIds: [...new Set(preset?.trainerIds?.length ? preset.trainerIds : [preset?.trainerId ?? trainers[0]?.id ?? ''].filter(Boolean))],
     preAssessmentId: '',
     postAssessmentId: '',
     delivery: (presetOnline ? 'Online' : preset?.location ? 'Physical' : 'Online') as 'Online' | 'Physical',
     isPublic: false,
+    /** Optional existing Teams meeting; left empty, one is created for the session. */
+    teamsUrl: '',
     location: presetOnline ? '' : (preset?.location ?? ''),
     date: startDate,
     startTime: preset?.startTime || '09:00',
@@ -226,12 +261,16 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
     setReadingEmailFile(true)
     setEmailImportError('')
     setEmailImportSummary('')
+    setInvalidEmailRows([])
     try {
       const imported = await parseParticipantEmailSheet(file)
       const current = f.emails.split(/[\s,;]+/).map((email) => email.trim().toLowerCase()).filter(Boolean)
       const merged = [...new Set([...current, ...imported.emails])]
       set('emails', merged.join(', '))
-      setEmailImportSummary(`${imported.emails.length} email${imported.emails.length === 1 ? '' : 's'} imported${imported.invalidRows ? ` · ${imported.invalidRows} invalid row${imported.invalidRows === 1 ? '' : 's'} skipped` : ''}`)
+      const added = merged.length - current.length
+      const skipped = imported.duplicates + imported.emails.length - added
+      setEmailImportSummary(`${added} email${added === 1 ? '' : 's'} imported${skipped ? ` · ${skipped} duplicate${skipped === 1 ? '' : 's'} skipped` : ''}`)
+      setInvalidEmailRows(imported.invalid)
     } catch (error) {
       setEmailImportError(error instanceof Error ? error.message : 'The spreadsheet could not be read.')
     } finally {
@@ -241,14 +280,23 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   }
 
   const category = data.categories.find((c) => c.id === f.categoryId)
-  const journey = data.journeys.find((j) => j.id === f.journeyId)
+  const chosenJourneys = f.journeyIds.map((id) => data.journeys.find((j) => j.id === id)).filter((j): j is Journey => !!j)
+  const otherJourneys = data.journeys.filter((j) => !f.journeyIds.includes(j.id))
+  const moveJourney = (i: number, by: -1 | 1) => {
+    const next = [...f.journeyIds]
+    ;[next[i], next[i + by]] = [next[i + by], next[i]]
+    set('journeyIds', next)
+  }
   const trainingType = data.trainingTypes.find((t) => t.id === f.typeId)
   const assignedTrainers = f.trainerIds.map((id) => data.people.find((p) => p.id === id)).filter((person): person is NonNullable<typeof person> => !!person)
   const rule: Recurrence = { freq: f.freq, interval: Math.max(1, f.interval), weekdays: f.freq === 'weekly' ? f.weekdays : [], until: f.until }
   const dates = useMemo(() => (f.repeat ? occurrenceDates(f.date, rule) : [f.date]), [f.repeat, f.date, f.freq, f.interval, f.weekdays, f.until]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Participants: preset (approved request) + chosen groups + pasted emails matched to the directory.
-  const pasted = [...new Set(f.emails.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))]
+  const entries = [...new Set(f.emails.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))]
+  // Anything that isn't an email is flagged and left out of the participants.
+  const pasted = entries.filter((e) => PARTICIPANT_EMAIL_RE.test(e))
+  const notEmails = entries.filter((e) => !PARTICIPANT_EMAIL_RE.test(e))
   const matched = pasted.map((e) => data.people.find((p) => p.email.toLowerCase() === e)).filter((p) => !!p)
   const unknown = pasted.filter((e) => !data.people.some((p) => p.email.toLowerCase() === e))
   const participantIds = [
@@ -273,10 +321,11 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   const step1Errors: Record<string, string> = {}
   if (!f.name.trim()) step1Errors.name = 'Enter a training title.'
   if (!f.categoryId) step1Errors.categoryId = 'Choose a category.'
-  if (!f.journeyId) step1Errors.journeyId = 'Choose a journey.'
+  if (!f.journeyIds.length) step1Errors.journeyId = 'Choose at least one journey.'
 
   const step2Errors: Record<string, string> = {}
   if (f.delivery === 'Physical' && !f.location.trim()) step2Errors.location = 'Physical sessions need a location.'
+  if (f.delivery === 'Online' && f.teamsUrl.trim() && !TEAMS_URL_RE.test(f.teamsUrl.trim())) step2Errors.teamsUrl = 'Paste a Microsoft Teams meeting link (https://teams.microsoft.com/…), or leave it empty.'
   if (!f.date) step2Errors.date = 'Choose a date.'
   else if (f.date < todayISO()) step2Errors.date = 'The date can’t be in the past.'
   if (f.startTime >= f.endTime) step2Errors.endTime = 'End time must be after the start time.'
@@ -347,7 +396,8 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
         id,
         coverId,
         name: f.name.trim(),
-        journeyId: f.journeyId,
+        journeyId: f.journeyIds[0],
+        journeyIds: f.journeyIds.length > 1 ? f.journeyIds : undefined,
         typeId: f.typeId,
         trainerId: f.trainerIds[0],
         trainerIds: f.trainerIds,
@@ -368,7 +418,8 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
         preAssessmentId: f.preAssessmentId || undefined,
         postAssessmentId: f.postAssessmentId || undefined,
         feedbackFormId: (data.feedbackForms.find((ff) => ff.trainingTypeIds?.includes(f.typeId)) ?? data.feedbackForms[0])?.id,
-        teamsMeeting: f.delivery === 'Online' ? demoMeeting(id) : undefined,
+        // A pasted Teams link is used as is (same link for every session in a series); otherwise one is created.
+        teamsMeeting: f.delivery === 'Online' ? (f.teamsUrl.trim() ? { joinUrl: f.teamsUrl.trim(), meetingId: '' } : demoMeeting(id)) : undefined,
         isPublic: f.isPublic || undefined,
         inviteLink: makeInviteLink(id),
         history: [{ at, by: 'Training team', action: 'Created', detail: seriesId ? describeRecurrence(rule, f.date) : undefined }],
@@ -559,24 +610,52 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <label className="text-sm font-medium text-zinc-900">Training journey</label>
+              <div className="sm:col-span-2">
+                <div className="mb-1.5 flex items-center justify-between gap-3">
+                  <span>
+                    <span className="block text-sm font-medium text-zinc-900">Training journeys</span>
+                    <span className="block text-xs text-zinc-500">Add one or more. Learners take them in this order.</span>
+                  </span>
                   <button
                     type="button"
                     onClick={() => setNewJourneyOpen(true)}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
+                    className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
                   >
                     <Plus className="size-3" /> New journey
                   </button>
                 </div>
-                <Select value={f.journeyId} onChange={(e) => set('journeyId', e.target.value)}>
-                  {data.journeys.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.name}
-                    </option>
+                <ol className="space-y-2">
+                  {chosenJourneys.map((j, i) => (
+                    <li key={j.id} className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-surface py-2 pr-1.5 pl-3">
+                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand-600 text-[11px] font-bold text-white">{i + 1}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-zinc-900">{j.name}</span>
+                        <span className="block text-xs text-zinc-500">
+                          {j.modules.length} module{j.modules.length === 1 ? '' : 's'}
+                        </span>
+                      </span>
+                      <button type="button" onClick={() => moveJourney(i, -1)} disabled={i === 0} aria-label={`Move ${j.name} up`} className="grid size-8 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-30">
+                        <ArrowUp className="size-4" />
+                      </button>
+                      <button type="button" onClick={() => moveJourney(i, 1)} disabled={i === chosenJourneys.length - 1} aria-label={`Move ${j.name} down`} className="grid size-8 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-30">
+                        <ArrowDown className="size-4" />
+                      </button>
+                      <button type="button" onClick={() => set('journeyIds', f.journeyIds.filter((x) => x !== j.id))} aria-label={`Remove ${j.name}`} className="grid size-8 place-items-center rounded-lg text-zinc-400 hover:bg-brand-50 hover:text-brand-600">
+                        <X className="size-4" />
+                      </button>
+                    </li>
                   ))}
-                </Select>
+                </ol>
+                {otherJourneys.length > 0 && (
+                  <Select value="" onChange={(e) => e.target.value && set('journeyIds', [...f.journeyIds, e.target.value])} className={cn(chosenJourneys.length > 0 && 'mt-2')}>
+                    <option value="">{chosenJourneys.length ? '+ Add another journey…' : 'Choose a journey…'}</option>
+                    {otherJourneys.map((j) => (
+                      <option key={j.id} value={j.id}>
+                        {j.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
                 {err1('journeyId') && <p className="mt-1 text-xs text-brand-600">{err1('journeyId')}</p>}
               </div>
 
@@ -615,7 +694,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Delivery method">
                 {(
                   [
-                    ['Online', Video, 'Microsoft Teams meeting link will be created automatically'],
+                    ['Online', Video, 'Microsoft Teams meeting — paste your own link or one is created for you'],
                     ['Physical', MapPin, 'Conducted in an onsite conference room or training hall'],
                   ] as const
                 ).map(([v, Icon, sub]) => (
@@ -638,6 +717,24 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                   </button>
                 ))}
               </div>
+
+              {f.delivery === 'Online' && (
+                <div className="mt-3">
+                  <Field label="Teams meeting link (optional)" hint="Already set up the meeting in Teams or Outlook? Paste its join link. Leave empty to create one automatically.">
+                    <Input
+                      value={f.teamsUrl}
+                      onChange={(e) => set('teamsUrl', e.target.value)}
+                      placeholder="https://teams.microsoft.com/l/meetup-join/…"
+                      className={cn(err2('teamsUrl') && 'border-brand-500 ring-1 ring-brand-500')}
+                    />
+                  </Field>
+                  {err2('teamsUrl') ? (
+                    <p className="mt-1 text-xs text-brand-600">{err2('teamsUrl')}</p>
+                  ) : (
+                    f.teamsUrl.trim() && TEAMS_URL_RE.test(f.teamsUrl.trim()) && <p className="mt-1 text-xs font-medium text-mpesa-700">✓ Teams link accepted — participants join with this link.</p>
+                  )}
+                </div>
+              )}
 
               {f.delivery === 'Physical' && (
                 <div className="mt-3">
@@ -860,16 +957,44 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                 label="Direct participant emails (optional)"
                 hint="Paste email addresses or import an Excel/CSV list. Directory users will be resolved automatically."
               >
-                <Textarea rows={3} value={f.emails} onChange={(e) => { set('emails', e.target.value); setEmailImportSummary(''); setEmailImportError('') }} placeholder="awet.gebrehiwet@partner.safaricom.et, ..." />
+                <Textarea rows={3} value={f.emails} onChange={(e) => { set('emails', e.target.value); setEmailImportSummary(''); setEmailImportError(''); setInvalidEmailRows([]) }} placeholder="awet.gebrehiwet@partner.safaricom.et, ..." />
               </Field>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <input ref={emailFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(event) => void importParticipantEmails(event.target.files?.[0])} />
                 <Button size="sm" disabled={readingEmailFile} onClick={() => emailFileRef.current?.click()}>
                   <FileSpreadsheet className="size-3.5" /> {readingEmailFile ? 'Reading file…' : 'Import from Excel'}
                 </Button>
+                <Button size="sm" variant="ghost" onClick={downloadParticipantTemplate}>
+                  <Download className="size-3.5" /> Download template
+                </Button>
                 {emailImportSummary && <span className="text-xs text-mpesa-700">{emailImportSummary}</span>}
                 {emailImportError && <span role="alert" className="text-xs text-brand-600">{emailImportError}</span>}
               </div>
+              {invalidEmailRows.length > 0 && (
+                <div role="alert" className="mt-2 rounded-xl bg-amber-500/10 px-3 py-2.5 text-xs text-amber-900">
+                  <p className="flex items-center justify-between gap-2 font-semibold">
+                    {invalidEmailRows.length} row{invalidEmailRows.length === 1 ? '' : 's'} skipped — not a valid email
+                    <button type="button" onClick={() => setInvalidEmailRows([])} aria-label="Dismiss" className="rounded-full p-0.5 text-amber-700 hover:bg-amber-500/15">
+                      <X className="size-3.5" />
+                    </button>
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {invalidEmailRows.slice(0, 6).map((x) => (
+                      <li key={x.row}>
+                        <b>Row {x.row}</b>: “{x.value}”
+                      </li>
+                    ))}
+                  </ul>
+                  {invalidEmailRows.length > 6 && <p className="mt-0.5">+{invalidEmailRows.length - 6} more rows</p>}
+                  <p className="mt-1 text-amber-800">Fix these in the file and import again. The valid emails were added.</p>
+                </div>
+              )}
+              {notEmails.length > 0 && (
+                <p className="mt-1 text-xs text-brand-600">
+                  Not valid emails, left out: {notEmails.slice(0, 4).map((e) => `“${e}”`).join(', ')}
+                  {notEmails.length > 4 ? ` +${notEmails.length - 4} more` : ''}.
+                </p>
+              )}
               {matched.length > 0 && (
                 <p className="mt-1 text-xs text-mpesa-700">
                   {matched.length} directory contact{matched.length === 1 ? '' : 's'} recognized and added.
@@ -932,7 +1057,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                   <span className="block text-zinc-400 font-medium">Delivery</span>
                   <span className="font-semibold text-zinc-900 flex items-center gap-1 mt-0.5">
                     {f.delivery === 'Online' ? <Video className="size-3 text-brand-600" /> : <MapPin className="size-3 text-brand-600" />}
-                    {f.delivery === 'Online' ? 'Teams Online' : f.location}
+                    {f.delivery === 'Online' ? (f.teamsUrl.trim() ? 'Teams · your link' : 'Teams · auto link') : f.location}
                   </span>
                 </div>
                 <div>
@@ -958,7 +1083,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
 
               <div className="flex flex-wrap gap-3 text-xs text-zinc-600 border-t border-zinc-200/70 pt-3">
                 <span className="inline-flex items-center gap-1 font-medium">
-                  <Layers className="size-3 text-zinc-400" /> Journey: {journey?.name || 'None'}
+                  <Layers className="size-3 text-zinc-400" /> {chosenJourneys.length > 1 ? 'Journeys' : 'Journey'}: {chosenJourneys.map((j) => j.name).join(' → ') || 'None'}
                 </span>
                 <span>·</span>
                 <span className="inline-flex items-center gap-1 font-medium">
@@ -996,7 +1121,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
         )}
       </div>
 
-      {newJourneyOpen && <QuickJourneyModal onClose={() => setNewJourneyOpen(false)} onCreated={(id) => set('journeyId', id)} />}
+      {newJourneyOpen && <QuickJourneyModal onClose={() => setNewJourneyOpen(false)} onCreated={(id) => set('journeyIds', [...f.journeyIds, id])} />}
       {addingTrainer && <AddTrainerModal onClose={() => setAddingTrainer(false)} onCreated={(id) => set('trainerIds', [...new Set([...f.trainerIds, id])])} />}
     </FullPageDialog>
   )
