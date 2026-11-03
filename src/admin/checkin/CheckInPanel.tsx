@@ -1,6 +1,7 @@
 import QRCode from 'qrcode'
 import { AlertCircle, Check, ClipboardCheck, Download, Link2, QrCode, Send, ShieldCheck, Upload, UserPlus, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useFeedback } from '../../components/Feedback'
 import { localISO } from '../../lib/utils'
 import { useAdmin } from '../store'
@@ -41,6 +42,51 @@ function CountdownRing({ seconds, total }: { seconds: number; total: number }) {
   )
 }
 
+/** Full-screen QR for a projector or screen at the door; Esc or the close button leaves it. */
+function BigQr({ link, title, rotating, seconds, checkedIn, total, onClose }: { link: string; title: string; rotating: boolean; seconds: number; checkedIn: number; total: number; onClose: () => void }) {
+  const [src, setSrc] = useState('')
+  useEffect(() => {
+    let alive = true
+    QRCode.toDataURL(link, { width: 1000, margin: 1, color: { dark: '#18181b', light: '#ffffff' } })
+      .then((url) => alive && setSrc(url))
+      .catch(() => alive && setSrc(''))
+    return () => {
+      alive = false
+    }
+  }, [link])
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    document.addEventListener('keydown', esc)
+    return () => document.removeEventListener('keydown', esc)
+  }, [onClose])
+  return createPortal(
+    <div role="dialog" aria-modal aria-label="Check-in QR code" className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-6 bg-white p-6 text-center">
+      <button onClick={onClose} aria-label="Close" className="absolute top-4 right-4 grid size-11 place-items-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900">
+        <X className="size-6" />
+      </button>
+      <div>
+        <p className="text-sm font-semibold tracking-wide text-brand-600 uppercase">Scan to check in</p>
+        <h2 className="mt-1 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">{title}</h2>
+      </div>
+      {src ? (
+        <img src={src} alt="Check-in QR code" className="aspect-square w-[min(70vh,85vw)] rounded-3xl border border-zinc-200 p-3 shadow-sm" />
+      ) : (
+        <span className="grid aspect-square w-[min(70vh,85vw)] place-items-center rounded-3xl bg-zinc-100 text-zinc-400">
+          <QrCode className="size-20" />
+        </span>
+      )}
+      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-zinc-600">
+        <span className="font-semibold text-zinc-900 tabular-nums">
+          {checkedIn} / {total} checked in
+        </span>
+        {rotating && <span className="tabular-nums">Code changes in {seconds}s</span>}
+        <span className="max-w-[90vw] truncate text-xs text-zinc-400">{link}</span>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 export function CheckInPanel({ training }: { training: AdminTraining }) {
   const { data, update } = useAdmin()
   const { toast } = useFeedback()
@@ -65,6 +111,7 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
   const token = session ? (rotating ? rotatingToken(session.token, now) : fixedToken(session.token)) : ''
   const link = token ? checkinLink(training.id, token) : ''
   const [qr, setQr] = useState('')
+  const [bigQr, setBigQr] = useState(false)
   useEffect(() => {
     if (!token) {
       setQr('')
@@ -237,7 +284,12 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
         <div className="flex flex-wrap items-center gap-5 border-b border-zinc-200 bg-zinc-50/60 px-5 py-4">
           <div className="flex items-center gap-4 rounded-2xl border border-zinc-200/80 bg-surface p-3">
             {qr ? (
-              <img src={qr} alt="Check-in QR code" className="size-[110px] rounded-xl" />
+              <button type="button" onClick={() => setBigQr(true)} title="Show full screen" aria-label="Show the QR code full screen" className="group relative shrink-0 rounded-xl">
+                <img src={qr} alt="Check-in QR code" className="size-[110px] rounded-xl transition group-hover:opacity-80" />
+                <span className="absolute inset-0 grid place-items-center rounded-xl opacity-0 transition group-hover:opacity-100">
+                  <span className="rounded-full bg-charcoal/85 px-2 py-1 text-[11px] font-semibold text-white">Full screen</span>
+                </span>
+              </button>
             ) : (
               <span className="grid size-[110px] place-items-center rounded-xl bg-zinc-100 text-zinc-400">
                 <QrCode className="size-10" />
@@ -436,6 +488,9 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
         </div>
       )}
 
+      {bigQr && open && link && (
+        <BigQr link={link} title={training.name} rotating={rotating} seconds={tokenCountdown(now)} checkedIn={checkins.length} total={training.participantIds.length} onClose={() => setBigQr(false)} />
+      )}
       {modal === 'manual' && <AttendanceRoster training={training} onClose={() => setModal(null)} onCopyLink={copy} onExport={exportCsv} />}
       {modal === 'offline' && <AttendanceUpload training={training} onClose={() => setModal(null)} />}
     </Card>
