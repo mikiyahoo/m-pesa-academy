@@ -85,7 +85,8 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 export function TrainerScope({ trainerId, children }: { trainerId: string; children: ReactNode }) {
   const ctx = useAdmin()
   const value = useMemo(() => {
-    const own = new Set(ctx.data.trainings.filter((t) => trainerIdsOf(t).includes(trainerId)).map((t) => t.id))
+    // A trainer sees the sessions they scheduled and the ones they're assigned to teach.
+    const own = new Set(ctx.data.trainings.filter((t) => t.createdById === trainerId || trainerIdsOf(t).includes(trainerId)).map((t) => t.id))
     return {
       ...ctx,
       data: {

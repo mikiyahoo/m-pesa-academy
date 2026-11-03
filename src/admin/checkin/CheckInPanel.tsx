@@ -1,12 +1,12 @@
 import QRCode from 'qrcode'
-import { AlertCircle, Check, Download, Link2, QrCode, Send, ShieldCheck, UserPlus, Users, X } from 'lucide-react'
+import { AlertCircle, Check, ClipboardCheck, Download, Link2, QrCode, Send, ShieldCheck, Upload, UserPlus, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useFeedback } from '../../components/Feedback'
 import { localISO } from '../../lib/utils'
 import { useAdmin } from '../store'
-import { parseParticipants } from '../requests'
+import { AttendanceRoster, AttendanceTotals, AttendanceUpload } from './AttendanceRoster'
 import { addCheckin, checkinLink, fixedToken, rotatingToken, statusFor, tokenCountdown } from './checkin'
-import { Avatar, Badge, Button, Card, downloadCsv, Empty, Field, Modal, Select, Textarea } from '../ui'
+import { Avatar, Badge, Button, Card, downloadCsv, Empty } from '../ui'
 import type { AdminTraining, Checkin, CheckinMethod, CheckinStatus } from '../types'
 
 const methodLabel: Record<CheckinMethod, string> = {
@@ -38,141 +38,6 @@ function CountdownRing({ seconds, total }: { seconds: number; total: number }) {
       </svg>
       <span className="text-[11px] font-bold tabular-nums text-zinc-700">{seconds}</span>
     </span>
-  )
-}
-
-function ManualMarkModal({ training, onClose }: { training: AdminTraining; onClose: () => void }) {
-  const { data, update } = useAdmin()
-  const { toast } = useFeedback()
-  const checkedIn = new Set((training.checkins ?? []).map((c) => c.personId))
-  const available = training.participantIds.map((pid) => data.people.find((p) => p.id === pid)).filter((p) => p && !checkedIn.has(p.id))
-  const [personId, setPersonId] = useState(available[0]?.id ?? '')
-  const [status, setStatus] = useState<CheckinStatus>('Present')
-  const [comment, setComment] = useState('')
-  const valid = !!personId && comment.trim().length > 0
-
-  const save = () => {
-    const person = data.people.find((p) => p.id === personId)
-    if (!person) return
-    const entry: Checkin = {
-      personId,
-      at: localISO(),
-      method: 'manual',
-      status,
-      comment: comment.trim(),
-      verified: false,
-      by: data.people.find((p) => p.role === 'Admin')?.name ?? 'Admin',
-    }
-    update(
-      (d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, checkins: addCheckin(t.checkins ?? [], entry) } : t)) }),
-      { action: `Manually marked ${person.name} as ${status}`, target: training.name },
-    )
-    toast(`${person.name} marked ${status.toLowerCase()} — pending verification`)
-    onClose()
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Manual mark"
-      description="Manual entries need a reason and start unverified until an admin confirms them."
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!valid} onClick={save}>
-            Mark present
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <Field label="Participant">
-          <Select value={personId} onChange={(e) => setPersonId(e.target.value)}>
-            {available.map((p) => (
-              <option key={p!.id} value={p!.id}>
-                {p!.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Status">
-          <Select value={status} onChange={(e) => setStatus(e.target.value as CheckinStatus)}>
-            <option value="Present">Present</option>
-            <option value="Late">Late</option>
-          </Select>
-        </Field>
-        <Field label="Reason (required)">
-          <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="e.g. QR didn't scan — marked at the door" />
-        </Field>
-      </div>
-    </Modal>
-  )
-}
-
-function OfflineModal({ training, onClose }: { training: AdminTraining; onClose: () => void }) {
-  const { data, update } = useAdmin()
-  const { toast } = useFeedback()
-  const [text, setText] = useState('')
-  const checkedIn = new Set((training.checkins ?? []).map((c) => c.personId))
-  const { rows, errors } = text.trim() ? parseParticipants(text) : { rows: [], errors: [] }
-  const matched = rows
-    .map((r) => data.people.find((p) => p.email.toLowerCase() === r.email.toLowerCase()))
-    .filter((p) => p && !checkedIn.has(p.id))
-  const duplicates = rows.length - matched.length
-
-  const save = () => {
-    const now = localISO()
-    const entries: Checkin[] = matched.map((p) => ({
-      personId: p!.id,
-      at: now,
-      method: 'offline' as CheckinMethod,
-      status: statusFor(training, now, data.attendanceRules.lateMinutes),
-      verified: true,
-      by: data.people.find((x) => x.role === 'Admin')?.name ?? 'Admin',
-    }))
-    update(
-      (d) => ({
-        ...d,
-        trainings: d.trainings.map((t) =>
-          t.id === training.id ? { ...t, checkins: entries.reduce((list, e) => addCheckin(list, e), t.checkins ?? []) } : t,
-        ),
-      }),
-      { action: `Imported ${entries.length} check-ins from the offline device`, target: training.name },
-    )
-    toast(`Imported ${entries.length} check-in${entries.length === 1 ? '' : 's'} from the offline device`)
-    onClose()
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Import offline check-ins"
-      description="Paste the list the offline device collected (one name/email per line, or CSV). Duplicate entries are skipped."
-      wide
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!matched.length} onClick={save}>
-            Import {matched.length} check-in{matched.length === 1 ? '' : 's'}
-          </Button>
-        </>
-      }
-    >
-      <Field label="Participants">
-        <Textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder={'Awet Gebrehiwet, awet.gebrehiwet@partner.safaricom.et\nLelisa Asmare <lelisa.asmare@partner.safaricom.et>'} />
-      </Field>
-      <div className="mt-3 flex flex-wrap gap-3 text-xs">
-        <span className="text-mpesa-600">{matched.length} new</span>
-        {duplicates > 0 && <span className="text-amber-600">{duplicates} already checked in / not found</span>}
-        {errors.map((e) => (
-          <span key={e} className="flex items-center gap-1 text-brand-600">
-            <AlertCircle className="size-3.5" /> {e}
-          </span>
-        ))}
-      </div>
-    </Modal>
   )
 }
 
@@ -354,6 +219,12 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
               <QrCode className="size-3.5" /> Start attendance
             </Button>
           )}
+          <Button size="sm" onClick={() => setModal('manual')}>
+            <ClipboardCheck className="size-3.5" /> Mark attendance
+          </Button>
+          <Button size="sm" onClick={() => setModal('offline')}>
+            <Upload className="size-3.5" /> Upload attendance
+          </Button>
           {checkins.length > 0 && (
             <Button size="sm" onClick={exportCsv}>
               <Download className="size-3.5" /> Export
@@ -415,16 +286,13 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
             <Button size="sm" variant="ghost" onClick={simulate}>
               <UserPlus className="size-3.5" /> Simulate a scan
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setModal('manual')}>
-              <UserPlus className="size-3.5" /> Manual mark
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setModal('offline')}>
-              <Users className="size-3.5" /> Offline import
-            </Button>
           </div>
         </div>
       )}
 
+      <div className="border-b border-zinc-200 p-5 pb-0">
+        <AttendanceTotals training={training} peopleCount={training.participantIds.length} />
+      </div>
       <div className="grid grid-cols-2 gap-3 border-b border-zinc-200 p-5 sm:grid-cols-4">
         <div className="rounded-xl border border-zinc-200 p-3">
           <p className="text-xs text-zinc-500">Checked in</p>
@@ -568,8 +436,8 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
         </div>
       )}
 
-      {modal === 'manual' && <ManualMarkModal training={training} onClose={() => setModal(null)} />}
-      {modal === 'offline' && <OfflineModal training={training} onClose={() => setModal(null)} />}
+      {modal === 'manual' && <AttendanceRoster training={training} onClose={() => setModal(null)} onCopyLink={copy} onExport={exportCsv} />}
+      {modal === 'offline' && <AttendanceUpload training={training} onClose={() => setModal(null)} />}
     </Card>
   )
 }

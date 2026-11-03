@@ -68,13 +68,47 @@ const nav: NavItem[] = [
   { label: 'Leaderboard', icon: Trophy, to: '/admin/leaderboard' },
 ]
 
-/** Trainer portal (D04, S10): only what a trainer needs for the sessions they conduct. */
+/** Trainer portal (D04, S10): trainings, requests, content, feedback and assessments; data stays limited to their own sessions. */
 const trainerNav: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin', end: true },
-  { label: 'My sessions', icon: GraduationCap, to: '/admin/trainings' },
-  { label: 'Materials', icon: ClipboardList, to: '/admin/materials' },
-  { label: 'Grading', icon: MessageSquare, to: '/admin/submissions' },
+  { label: 'Trainings', icon: GraduationCap, to: '/admin/trainings' },
+  { label: 'Training Requests', icon: FileQuestion, to: '/admin/requests' },
+  {
+    label: 'Training Content',
+    icon: GraduationCap,
+    children: [
+      { label: 'Journeys', to: '/admin/journeys' },
+      { label: 'Materials', to: '/admin/materials' },
+    ],
+  },
+  {
+    label: 'Feedback',
+    icon: MessageSquare,
+    children: [
+      { label: 'Forms', to: '/admin/feedback/forms' },
+      { label: 'Responses', to: '/admin/feedback/responses' },
+    ],
+  },
+  {
+    label: 'Assessments',
+    icon: ClipboardList,
+    children: [
+      { label: 'Pre-Assessments', to: '/admin/assessments/pre' },
+      { label: 'Post-Assessments', to: '/admin/assessments/post' },
+      { label: 'Submissions', to: '/admin/submissions' },
+    ],
+  },
   { label: 'Certificates', icon: BadgeCheck, to: '/admin/certificates' },
+  { label: 'Users', icon: Users, to: '/admin/users' },
+  { label: 'Groups', icon: UserRoundPlus, to: '/admin/groups' },
+  {
+    label: 'Training Type',
+    icon: Settings2,
+    children: [
+      { label: 'All Types', to: '/admin/training-types' },
+      { label: 'By Category', to: '/admin/training-types/categories' },
+    ],
+  },
   { label: 'Reports', icon: BarChart3, to: '/admin/reports' },
 ]
 
@@ -389,7 +423,10 @@ function AlertsBell() {
 
 export function AdminLayout({ variant = 'admin', trainerId }: { variant?: 'admin' | 'trainer'; trainerId?: string }) {
   const { user } = useAuth()
-  const items = variant === 'trainer' ? trainerNav : nav
+  const { data } = useAdmin()
+  // Training Requests is extra access an admin gives a trainer ("Can manage requests").
+  const canManageRequests = !!data.people.find((p) => p.id === trainerId)?.canApprove
+  const items = variant === 'trainer' ? trainerNav.filter((i) => i.to !== '/admin/requests' || canManageRequests) : nav
   const title = variant === 'trainer' ? 'Trainer' : 'Admin'
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)

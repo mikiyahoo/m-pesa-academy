@@ -7,7 +7,7 @@ import { DateRangePicker } from '../../components/DateRangePicker'
 import { shortDate } from '../helpers'
 import { isInternalEmail } from '../requests'
 import { uid, useAdmin } from '../store'
-import type { AdminUserRole, Group, Person } from '../types'
+import type { AdminUserRole, AdminUserStatus, Group, Person } from '../types'
 import { ALL_BADGES } from '../types'
 import { deriveGamification } from '../gamification'
 import { makeInviteToken } from '../temporary'
@@ -94,6 +94,10 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
     email: person?.email ?? '',
     phone: person?.phone ?? '',
     role: person?.role ?? ('Participant' as AdminUserRole),
+    status: person?.status ?? ('Active' as AdminUserStatus),
+    canApprove: !!person?.canApprove,
+    permanent: !person?.accessEnd,
+    accessEnd: person?.accessEnd ?? '',
     department: person?.department ?? '',
     designation: person?.designation ?? '',
     organization: person?.organization ?? '',
@@ -102,7 +106,9 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
   })
   const emailTaken = data.people.some((p) => p.email.toLowerCase() === form.email.trim().toLowerCase() && p.id !== person?.id)
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
-  const valid = form.name.trim() && emailValid && !emailTaken
+  const today = new Date().toISOString().slice(0, 10)
+  const endInvalid = !form.permanent && (!form.accessEnd || form.accessEnd < today)
+  const valid = form.name.trim() && emailValid && !emailTaken && !endInvalid
 
   const save = () => {
     const next: Person = {
@@ -112,12 +118,15 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
       email: form.email.trim().toLowerCase(),
       phone: form.phone.trim(),
       role: form.role,
+      // Managing training requests is extra access for trainers only.
+      canApprove: form.role === 'Trainer' && form.canApprove ? true : undefined,
+      accessEnd: form.permanent ? undefined : form.accessEnd,
       department: form.department.trim(),
       designation: form.designation.trim(),
       organization: form.organization.trim(),
       region: form.region.trim(),
       groupIds: form.groupIds,
-      status: person?.status ?? 'Active',
+      status: form.status,
       createdAt: person?.createdAt ?? new Date().toISOString().slice(0, 10),
       createdBy: person ? person.createdBy : user.name,
     }
@@ -127,9 +136,11 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
       changes: person
         ? [
             { field: 'Name', from: person.name, to: next.name },
-            { field: 'Email', from: person.email, to: next.email },
             { field: 'Phone', from: person.phone, to: next.phone },
             { field: 'Role', from: person.role, to: next.role },
+            { field: 'Status', from: person.status, to: next.status },
+            { field: 'Can manage requests', from: person.canApprove ? 'Yes' : 'No', to: next.canApprove ? 'Yes' : 'No' },
+            { field: 'Valid until', from: person.accessEnd ?? 'Permanent', to: next.accessEnd ?? 'Permanent' },
             { field: 'Department', from: person.department, to: next.department },
             { field: 'Designation', from: person.designation ?? '', to: next.designation ?? '' },
             { field: 'Organization', from: person.organization ?? '', to: next.organization ?? '' },
@@ -141,46 +152,43 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
     onClose()
   }
 
+  const section = (title: string, text: string) => (
+    <div className="sm:col-span-2">
+      <h3 className="text-base font-bold text-zinc-900">{title}</h3>
+      <p className="text-xs text-zinc-500">{text}</p>
+    </div>
+  )
+
   return (
     <Modal
       open
+      wide
       onClose={onClose}
-      title={person ? 'Edit user' : 'Add user'}
+      title={person ? `Edit ${person.name}` : 'Add user'}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
           <Button variant="primary" disabled={!valid} onClick={save}>
-            {person ? 'Save changes' : 'Add user'}
+            {person ? 'Update' : 'Add user'}
           </Button>
         </>
       }
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Field label="Full name">
-            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus />
-          </Field>
-        </div>
-        <Field label="Email">
-          <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@partner.safaricom.et" />
+        {section('User details', 'Basic personal information.')}
+        <Field label="Name">
+          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus />
+        </Field>
+        <Field label={person ? 'Email (read-only)' : 'Email'}>
+          <Input type="email" value={form.email} readOnly={!!person} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@safaricom.et" className={cn(person && 'bg-zinc-50 text-zinc-500')} />
           {form.email && !emailValid && <span className="mt-1 block text-xs text-brand-600">Enter a valid email.</span>}
           {emailTaken && <span className="mt-1 block text-xs text-brand-600">This email is already in use.</span>}
         </Field>
-        <Field label="Phone">
-          <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="07XXXXXXXX" />
-        </Field>
-        <Field label="Role">
-          <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as AdminUserRole })}>
-            <option>Participant</option>
-            <option>Trainer</option>
-            <option>Admin</option>
-          </Select>
+        <Field label="Designation">
+          <Input value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} />
         </Field>
         <Field label="Department">
           <Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
-        </Field>
-        <Field label="Designation">
-          <Input value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} />
         </Field>
         <Field label="Organization">
           <Input value={form.organization} onChange={(e) => setForm({ ...form, organization: e.target.value })} />
@@ -188,7 +196,53 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
         <Field label="Location">
           <Input value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} placeholder="e.g. Addis Ababa" />
         </Field>
+        <Field label="Phone number">
+          <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+251 7XX XXX XXX" />
+        </Field>
+
+        <div className="border-t border-zinc-100 pt-4 sm:col-span-2">
+          <h3 className="text-base font-bold text-zinc-900">Access control</h3>
+          <p className="text-xs text-zinc-500">Defines the user’s role, account status and how long their access lasts.</p>
+        </div>
+        <Field label="Role">
+          <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as AdminUserRole })}>
+            <option>Participant</option>
+            <option>Trainer</option>
+            <option>Admin</option>
+          </Select>
+        </Field>
+        <Field label="Status">
+          <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as AdminUserStatus })}>
+            <option>Active</option>
+            <option>Inactive</option>
+          </Select>
+        </Field>
+        {form.role === 'Trainer' && (
+          <label className={cn('flex cursor-pointer items-start gap-3 rounded-xl border p-3 sm:col-span-2', form.canApprove ? 'border-brand-300 bg-brand-50/60' : 'border-zinc-200')}>
+            <input type="checkbox" checked={form.canApprove} onChange={(e) => setForm({ ...form, canApprove: e.target.checked })} className="mt-0.5 size-4 shrink-0 accent-brand-600" />
+            <span>
+              <span className="block text-sm font-semibold text-zinc-900">Can manage requests</span>
+              <span className="block text-xs text-zinc-500">Adds Training Requests to this trainer’s menu so they can review and approve requests sent to them.</span>
+            </span>
+          </label>
+        )}
         <div className="sm:col-span-2">
+          <p className="mb-1.5 text-sm font-medium text-zinc-700">Validity period</p>
+          <label className="flex items-center gap-2 text-sm text-zinc-700">
+            <input type="checkbox" checked={form.permanent} onChange={(e) => setForm({ ...form, permanent: e.target.checked })} className="size-4 accent-brand-600" />
+            Permanent access
+          </label>
+          {!form.permanent && (
+            <div className="mt-2 max-w-xs">
+              <Input type="date" min={today} value={form.accessEnd} onChange={(e) => setForm({ ...form, accessEnd: e.target.value })} aria-label="Access ends on" />
+              <span className={cn('mt-1 block text-xs', endInvalid ? 'text-brand-600' : 'text-zinc-500')}>
+                {endInvalid ? 'Pick an end date from today on.' : 'They can’t sign in after this date.'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-zinc-100 pt-4 sm:col-span-2">
           <p className="mb-1.5 text-sm font-medium text-zinc-700">Groups</p>
           <div className="flex flex-wrap gap-2">
             {data.groups.map((g) => {
@@ -620,7 +674,7 @@ export function AdminUserView() {
             <p className="mt-0.5 text-xs text-zinc-500">Requester rights and group assignments.</p>
             <dl className="mt-4 divide-y divide-zinc-100">
               <ProfileRow icon={FilePlus2} label="Requester" value={person.isRequester ? 'Enabled' : 'No'} />
-              <ProfileRow icon={CheckCircle2} label="Can approve" value={person.canApprove ? 'Yes' : 'No'} />
+              <ProfileRow icon={CheckCircle2} label="Can manage requests" value={person.canApprove ? 'Yes' : 'No'} />
               <ProfileRow icon={UserCheck} label="User type" value={isInternal ? 'Internal employee' : 'External partner'} />
               <div className="flex items-start gap-3 py-3">
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-zinc-100 text-zinc-700">
@@ -1013,7 +1067,7 @@ export function AdminUsers() {
                 <div className="flex flex-wrap gap-1">
                   <Badge tone={p.role === 'Admin' ? 'red' : p.role === 'Trainer' ? 'blue' : 'zinc'}>{p.role.toUpperCase()}</Badge>
                   {p.isRequester && <Badge tone="amber">REQUESTER</Badge>}
-                  {p.canApprove && <Badge tone="green">APPROVER</Badge>}
+                  {p.canApprove && <Badge tone="green">MANAGES REQUESTS</Badge>}
                   {!isInternalEmail(p.email) && <Badge>TEMPORARY</Badge>}
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-zinc-600 pt-2 border-t border-zinc-100">
@@ -1114,7 +1168,7 @@ export function AdminUsers() {
                           </div>
                           {p.role === 'Trainer' && (
                             <button onClick={() => toggleApprover(p)} className="w-full rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">
-                              {p.canApprove ? 'Stop approving requests' : 'Allow approving requests'}
+                              {p.canApprove ? 'Remove request management' : 'Allow managing requests'}
                             </button>
                           )}
                           <button onClick={() => toggleStatus(p)} className="w-full rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">

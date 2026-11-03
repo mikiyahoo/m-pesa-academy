@@ -209,6 +209,8 @@ export type AdminTraining = {
   typeId: string
   /** Primary trainer, kept for compatibility with existing records. */
   trainerId: string
+  /** Trainer who scheduled it (trainers see what they scheduled plus what they're assigned to). */
+  createdById?: string
   /** All assigned trainers; includes trainerId when set. */
   trainerIds?: string[]
   date: string
@@ -233,6 +235,10 @@ export type AdminTraining = {
   preAssessmentId?: string
   postAssessmentId?: string
   feedbackFormId?: string
+  /** Certificate template chosen for this training; otherwise the training type's or the default one. */
+  certificateTemplateId?: string
+  /** Issue the certificate as soon as a participant meets every requirement (default on). */
+  autoIssueCertificates?: boolean
   teamsMeeting?: TeamsMeeting
   attendance?: AttendanceSync
   /** Self-service check-ins recorded from the learner portal (TE-5.1). */
@@ -246,6 +252,8 @@ export type AdminTraining = {
   progress: Record<string, Record<string, number>>
   /** Open to guests and external users who sign up themselves; they join it when they start it. */
   isPublic?: boolean
+  /** Assessment attempts an admin or trainer reset so the person can take it again. */
+  attemptResets?: { personId: string; assessmentId: string; at: string; by: string }[]
 }
 
 /** A certificate issued to one participant (X02): automatic on eligibility, or manual with a reason. */

@@ -52,14 +52,12 @@ export function AdminTrainings() {
   return (
     <>
       <PageHeader
-        title={scope.trainerId ? 'My sessions' : 'Trainings'}
-        description={scope.trainerId ? 'Sessions you conduct. The training team schedules new ones.' : 'Schedule, manage and track every training session.'}
+        title="Trainings"
+        description={scope.trainerId ? 'Trainings you scheduled and the ones you’re assigned to.' : 'Schedule, manage and track every training session.'}
         actions={
-          !scope.trainerId && (
-            <Button variant="primary" onClick={() => setCreating(true)}>
-              <Plus className="size-4" /> New training
-            </Button>
-          )
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            <Plus className="size-4" /> New training
+          </Button>
         }
       />
       <div className="mb-5">

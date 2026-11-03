@@ -7,6 +7,7 @@ import {
   CalendarRange,
   Check,
   CheckCircle2,
+  ChevronDown,
   Download,
   FileSpreadsheet,
   FileText,
@@ -21,7 +22,7 @@ import {
   Video,
   X,
 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { read, utils, writeFile } from 'xlsx'
 import { FullPageDialog } from './Wizard'
@@ -29,6 +30,7 @@ import { cn, localISO, todayISO } from '../lib/utils'
 import { shortDate, time12 } from './helpers'
 import { describeRecurrence, findConflicts, LEVELS, makeInviteLink, MAX_OCCURRENCES, occurrenceDates, WEEKDAYS } from './scheduling'
 import { uid, useAdmin } from './store'
+import { useScope } from './scope'
 import { demoMeeting } from './teams/attendance'
 import type { AdminTraining, Journey, Recurrence, RecurrenceFreq, TrainingLevel } from './types'
 import { ADD_TRAINER_OPTION, AddTrainerModal } from './TrainerModal'
@@ -154,8 +156,89 @@ const STEPS = [
 ]
 
 /** Schedule a session or a recurring series (TA-2.2, TA-2.3, TR-2.2, URS 2.3). */
+/** Dropdown with a checkbox per journey; newly ticked journeys go to the end of the order. */
+function JourneyMultiSelect({ journeys, selected, onChange, invalid }: { journeys: Journey[]; selected: string[]; onChange: (ids: string[]) => void; invalid?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), setOpen(false))
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', esc, true)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', esc, true)
+    }
+  }, [open])
+  const shown = journeys.filter((j) => j.name.toLowerCase().includes(q.trim().toLowerCase()))
+  const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
+  const label = !selected.length ? 'Choose journeys…' : selected.length === 1 ? journeys.find((j) => j.id === selected[0])?.name ?? '1 journey selected' : `${selected.length} journeys selected`
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={cn(
+          'flex w-full items-center justify-between gap-2 rounded-xl border bg-surface px-3 py-2 text-left text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100',
+          invalid ? 'border-brand-500 ring-1 ring-brand-500' : 'border-zinc-200',
+        )}
+      >
+        <span className={cn('truncate', selected.length ? 'text-zinc-900' : 'text-zinc-400')}>{label}</span>
+        <ChevronDown className={cn('size-4 shrink-0 text-zinc-500 transition', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="absolute inset-x-0 z-30 mt-1.5 overflow-hidden rounded-xl border border-zinc-200 bg-surface shadow-lg">
+          {journeys.length > 6 && (
+            <div className="border-b border-zinc-100 p-2">
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search journeys…" autoFocus />
+            </div>
+          )}
+          <ul role="listbox" aria-multiselectable className="max-h-64 overflow-y-auto p-1 scrollbar-thin">
+            {shown.map((j) => {
+              const checked = selected.includes(j.id)
+              return (
+                <li key={j.id}>
+                  <label className={cn('flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition', checked ? 'bg-brand-50/60' : 'hover:bg-zinc-50')}>
+                    <input type="checkbox" checked={checked} onChange={() => toggle(j.id)} className="size-4 shrink-0 accent-brand-600" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-zinc-900">{j.name}</span>
+                      <span className="block text-xs text-zinc-500">
+                        {j.modules.length} module{j.modules.length === 1 ? '' : 's'}
+                      </span>
+                    </span>
+                    {checked && <span className="shrink-0 text-[11px] font-semibold text-brand-700">#{selected.indexOf(j.id) + 1}</span>}
+                  </label>
+                </li>
+              )
+            })}
+            {!shown.length && <li className="px-2.5 py-3 text-sm text-zinc-500">No journeys match “{q}”.</li>}
+          </ul>
+          <div className="flex items-center justify-between border-t border-zinc-100 px-3 py-2 text-xs">
+            <span className="text-zinc-500">{selected.length} selected</span>
+            <span className="flex gap-3">
+              {selected.length > 0 && (
+                <button type="button" onClick={() => onChange([])} className="font-semibold text-zinc-600 hover:text-zinc-900">
+                  Clear
+                </button>
+              )}
+              <button type="button" onClick={() => setOpen(false)} className="font-semibold text-brand-600 hover:text-brand-700">
+                Done
+              </button>
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onClose: () => void; preset?: TrainingPreset }) {
   const { data, update } = useAdmin()
+  const scope = useScope()
   const navigate = useNavigate()
   const [step, setStep] = useState<StepId>(1)
   const [triedSteps, setTriedSteps] = useState<Record<number, boolean>>({})
@@ -184,11 +267,15 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
     level: 'Beginner' as TrainingLevel,
     /** Ordered: learners take the journeys in this order. */
     journeyIds: preset?.journeyIds?.length ? preset.journeyIds : [preset?.journeyId ?? data.journeys[0]?.id ?? ''].filter(Boolean),
-    trainerIds: [...new Set(preset?.trainerIds?.length ? preset.trainerIds : [preset?.trainerId ?? trainers[0]?.id ?? ''].filter(Boolean))],
+    trainerIds: [...new Set(preset?.trainerIds?.length ? preset.trainerIds : [preset?.trainerId ?? scope.trainerId ?? trainers[0]?.id ?? ''].filter(Boolean))],
     preAssessmentId: '',
     postAssessmentId: '',
     delivery: (presetOnline ? 'Online' : preset?.location ? 'Physical' : 'Online') as 'Online' | 'Physical',
     isPublic: false,
+    /** Empty = the training type's form / template. */
+    feedbackFormId: '',
+    certificateTemplateId: '',
+    autoIssue: true,
     /** Library materials added to this training on top of its journeys. */
     extraMaterialIds: [] as string[],
     /** Optional existing Teams meeting; left empty, one is created for the session. */
@@ -246,10 +333,12 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
 
   const category = data.categories.find((c) => c.id === f.categoryId)
   const chosenJourneys = f.journeyIds.map((id) => data.journeys.find((j) => j.id === id)).filter((j): j is Journey => !!j)
-  const otherJourneys = data.journeys.filter((j) => !f.journeyIds.includes(j.id))
   // Materials already in the chosen journeys aren't offered again as extras.
   const journeyMaterialIds = new Set(chosenJourneys.flatMap((j) => j.modules.flatMap((m) => m.materialIds)))
   const extraMaterials = f.extraMaterialIds.map((id) => data.materials.find((m) => m.id === id)).filter((m): m is NonNullable<typeof m> => !!m)
+  // Defaults that follow the training type, shown as the first option of each picker.
+  const typeFeedbackForm = data.feedbackForms.find((ff) => ff.trainingTypeIds?.includes(f.typeId)) ?? data.feedbackForms[0]
+  const typeTemplate = data.templates.find((tp) => tp.assignedTypeIds?.includes(f.typeId)) ?? data.templates.find((tp) => tp.isDefault) ?? data.templates[0]
   const otherMaterials = data.materials.filter((m) => !f.extraMaterialIds.includes(m.id) && !journeyMaterialIds.has(m.id))
   const moveJourney = (i: number, by: -1 | 1) => {
     const next = [...f.journeyIds]
@@ -387,12 +476,15 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
         participantIds,
         preAssessmentId: f.preAssessmentId || undefined,
         postAssessmentId: f.postAssessmentId || undefined,
-        feedbackFormId: (data.feedbackForms.find((ff) => ff.trainingTypeIds?.includes(f.typeId)) ?? data.feedbackForms[0])?.id,
+        feedbackFormId: f.feedbackFormId || typeFeedbackForm?.id,
+        certificateTemplateId: f.certificateTemplateId || undefined,
+        autoIssueCertificates: f.autoIssue ? undefined : false,
         // A pasted Teams link is used as is (same link for every session in a series); otherwise one is created.
         teamsMeeting: f.delivery === 'Online' ? (f.teamsUrl.trim() ? { joinUrl: f.teamsUrl.trim(), meetingId: '' } : demoMeeting(id)) : undefined,
         isPublic: f.isPublic || undefined,
         inviteLink: makeInviteLink(id),
-        history: [{ at, by: 'Training team', action: 'Created', detail: seriesId ? describeRecurrence(rule, f.date) : undefined }],
+        createdById: scope.trainerId,
+        history: [{ at, by: scope.trainerId ? (data.people.find((p) => p.id === scope.trainerId)?.name ?? 'Trainer') : 'Training team', action: 'Created', detail: seriesId ? describeRecurrence(rule, f.date) : undefined }],
         progress: {},
       }
     })
@@ -585,7 +677,9 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                   <span className="block text-sm font-medium text-zinc-900">Training journeys</span>
                   <span className="block text-xs text-zinc-500">Pick one or more from your journeys. Learners take them in this order.</span>
                 </div>
-                <ol className="space-y-2">
+                <JourneyMultiSelect journeys={data.journeys} selected={f.journeyIds} onChange={(ids) => set('journeyIds', ids)} invalid={!!err1('journeyId')} />
+                {chosenJourneys.length > 1 && <p className="mt-2 text-xs text-zinc-500">Use the arrows to set the order learners take them in.</p>}
+                <ol className="mt-2 space-y-2">
                   {chosenJourneys.map((j, i) => (
                     <li key={j.id} className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-surface py-2 pr-1.5 pl-3">
                       <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand-600 text-[11px] font-bold text-white">{i + 1}</span>
@@ -607,16 +701,6 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                     </li>
                   ))}
                 </ol>
-                {otherJourneys.length > 0 && (
-                  <Select value="" onChange={(e) => e.target.value && set('journeyIds', [...f.journeyIds, e.target.value])} className={cn(chosenJourneys.length > 0 && 'mt-2')}>
-                    <option value="">{chosenJourneys.length ? '+ Add another journey…' : 'Choose a journey…'}</option>
-                    {otherJourneys.map((j) => (
-                      <option key={j.id} value={j.id}>
-                        {j.name}
-                      </option>
-                    ))}
-                  </Select>
-                )}
                 {err1('journeyId') && <p className="mt-1 text-xs text-brand-600">{err1('journeyId')}</p>}
               </div>
 
@@ -675,6 +759,43 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                   ))}
                 </Select>
               </Field>
+            </div>
+
+            <div className="space-y-4 rounded-2xl border border-zinc-200/90 bg-zinc-50/50 p-4">
+              <h4 className="text-sm font-semibold text-zinc-900">Feedback &amp; certificate</h4>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Feedback form">
+                  <Select value={f.feedbackFormId} onChange={(e) => set('feedbackFormId', e.target.value)}>
+                    <option value="">{typeFeedbackForm ? `${typeFeedbackForm.title} (type default)` : 'No feedback form'}</option>
+                    {data.feedbackForms
+                      .filter((ff) => ff.id !== typeFeedbackForm?.id)
+                      .map((ff) => (
+                        <option key={ff.id} value={ff.id}>
+                          {ff.title}
+                        </option>
+                      ))}
+                  </Select>
+                </Field>
+                <Field label="Certificate template">
+                  <Select value={f.certificateTemplateId} onChange={(e) => set('certificateTemplateId', e.target.value)}>
+                    <option value="">{typeTemplate ? `${typeTemplate.name} (type default)` : 'Default template'}</option>
+                    {data.templates
+                      .filter((tp) => tp.id !== typeTemplate?.id)
+                      .map((tp) => (
+                        <option key={tp.id} value={tp.id}>
+                          {tp.name}
+                        </option>
+                      ))}
+                  </Select>
+                </Field>
+              </div>
+              <label className="flex cursor-pointer items-start gap-3">
+                <input type="checkbox" checked={f.autoIssue} onChange={(e) => set('autoIssue', e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-brand-600" />
+                <span>
+                  <span className="block text-sm font-medium text-zinc-900">Issue certificates automatically</span>
+                  <span className="block text-xs text-zinc-500">Each participant gets their certificate as soon as they attend, give feedback and pass the assessment.</span>
+                </span>
+              </label>
             </div>
 
             <Field label="Description (optional)">

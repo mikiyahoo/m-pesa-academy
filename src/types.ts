@@ -59,6 +59,8 @@ export type Training = {
   quizSettings?: QuizSettings
   /** Open to guests and external users, not only to people invited to it. */
   isPublic?: boolean
+  /** When the trainer last reset this learner's quiz attempts (admin-scheduled trainings). */
+  attemptsResetAt?: string
 }
 
 /** Post-training feedback (TA-4.1, TE-4.1, URS 2.6). Likert scores are 1 (strongly disagree) to 5. */
@@ -83,6 +85,8 @@ export type TrainingProgress = {
   checkInMethod?: CheckInMethod
   feedback?: FeedbackSubmission
   completedAt?: string
+  /** The reset already applied to this progress (see Training.attemptsResetAt). */
+  attemptsResetAt?: string
 }
 
 export type AttendanceMark = 'Present' | 'Late' | 'Absent' | 'Not yet'

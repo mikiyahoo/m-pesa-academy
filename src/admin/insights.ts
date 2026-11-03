@@ -70,9 +70,22 @@ export function eligibility(data: AdminData, t: AdminTraining, pid: string, mark
   return { mark, attended: attended(mark), feedback, passed: pass, eligible: attended(mark) && feedback && pass }
 }
 
-/** Template for a training: the one assigned to its type, otherwise the default (X03). */
+/** Template for a training: the one chosen for it, else the one assigned to its type, else the default (X03). */
 export function templateFor(data: AdminData, t: AdminTraining) {
-  return data.templates.find((tp) => tp.assignedTypeIds?.includes(t.typeId)) ?? data.templates.find((tp) => tp.isDefault) ?? data.templates[0]
+  return (
+    (t.certificateTemplateId && data.templates.find((tp) => tp.id === t.certificateTemplateId)) ||
+    data.templates.find((tp) => tp.assignedTypeIds?.includes(t.typeId)) ||
+    data.templates.find((tp) => tp.isDefault) ||
+    data.templates[0]
+  )
+}
+
+/** Gives one participant their certificate the moment they meet every requirement (unless turned off for the training). */
+export function issueIfEligible(data: AdminData, t: AdminTraining, pid: string): AdminTraining {
+  if (t.autoIssueCertificates === false || !t.participantIds.includes(pid) || t.certificates?.some((c) => c.personId === pid)) return t
+  if (!eligibility(data, t, pid).eligible) return t
+  const cert: IssuedCertificate = { personId: pid, issuedAt: localISO(), issuedBy: 'System (on completion)', method: 'auto', templateId: templateFor(data, t)?.id ?? '' }
+  return { ...t, certificates: [...(t.certificates ?? []), cert] }
 }
 
 /** Issues certificates to every eligible participant who doesn't have one yet (automatic issuing, X02). */

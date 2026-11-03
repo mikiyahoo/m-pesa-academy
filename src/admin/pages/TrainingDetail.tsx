@@ -27,6 +27,7 @@ import { CancelModal, ChangeTrainerModal, ConflictList, InviteModal, RescheduleM
 import { describeRecurrence, findConflicts, trainerIdsOf } from '../scheduling'
 import { InviteTemporaryModal } from './TemporaryAccess'
 import { MaterialPreview } from '../MaterialPreview'
+import { AssessmentResults } from '../AssessmentResults'
 import { AttendancePanel } from '../teams/AttendancePanel'
 import { CheckInPanel } from '../checkin/CheckInPanel'
 import { TrainingCertificates } from '../TrainingCertificates'
@@ -461,13 +462,15 @@ export function AdminTrainingDetail() {
                 ] as const
               ).map(([kind, label, a]) =>
                 a ? (
-                  <div key={kind} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 px-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="text-xs text-zinc-500">{label}</p>
-                      <p className="truncate font-medium text-zinc-900">{a.title}</p>
-                    </div>
-                    <button onClick={() => detachAssessment(kind)} className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700" aria-label={`Remove ${label}`}>
-                      <X className="size-4" />
+                  <div key={kind} className="group relative">
+                    <AssessmentResults training={training} assessment={a} label={label} />
+                    <button
+                      onClick={() => detachAssessment(kind)}
+                      className="absolute -top-2 -right-2 hidden size-6 place-items-center rounded-full border border-zinc-200 bg-surface text-zinc-400 shadow-sm hover:text-brand-600 group-hover:grid focus:grid"
+                      aria-label={`Remove ${label}`}
+                      title={`Remove ${label}`}
+                    >
+                      <X className="size-3.5" />
                     </button>
                   </div>
                 ) : (

@@ -113,6 +113,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             : 'No account found for that email or phone number. New here? Create a guest account to join public trainings.'
         }
         if (password !== DEMO_PASSWORD) return 'Incorrect password. Please try again.'
+        // An admin can deactivate an account or give it an end date (validity period).
+        const record = loadAdminData().people.find((p) => p.email.toLowerCase() === account.user.email.toLowerCase())
+        if (record?.status === 'Inactive') return 'Your account is inactive. Contact the training team.'
+        if (record?.accessEnd && record.accessEnd < localISO().slice(0, 10)) return 'Your access period has ended. Contact the training team to extend it.'
         setNotice(null)
         setPending({ ...account, phone: account.user.phone, code: newCode(), expiresAt: Date.now() + OTP_TTL_MS })
         return null

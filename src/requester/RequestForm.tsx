@@ -1,7 +1,8 @@
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Check, CheckCircle2, FileText, Loader2, MapPin, Paperclip, Pencil, Plus, Save, Send, Target, type LucideIcon, Upload, UserPlus, Users, Video, X } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Check, CheckCircle2, Download, FileText, Loader2, MapPin, Paperclip, Pencil, Plus, Save, Send, Target, type LucideIcon, Upload, UserPlus, Users, Video, X } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useFeedback } from '../components/Feedback'
+import { CheckboxSelect } from '../components/CheckboxSelect'
 import { EmptyState } from '../components/EmptyState'
 import { DuplicateWarning } from '../admin/RequestParts'
 import { shortDate } from '../admin/helpers'
@@ -59,18 +60,27 @@ const EMPTY: Form = {
 const inputCls =
   'w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100'
 
+/** A CSV the requester fills in: one participant per row, name and email. */
+function downloadParticipantTemplate() {
+  const csv = 'name,email\nAbebe Kebede,abebe.kebede@safaricom.et\nLiya Bekele,liya.bekele@partner.com\n'
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'participants-template.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 function validate(f: Form, otherOn: boolean) {
   const e: Partial<Record<keyof Form | 'otherCategory', string>> = {}
   if (!f.topic.trim()) e.topic = 'Give the request a short title.'
-  if (!f.trainingTypeId) e.trainingTypeId = 'Choose the training type.'
   if (!f.categories.length && !otherOn) e.categories = 'Pick at least one category.'
   if (otherOn && !f.otherCategory.trim()) e.otherCategory = 'Describe the other category.'
-  if (!f.targetGroupIds.length && !f.audienceNote.trim()) e.targetGroupIds = 'Choose a group or describe the audience.'
   if (f.delivery === 'Physical' && !f.location.trim()) e.location = 'Physical sessions need a location.'
   if (!f.preferredDate) e.preferredDate = 'Choose a preferred date.'
   else if (f.preferredDate < todayISO()) e.preferredDate = 'The date can’t be in the past.'
   if (!f.preferredTime) e.preferredTime = 'Choose a preferred time.'
-  if (!f.participants.length) e.participants = 'Add at least one participant.'
+  if (!f.participants.length && !f.targetGroupIds.length) e.participants = 'Add participants by email or from a list, or choose a target group.'
   else if (f.participants.some((p) => !isInternalEmail(p.email) && !p.name.trim()))
     e.participants = 'Temporary (external) trainees need a name as well as an email.'
   if (!f.objectives.trim()) e.objectives = 'Describe what the team should be able to do after the training.'
@@ -463,7 +473,7 @@ export function RequestForm() {
           </div>
         </div>
         <div>
-          <Label>Training type</Label>
+          <Label optional>Training type</Label>
           <div id="rq-type" role="radiogroup" aria-label="Training type" aria-invalid={!!show('trainingTypeId')} className="grid gap-2.5 sm:grid-cols-2">
             {data.trainingTypes.map((t) => {
               const on = form.trainingTypeId === t.id
@@ -473,7 +483,7 @@ export function RequestForm() {
                   type="button"
                   role="radio"
                   aria-checked={on}
-                  onClick={() => set('trainingTypeId', t.id)}
+                  onClick={() => set('trainingTypeId', on ? '' : t.id)}
                   className={cn(
                     'flex items-start gap-3 rounded-xl border p-3.5 text-left transition',
                     on ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-100' : show('trainingTypeId') ? 'border-brand-300 hover:border-brand-400' : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60',
@@ -576,14 +586,14 @@ export function RequestForm() {
       <>
       <Section icon={Users} eyebrow="Step 2 of 5" title="Audience">
         <div>
-          <Label>Target audience</Label>
-          <div className="flex flex-wrap gap-2" aria-invalid={!!show('targetGroupIds')}>
-            {data.groups.map((g) => (
-              <Chip key={g.id} on={form.targetGroupIds.includes(g.id)} onClick={() => toggle('targetGroupIds', g.id)}>
-                {g.name}
-              </Chip>
-            ))}
-          </div>
+          <Label optional>Target audience (groups)</Label>
+          <CheckboxSelect
+            options={data.groups.map((g) => ({ id: g.id, label: g.name, hint: g.description || undefined }))}
+            selected={form.targetGroupIds}
+            onChange={(ids) => set('targetGroupIds', ids)}
+            placeholder="Choose one or more groups…"
+            noun="groups"
+          />
           <input
             aria-label="Other audience"
             value={form.audienceNote}
@@ -619,12 +629,16 @@ export function RequestForm() {
           </p>
         )}
 
-        <details className="group rounded-xl border border-zinc-200 p-4 open:bg-zinc-50/60">
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-zinc-800">
-            <Users className="size-4 text-zinc-500" /> Add many at once
-            <Plus className="ml-auto size-4 text-zinc-400 transition group-open:rotate-45" />
-          </summary>
-          <div className="mt-4 space-y-3">
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-sm font-semibold text-zinc-800">
+              <Users className="size-4 text-zinc-500" /> Bulk invite (list of participants)
+            </p>
+            <button type="button" onClick={downloadParticipantTemplate} className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700">
+              <Download className="size-3.5" /> Download CSV template
+            </button>
+          </div>
+          <div className="mt-3 space-y-3">
             <textarea
               aria-label="Paste participants"
               rows={4}
@@ -643,7 +657,7 @@ export function RequestForm() {
               <input ref={listInput} type="file" accept=".csv,.txt" className="hidden" onChange={(e) => (onListFile(e.target.files?.[0]), (e.target.value = ''))} />
             </div>
           </div>
-        </details>
+        </div>
 
         {importMsg && (
           <div className={cn('rounded-xl px-4 py-3 text-sm', importMsg.errors.length ? 'bg-amber-500/10 text-amber-900' : 'bg-mpesa-500/10 text-mpesa-800')}>

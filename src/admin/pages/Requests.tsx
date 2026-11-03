@@ -211,7 +211,7 @@ export function AdminRequests() {
 
   const presetFor = (r: TrainingRequest, trainerIds?: string[]): TrainingPreset => ({
     name: r.topic,
-    typeId: r.trainingTypeId,
+    typeId: r.trainingTypeId || undefined,
     trainerId: trainerIds?.[0] ?? r.trainerId,
     trainerIds: trainerIds ?? r.trainerIds,
     date: r.preferredDate,

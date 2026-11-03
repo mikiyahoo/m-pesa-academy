@@ -99,6 +99,17 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
   const getTraining = useCallback((id: string) => trainings.find((t) => t.id === id), [trainings])
 
+  // A trainer reset this learner's attempts: clear the quiz result so they can take it again.
+  useEffect(() => {
+    const pending = trainings.filter((t) => t.attemptsResetAt && progress[t.id] && progress[t.id].attemptsResetAt !== t.attemptsResetAt)
+    if (!pending.length) return
+    setProgress((prev) => {
+      const next = { ...prev }
+      for (const t of pending) next[t.id] = { ...next[t.id], attempts: 0, quizScore: undefined, completedAt: undefined, attemptsResetAt: t.attemptsResetAt }
+      return next
+    })
+  }, [trainings, progress, setProgress])
+
   const update = useCallback(
     (trainingId: string, fn: (p: TrainingProgress) => TrainingProgress) => {
       const t = getTraining(trainingId)

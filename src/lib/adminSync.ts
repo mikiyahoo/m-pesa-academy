@@ -3,6 +3,7 @@ import type { AdminData, AdminTraining } from '../admin/types'
 import { LATE_WINDOW_MINUTES } from '../data/trainings'
 import type { CheckInMethod, FeedbackSubmission } from '../types'
 import { ADMIN_TRAINING_PREFIX } from './adminBridge'
+import { issueIfEligible } from '../admin/insights'
 import { localISO } from './utils'
 
 /**
@@ -22,7 +23,10 @@ function withTraining(learnerTrainingId: string, personId: string, fn: (d: Admin
   if (!found) return
   // Anyone who starts a public training joins it, so they show up in its attendance and reports.
   const t = found.isPublic && !found.participantIds.includes(personId) ? { ...found, participantIds: [...found.participantIds, personId] } : found
-  saveAdminData(fn(t === found ? data : replaceTraining(data, t), t))
+  const next = fn(t === found ? data : replaceTraining(data, t), t)
+  // Completing the last requirement (attendance, feedback, passing score) issues the certificate right away.
+  const updated = next.trainings.find((x) => x.id === t.id)
+  saveAdminData(updated ? replaceTraining(next, issueIfEligible(next, updated, personId)) : next)
 }
 
 export function syncCheckIn(learnerTrainingId: string, personId: string, method: CheckInMethod) {

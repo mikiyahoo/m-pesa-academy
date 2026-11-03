@@ -41,7 +41,7 @@ const fallbackQuiz = (name: string): QuizQuestion[] => [
   { id: 'q3', question: 'What should you never share with anyone?', options: ['Your PIN or one-time codes', 'Your work email address'], answer: 0 },
 ]
 
-export function adminToLearnerTraining(data: AdminData, t: AdminTraining): Training {
+export function adminToLearnerTraining(data: AdminData, t: AdminTraining, personId?: string): Training {
   const journey = combinedJourney(data, t)
   const trainer = trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ') || 'Training team'
   const type = data.trainingTypes.find((x) => x.id === t.typeId)
@@ -74,9 +74,10 @@ export function adminToLearnerTraining(data: AdminData, t: AdminTraining): Train
     quiz: mcq.length ? mcq.map((q) => ({ id: q.id, question: q.question, options: q.options!, answer: q.answer as number })) : fallbackQuiz(t.name),
     quizSettings: post ? { timeLimitMinutes: post.timeLimitMinutes, maxAttempts: post.maxAttempts, shuffle: post.shuffle } : undefined,
     isPublic: t.isPublic,
+    attemptsResetAt: personId ? t.attemptResets?.filter((r) => r.personId === personId && r.assessmentId === t.postAssessmentId).at(-1)?.at : undefined,
   }
 }
 
 /** Admin-scheduled trainings this person is invited to, plus public ones open to everyone (cancelled sessions are left out). */
 export const adminTrainingsFor = (data: AdminData, personId: string): Training[] =>
-  data.trainings.filter((t) => t.status !== 'CANCELLED' && (t.participantIds.includes(personId) || t.isPublic)).map((t) => adminToLearnerTraining(data, t))
+  data.trainings.filter((t) => t.status !== 'CANCELLED' && (t.participantIds.includes(personId) || t.isPublic)).map((t) => adminToLearnerTraining(data, t, personId))

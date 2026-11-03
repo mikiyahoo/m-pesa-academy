@@ -26,7 +26,11 @@ export function TrainingCertificates({ training: t }: { training: AdminTraining 
       <p className="-mt-2 mb-4 text-sm text-zinc-500">
         {certs.length} issued · template {templateFor(data, t)?.name}
         {pending > 0 && <span className="text-amber-700"> · {pending} eligible, not issued yet</span>}
-        {t.status === 'COMPLETED' && !t.certificatesRunAt && <span className="text-brand-700"> · automatic issuing not run</span>}
+        {t.autoIssueCertificates !== false ? (
+          <span className="text-mpesa-700"> · issued automatically on completion</span>
+        ) : (
+          t.status === 'COMPLETED' && !t.certificatesRunAt && <span className="text-brand-700"> · automatic issuing not run</span>
+        )}
       </p>
       {certs.length ? (
         <ul className="divide-y divide-zinc-100">

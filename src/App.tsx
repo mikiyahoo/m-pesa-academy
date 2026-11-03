@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { loadAdminData } from './admin/storage'
 import { AdminLayout } from './admin/AdminLayout'
 import { AdminAssignments } from './admin/pages/Assignments'
 import { AdminCategories } from './admin/pages/Categories'
@@ -42,6 +43,12 @@ import { OfflineNetworkBanner } from './components/OfflineCourseToggle'
 import { registerServiceWorker } from './lib/offlineManager'
 
 registerServiceWorker()
+
+/** Trainers reach Training Requests only when an admin has given them "Can manage requests". */
+function RequestsAccess({ trainerId }: { trainerId: string }) {
+  const allowed = !!loadAdminData().people.find((p) => p.id === trainerId)?.canApprove
+  return allowed ? <AdminRequests /> : <Navigate to="/admin" replace />
+}
 
 export default function App() {
   const { stage, role, personId } = useAuth()
@@ -109,9 +116,22 @@ export default function App() {
             <Route path="trainings" element={<AdminTrainings />} />
             <Route path="trainings/:id" element={<AdminTrainingDetail />} />
             <Route path="calendar" element={<Navigate to="/admin/trainings?view=calendar" replace />} />
+            <Route path="requests" element={<RequestsAccess trainerId={personId ?? 's3'} />} />
+            <Route path="journeys" element={<AdminJourneys />} />
+            <Route path="journeys/:id" element={<AdminJourneyDetail />} />
             <Route path="materials" element={<AdminMaterials />} />
+            <Route path="feedback" element={<Navigate to="/admin/feedback/forms" replace />} />
+            <Route path="feedback/forms" element={<AdminFeedbackForms />} />
+            <Route path="feedback/responses" element={<AdminFeedbackResponses />} />
+            <Route path="assessments" element={<Navigate to="/admin/assessments/pre" replace />} />
+            <Route path="assessments/:kind" element={<AdminAssessments />} />
             <Route path="submissions" element={<AdminSubmissions />} />
             <Route path="certificates" element={<AdminCertificates />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="users/:id" element={<AdminUserView />} />
+            <Route path="groups" element={<AdminGroups />} />
+            <Route path="training-types" element={<AdminTrainingTypes />} />
+            <Route path="training-types/categories" element={<AdminTrainingTypes byCategory />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Route>
