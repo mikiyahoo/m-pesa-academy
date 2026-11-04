@@ -16,6 +16,8 @@ export type Material = {
   skills: string[]
   /** Colour preset for the card thumbnail. */
   thumbnail?: (typeof MATERIAL_THUMBNAILS)[number]
+  /** Optional uploaded thumbnail image, stored in IndexedDB separately from the material file. */
+  thumbnailFileId?: string
   /** Documents: minimum seconds before the learner can complete them (TE-3.1). */
   minViewSeconds?: number
   /** Groups that may download the file (D4). Videos are never downloadable. */
@@ -54,6 +56,8 @@ export type JourneyModule = {
   materialIds: string[]
   /** Assessment assigned to this module (TA-3.5). */
   assessmentId?: string
+  /** Unlocked: learners may skip it; it doesn't block later modules, the assessment or the certificate. */
+  skippable?: boolean
 }
 
 export type Journey = {
@@ -66,7 +70,8 @@ export type Journey = {
   modules: JourneyModule[]
 }
 
-export type AdminUserRole = 'Admin' | 'Trainer' | 'Participant'
+/** Department Admin: runs training for one department (e.g. EBU, Marketing, Merchant) — like an admin, scoped to it. */
+export type AdminUserRole = 'Admin' | 'Department Admin' | 'Trainer' | 'Participant'
 export type AdminUserStatus = 'Active' | 'Inactive'
 
 export type Person = {
@@ -211,6 +216,8 @@ export type AdminTraining = {
   trainerId: string
   /** Trainer who scheduled it (trainers see what they scheduled plus what they're assigned to). */
   createdById?: string
+  /** Department the training is run for (set when a department admin schedules it). */
+  department?: string
   /** All assigned trainers; includes trainerId when set. */
   trainerIds?: string[]
   date: string
@@ -239,10 +246,14 @@ export type AdminTraining = {
   certificateTemplateId?: string
   /** Issue the certificate as soon as a participant meets every requirement (default on). */
   autoIssueCertificates?: boolean
+  /** Learner engagement: completion messages, progress and milestones, reminders. */
+  engagement?: { celebrate: boolean; progress: boolean; reminders: boolean }
   teamsMeeting?: TeamsMeeting
   attendance?: AttendanceSync
   /** Self-service check-ins recorded from the learner portal (TE-5.1). */
   checkins?: Checkin[]
+  /** People the trainer marked absent (no check-in is stored for them). */
+  absentIds?: string[]
   checkinSession?: CheckinSession
   /** Certificates issued for this session (X02, X06). */
   certificates?: IssuedCertificate[]
@@ -500,6 +511,21 @@ export type AdminData = {
   gamification?: GamificationData
   /** Self sign-up for external users (guest access to public trainings). */
   publicAccess?: PublicAccessSettings
+  /** Training venues admins manage (Admin → Venues); suggested when scheduling physical sessions. */
+  venues?: Venue[]
+  venueTypes?: string[]
+}
+
+export type Venue = {
+  id: string
+  /** Room or space, e.g. "Training Room 4B". */
+  name: string
+  /** Building or office, e.g. "Safaricom Ethiopia HQ". */
+  site: string
+  /** Hall, Meeting room, Training room… */
+  type: string
+  floor?: string
+  capacity?: number
 }
 
 export type PublicAccessSettings = {

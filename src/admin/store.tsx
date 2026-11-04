@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { useFeedback } from '../components/Feedback'
 import { localISO } from '../lib/utils'
 import { useAuth } from '../store/Auth'
-import { freshAdminData, loadAdminData, saveAdminData } from './storage'
+import { ADMIN_STORAGE_KEY, freshAdminData, loadAdminData, saveAdminData } from './storage'
 import { scanAlerts } from './insights'
 import { resolveAuditEntity } from './audit'
 import { trainerIdsOf } from './scheduling'
@@ -35,6 +35,15 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveAdminData(data)
   }, [data])
+
+  // Changes saved in another tab (e.g. an assessment created from "+ Create new") show up here too.
+  useEffect(() => {
+    const sync = (e: StorageEvent) => {
+      if (e.key === ADMIN_STORAGE_KEY && e.newValue) setData(loadAdminData())
+    }
+    window.addEventListener('storage', sync)
+    return () => window.removeEventListener('storage', sync)
+  }, [])
 
   // Raise low-feedback / low-attendance alerts as soon as the data that triggers them appears (F04, T06).
   useEffect(() => {
@@ -99,6 +108,32 @@ export function TrainerScope({ trainerId, children }: { trainerId: string; child
       },
     }
   }, [ctx, trainerId])
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
+}
+
+/**
+ * Department admin: trainings run for their department or with its people, requests from its
+ * teams, and the submissions, feedback and alerts of those trainings. People stay complete so
+ * names resolve everywhere; the Users page narrows them to the department.
+ */
+export function DepartmentScope({ department, children }: { department: string; children: ReactNode }) {
+  const ctx = useAdmin()
+  const value = useMemo(() => {
+    const d = ctx.data
+    const inDept = new Set(d.people.filter((p) => p.department === department).map((p) => p.id))
+    const own = new Set(d.trainings.filter((t) => t.department === department || t.participantIds.some((pid) => inDept.has(pid))).map((t) => t.id))
+    return {
+      ...ctx,
+      data: {
+        ...d,
+        trainings: d.trainings.filter((t) => own.has(t.id)),
+        submissions: d.submissions.filter((s) => own.has(s.trainingId)),
+        feedbackResponses: d.feedbackResponses.filter((r) => own.has(r.trainingId)),
+        requests: d.requests.filter((r) => r.team === department || inDept.has(r.requesterId)),
+        alerts: d.alerts.filter((a) => own.has(a.trainingId)),
+      },
+    }
+  }, [ctx, department])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 

@@ -1,5 +1,5 @@
-import { Activity, Award, Briefcase, Building2, Calendar, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, Download, Eye, FilePlus2, FileSpreadsheet, Flame, History, Key, KeyRound, Lock, LogIn, Mail, MapPin, MoreHorizontal, Pencil, Phone, Plus, PlusCircle, Search, Shield, Sparkles, Trophy, Upload, UserCheck, UserPlus, UserRoundPlus, Users, Users as UsersIcon, X, XCircle, type LucideIcon } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Activity, Award, Briefcase, Building2, Calendar, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, Download, Eye, FilePlus2, FileSpreadsheet, Flame, History, Info, Key, KeyRound, Lock, LogIn, Mail, MapPin, MoreHorizontal, Pencil, Phone, Plus, PlusCircle, Search, Shield, Sparkles, Trophy, Upload, UserCheck, UserPlus, UserRoundPlus, Users, Users as UsersIcon, X, XCircle, type LucideIcon } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { read, utils, writeFile } from 'xlsx'
 import { cn, localISO, todayISO } from '../../lib/utils'
@@ -8,6 +8,9 @@ import { shortDate } from '../helpers'
 import { isInternalEmail } from '../requests'
 import { uid, useAdmin } from '../store'
 import type { AdminUserRole, AdminUserStatus, Group, Person } from '../types'
+import { useScope } from '../scope'
+import { OrganizationInput } from '../OrganizationInput'
+import { ProfileRequestsPanel } from '../ProfileRequests'
 import { ALL_BADGES } from '../types'
 import { deriveGamification } from '../gamification'
 import { makeInviteToken } from '../temporary'
@@ -89,6 +92,9 @@ function UserFilterMenu({ label, options, selected, onChange }: UserFilterMenuPr
 function UserModal({ person, onClose }: { person?: Person; onClose: () => void }) {
   const { data, update } = useAdmin()
   const { user } = useAuth()
+  const scope = useScope()
+  // User roles stay with main admins; a department admin adds people to their own department.
+  const canSetRoles = scope.role !== 'department'
   const [form, setForm] = useState({
     name: person?.name ?? '',
     email: person?.email ?? '',
@@ -98,7 +104,7 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
     canApprove: !!person?.canApprove,
     permanent: !person?.accessEnd,
     accessEnd: person?.accessEnd ?? '',
-    department: person?.department ?? '',
+    department: person?.department ?? scope.department ?? '',
     designation: person?.designation ?? '',
     organization: person?.organization ?? '',
     region: person?.region ?? '',
@@ -188,7 +194,7 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
           <Input value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} />
         </Field>
         <Field label="Department">
-          <Input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
+          <Input value={form.department} readOnly={!canSetRoles} onChange={(e) => setForm({ ...form, department: e.target.value })} className={cn(!canSetRoles && 'bg-zinc-50 text-zinc-500')} />
         </Field>
         <Field label="Organization">
           <Input value={form.organization} onChange={(e) => setForm({ ...form, organization: e.target.value })} />
@@ -202,14 +208,15 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
 
         <div className="border-t border-zinc-100 pt-4 sm:col-span-2">
           <h3 className="text-base font-bold text-zinc-900">Access control</h3>
-          <p className="text-xs text-zinc-500">Defines the user’s role, account status and how long their access lasts.</p>
         </div>
         <Field label="Role">
-          <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as AdminUserRole })}>
+          <Select value={form.role} disabled={!canSetRoles} onChange={(e) => setForm({ ...form, role: e.target.value as AdminUserRole })}>
             <option>Participant</option>
             <option>Trainer</option>
+            <option>Department Admin</option>
             <option>Admin</option>
           </Select>
+          {!canSetRoles && <span className="mt-1 block text-xs text-zinc-500">Only main admins change roles.</span>}
         </Field>
         <Field label="Status">
           <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as AdminUserStatus })}>
@@ -217,7 +224,7 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
             <option>Inactive</option>
           </Select>
         </Field>
-        {form.role === 'Trainer' && (
+        {form.role === 'Trainer' && canSetRoles && (
           <label className={cn('flex cursor-pointer items-start gap-3 rounded-xl border p-3 sm:col-span-2', form.canApprove ? 'border-brand-300 bg-brand-50/60' : 'border-zinc-200')}>
             <input type="checkbox" checked={form.canApprove} onChange={(e) => setForm({ ...form, canApprove: e.target.checked })} className="mt-0.5 size-4 shrink-0 accent-brand-600" />
             <span>
@@ -226,19 +233,23 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
             </span>
           </label>
         )}
-        <div className="sm:col-span-2">
-          <p className="mb-1.5 text-sm font-medium text-zinc-700">Validity period</p>
-          <label className="flex items-center gap-2 text-sm text-zinc-700">
-            <input type="checkbox" checked={form.permanent} onChange={(e) => setForm({ ...form, permanent: e.target.checked })} className="size-4 accent-brand-600" />
-            Permanent access
-          </label>
+                <div className="sm:col-span-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium text-zinc-700">Validity period</span>
+            {!form.permanent && (
+              <div className="w-56">
+                <Input type="date" min={today} value={form.accessEnd} onChange={(e) => setForm({ ...form, accessEnd: e.target.value })} aria-label="Access ends on" />
+              </div>
+            )}
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
+              <input type="checkbox" checked={form.permanent} onChange={(e) => setForm({ ...form, permanent: e.target.checked })} className="size-4 accent-brand-600" />
+              Permanent access
+            </label>
+          </div>
           {!form.permanent && (
-            <div className="mt-2 max-w-xs">
-              <Input type="date" min={today} value={form.accessEnd} onChange={(e) => setForm({ ...form, accessEnd: e.target.value })} aria-label="Access ends on" />
-              <span className={cn('mt-1 block text-xs', endInvalid ? 'text-brand-600' : 'text-zinc-500')}>
-                {endInvalid ? 'Pick an end date from today on.' : 'They can’t sign in after this date.'}
-              </span>
-            </div>
+            <span className={cn('mt-1 block text-xs', endInvalid ? 'text-brand-600' : 'text-zinc-500')}>
+              {endInvalid ? 'Pick an end date from today on.' : 'They can’t sign in after this date.'}
+            </span>
           )}
         </div>
 
@@ -270,6 +281,7 @@ type InviteMode = 'manual' | 'bulk'
 type InviteGroupMode = 'none' | 'existing' | 'new'
 
 function InviteUserModal({ onClose }: { onClose: () => void }) {
+  const scope = useScope()
   const { data, update } = useAdmin()
   const { user } = useAuth()
   const [mode, setMode] = useState<InviteMode>('manual')
@@ -289,6 +301,7 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
   const [sheetName, setSheetName] = useState('')
   const [sheetError, setSheetError] = useState('')
   const [readingSheet, setReadingSheet] = useState(false)
+  const [draggingSheet, setDraggingSheet] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const today = todayISO()
 
@@ -323,6 +336,12 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
       setReadingSheet(false)
       if (fileRef.current) fileRef.current.value = ''
     }
+  }
+
+  const dropSheet = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setDraggingSheet(false)
+    void readSheet(event.dataTransfer.files[0])
   }
 
   const invite = () => {
@@ -387,9 +406,8 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
     <Modal
       open
       onClose={onClose}
-      title="Invite User"
-      description="Invite one user or import a list, then set group and access validity."
-      wide
+      title="Invite users"
+      extraWide
       footer={
         <>
           <span className="mr-auto self-center text-xs text-zinc-500">
@@ -432,13 +450,36 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <section className="space-y-3">
-            <Field label="Import users from Excel">
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-zinc-800">Import users from Excel</h3>
               <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(event) => void readSheet(event.target.files?.[0])} />
-              <button type="button" onClick={() => fileRef.current?.click()} disabled={readingSheet} className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-surface text-sm font-semibold text-zinc-700 transition hover:border-brand-300 hover:bg-brand-50/40 disabled:opacity-60">
-                <Upload className="size-4" /> {readingSheet ? 'Reading file…' : sheetName || 'Upload Excel File'}
-              </button>
-              <span className="mt-1 block text-xs text-zinc-500">Excel or CSV columns: Name, Email, Designation, Department. Email is required.</span>
-            </Field>
+              <div
+                onDrop={dropSheet}
+                onDragOver={(event) => { event.preventDefault(); setDraggingSheet(true) }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDraggingSheet(false)
+                }}
+                className={cn(
+                  'rounded-2xl border-2 border-dashed p-5 transition sm:p-7',
+                  draggingSheet ? 'border-brand-500 bg-brand-50/70' : 'border-zinc-300 bg-zinc-50/60 hover:border-brand-300 hover:bg-brand-50/30',
+                )}
+              >
+                <button type="button" onClick={() => fileRef.current?.click()} disabled={readingSheet} className="flex w-full flex-col items-center justify-center gap-2 text-center disabled:cursor-wait disabled:opacity-60">
+                  <span className="grid size-11 place-items-center rounded-xl bg-brand-50 text-brand-600">
+                    <Upload className={cn('size-5', readingSheet && 'animate-pulse')} />
+                  </span>
+                  <span className="text-sm font-semibold text-zinc-900">{readingSheet ? 'Reading file…' : sheetName || 'Choose an Excel or CSV file'}</span>
+                  <span className="text-xs text-zinc-500">Drag and drop your file here, or click to browse</span>
+                  <span className="mt-1 flex flex-wrap justify-center gap-1.5">
+                    {['.xlsx', '.xls', '.csv'].map((extension) => <span key={extension} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-zinc-500 ring-1 ring-inset ring-zinc-200">{extension}</span>)}
+                  </span>
+                </button>
+              </div>
+              <div className="mt-2 flex items-start gap-2 rounded-xl border border-brand-200/70 bg-brand-50/50 px-3 py-2.5 text-xs text-zinc-600">
+                <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600"><Info className="size-3.5" /></span>
+                <span>Columns: Name, Email, Designation, Department. Email is required.</span>
+              </div>
+            </div>
             {sheetError && <p role="alert" className="text-xs text-brand-600">{sheetError}</p>}
             {sheet && <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 px-3 py-2 text-xs text-zinc-600">
               <p className="font-semibold text-zinc-800">{sheet.employees.length} valid email{sheet.employees.length === 1 ? '' : 's'} found</p>
@@ -452,16 +493,22 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
             <Select value={role} onChange={(event) => setRole(event.target.value as AdminUserRole)}>
               <option value="Participant">Participant</option>
               <option value="Trainer">Trainer</option>
-              <option value="Admin">Admin</option>
+              {scope.role !== 'department' && <option value="Department Admin">Department Admin</option>}
+              {scope.role !== 'department' && <option value="Admin">Admin</option>}
             </Select>
           </Field>
           <div>
             <p className="mb-2 text-sm font-semibold text-zinc-800">Group assignment</p>
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
-              {groupOptions.map((option) => <label key={option.value} className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
-                <input type="radio" name="invite-group-mode" checked={groupMode === option.value} onChange={() => setGroupMode(option.value)} className="size-4 accent-brand-600" />
-                {option.label}
-              </label>)}
+            <div className="grid gap-2 sm:grid-cols-3">
+              {groupOptions.map((option) => {
+                const selected = groupMode === option.value
+                return (
+                  <label key={option.value} className={cn('flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition', selected ? 'border-brand-300 bg-brand-50/60 text-brand-800' : 'border-zinc-200 bg-surface text-zinc-700 hover:border-zinc-300')}>
+                    <input type="radio" name="invite-group-mode" checked={selected} onChange={() => setGroupMode(option.value)} className="size-4 accent-brand-600" />
+                    {option.label}
+                  </label>
+                )
+              })}
             </div>
             {groupMode === 'existing' && <div className="mt-3"><Field label="Choose group">
               <Select value={existingGroupId} onChange={(event) => setExistingGroupId(event.target.value)}>
@@ -479,15 +526,22 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
           </div>
         </section>
 
-        <section className="space-y-3 border-t border-zinc-100 pt-4">
-          <p className="text-sm font-semibold text-zinc-800">Validity period</p>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
-            <input type="checkbox" checked={permanent} onChange={(event) => setPermanent(event.target.checked)} className="size-4 accent-brand-600" />
-            Permanent access
-          </label>
-          {!permanent && <Field label="Access until">
-            <Input type="date" min={today} value={accessEnd} onChange={(event) => setAccessEnd(event.target.value)} />
-          </Field>}
+        <section className="space-y-2 border-t border-zinc-100 pt-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-zinc-800">Validity period</span>
+            {!permanent && (
+              <div className="w-56">
+                <Input type="date" min={today} value={accessEnd} onChange={(event) => setAccessEnd(event.target.value)} />
+              </div>
+            )}
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
+              <input type="checkbox" checked={permanent} onChange={(event) => setPermanent(event.target.checked)} className="size-4 accent-brand-600" />
+              Permanent access
+            </label>
+          </div>
+          {!permanent && !accessEnd && (
+            <span className="block text-xs text-brand-600">Choose an access end date.</span>
+          )}
         </section>
       </div>
     </Modal>
@@ -625,7 +679,6 @@ export function AdminUserView() {
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 sm:p-6">
             <h2 className="text-base font-bold text-zinc-900">Personal & Contact</h2>
-            <p className="mt-0.5 text-xs text-zinc-500">Contact information and location details.</p>
             <dl className="mt-4 divide-y divide-zinc-100">
               <ProfileRow icon={Mail} label="Email" value={person.email} />
               <ProfileRow icon={Phone} label="Phone" value={person.phone} />
@@ -634,7 +687,6 @@ export function AdminUserView() {
           </section>
           <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 sm:p-6">
             <h2 className="text-base font-bold text-zinc-900">Organization</h2>
-            <p className="mt-0.5 text-xs text-zinc-500">Department, designation and employer group.</p>
             <dl className="mt-4 divide-y divide-zinc-100">
               <ProfileRow icon={Building2} label="Organization" value={person.organization} />
               <ProfileRow icon={Briefcase} label="Department" value={person.department} />
@@ -649,7 +701,6 @@ export function AdminUserView() {
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 sm:p-6">
             <h2 className="text-base font-bold text-zinc-900">Role & Access Period</h2>
-            <p className="mt-0.5 text-xs text-zinc-500">System credentials and authorization window.</p>
             <dl className="mt-4 divide-y divide-zinc-100">
               <ProfileRow
                 icon={Shield}
@@ -671,7 +722,6 @@ export function AdminUserView() {
           </section>
           <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 sm:p-6">
             <h2 className="text-base font-bold text-zinc-900">Permissions & Groups</h2>
-            <p className="mt-0.5 text-xs text-zinc-500">Requester rights and group assignments.</p>
             <dl className="mt-4 divide-y divide-zinc-100">
               <ProfileRow icon={FilePlus2} label="Requester" value={person.isRequester ? 'Enabled' : 'No'} />
               <ProfileRow icon={CheckCircle2} label="Can manage requests" value={person.canApprove ? 'Yes' : 'No'} />
@@ -701,7 +751,6 @@ export function AdminUserView() {
         <div className="space-y-6">
           <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 sm:p-6">
             <h2 className="text-base font-bold text-zinc-900">Account Milestones</h2>
-            <p className="mt-0.5 text-xs text-zinc-500">Creation, invitation and sign-in timeline.</p>
             <dl className="mt-4 grid grid-cols-1 gap-x-6 divide-y divide-zinc-100 sm:grid-cols-2 sm:divide-y-0">
               <ProfileRow icon={UserPlus} label="Created by" value={`${person.createdBy ?? person.invitedBy ?? 'System'}${person.createdAt ? ` (${shortDate(person.createdAt)})` : ''}`} />
               <ProfileRow icon={Mail} label="Invited by" value={person.invitedBy ? `${person.invitedBy}${person.invitedAt ? ` (${shortDate(person.invitedAt)})` : ''}` : 'Direct addition'} />
@@ -716,7 +765,6 @@ export function AdminUserView() {
               <h2 className="flex items-center gap-2 text-base font-bold text-zinc-900">
                 <History className="size-4 text-brand-600" /> Access Audit History
               </h2>
-              <p className="mt-0.5 text-xs text-zinc-500">Record of changes to this account's access and roles.</p>
               <div className="mt-4 divide-y divide-zinc-100">
                 {accessHistory.slice().reverse().map((item, index) => (
                   <div key={`${item.at}-${index}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3 first:pt-0">
@@ -774,9 +822,6 @@ export function AdminUserView() {
                 <h2 className="text-base font-bold text-zinc-900 flex items-center gap-2">
                   <Award className="size-5 text-amber-500" /> Earned & Available Badges
                 </h2>
-                <p className="mt-0.5 text-xs text-zinc-500">
-                  Badges reflect learning achievements, attendance milestones, and assessment mastery.
-                </p>
               </div>
               <Button size="sm" variant="ghost" onClick={() => navigate('/admin/leaderboard')}>
                 <Trophy className="size-3.5 text-amber-500" /> View Leaderboard
@@ -831,7 +876,6 @@ export function AdminUserView() {
             <h2 className="flex items-center gap-2 text-base font-bold text-zinc-900">
               <Flame className="size-4 text-orange-500" /> Point Activity Ledger
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-500">Full chronological log of points awarded to this participant.</p>
 
             {pointEvents.length === 0 ? (
               <p className="mt-4 text-xs text-zinc-400">No activity points earned yet.</p>
@@ -864,6 +908,7 @@ export function AdminUserView() {
 
 export function AdminUsers() {
   const { data, update } = useAdmin()
+  const scope = useScope()
   const navigate = useNavigate()
   const [q, setQ] = useState('')
   const [userTypes, setUserTypes] = useState<Set<string>>(new Set())
@@ -875,8 +920,7 @@ export function AdminUsers() {
   const [sortBy, setSortBy] = useState<UserSortKey>('createdAt')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(0)
-  const [pageSizeOption, setPageSizeOption] = useState<number | 'fit'>('fit')
-  const [fitPageSize, setFitPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(10)
   const [editing, setEditing] = useState<Person | 'new' | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
   const filtersRef = useRef<HTMLDivElement>(null)
@@ -901,7 +945,7 @@ export function AdminUsers() {
         isInRange(p.createdAt, createdRange)
     }
 
-    return data.people.filter(matches).sort((a, b) => {
+    return data.people.filter((p) => !scope.department || p.department === scope.department).filter(matches).sort((a, b) => {
       const value = (person: Person) => {
         switch (sortBy) {
           case 'name': return person.name
@@ -913,8 +957,7 @@ export function AdminUsers() {
       const comparison = value(a).localeCompare(value(b), undefined, { numeric: true, sensitivity: 'base' })
       return sortDirection === 'asc' ? comparison : -comparison
     })
-  }, [data.people, data.groups, q, userTypes, groups, roles, statuses, accessTypes, createdRange, sortBy, sortDirection, groupName])
-  const pageSize = pageSizeOption === 'fit' ? fitPageSize : pageSizeOption
+  }, [data.people, data.groups, q, userTypes, groups, roles, statuses, accessTypes, createdRange, sortBy, sortDirection, groupName, scope.department])
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const current = Math.min(page, pages - 1)
   const rows = filtered.slice(current * pageSize, current * pageSize + pageSize)
@@ -928,44 +971,6 @@ export function AdminUsers() {
     return undefined
   }
 
-  const hasRows = rows.length > 0
-  useEffect(() => {
-    const table = tableRef.current
-    const pagination = paginationRef.current
-    if (!table || !pagination) return
-
-    const measureFit = () => {
-      if (!window.matchMedia('(min-width: 768px)').matches) return
-      const firstRow = table.querySelector('tbody tr')
-      const rowHeight = firstRow?.getBoundingClientRect().height ?? 0
-      const headerHeight = table.querySelector('thead')?.getBoundingClientRect().height ?? 0
-      if (!rowHeight || !headerHeight) return
-
-      const scroller = table.closest('main')?.parentElement
-      const scrollerRect = scroller?.getBoundingClientRect()
-      const availableHeight = (scroller?.clientHeight ?? window.innerHeight) - 32
-      const top = scroller && scrollerRect
-        ? table.getBoundingClientRect().top - scrollerRect.top + scroller.scrollTop
-        : table.getBoundingClientRect().top
-      const pagerHeight = pagination.getBoundingClientRect().height
-      const pagerGap = Number.parseFloat(getComputedStyle(pagination).marginTop) || 0
-      const nextFit = Math.max(1, Math.min(50, Math.floor((availableHeight - top - headerHeight - pagerHeight - pagerGap) / rowHeight)))
-      setFitPageSize((currentFit) => currentFit === nextFit ? currentFit : nextFit)
-    }
-
-    const observer = new ResizeObserver(measureFit)
-    observer.observe(table)
-    observer.observe(pagination)
-    if (filtersRef.current) observer.observe(filtersRef.current)
-    window.addEventListener('resize', measureFit)
-    const frame = window.requestAnimationFrame(measureFit)
-
-    return () => {
-      window.cancelAnimationFrame(frame)
-      window.removeEventListener('resize', measureFit)
-      observer.disconnect()
-    }
-  }, [hasRows])
   const clearFilters = () => {
     setQ('')
     setUserTypes(new Set())
@@ -1033,6 +1038,7 @@ export function AdminUsers() {
           </>
         }
       />
+      {scope.role === 'admin' && <ProfileRequestsPanel />}
       <div ref={filtersRef} className="mb-4 flex flex-wrap items-center gap-2.5 rounded-2xl border border-zinc-200/80 bg-surface p-2.5">
         <UserFilterMenu label="User Type" options={['Internal', 'External']} selected={userTypes} onChange={(value) => { setUserTypes(value); resetPage() }} />
         <UserFilterMenu label="Group" options={data.groups.map((group) => group.name)} selected={groups} onChange={(value) => { setGroups(value); resetPage() }} />
@@ -1113,7 +1119,7 @@ export function AdminUsers() {
               <tbody className="divide-y divide-zinc-100/90 text-zinc-800">
               {rows.map((p) => (
                 <tr key={p.id} className="hover:bg-zinc-50">
-                  <td className="min-w-0 px-1.5 py-2 sm:px-2">
+                  <td className="min-w-0 px-1.5 py-3 sm:px-2">
                     <div className="flex min-w-0 items-center gap-3">
                       <Avatar name={p.name} size="sm" />
                       <span className="min-w-0 leading-tight">
@@ -1122,15 +1128,15 @@ export function AdminUsers() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-1.5 py-2 text-sm text-zinc-600 sm:px-2"><span className="block truncate" title={p.department}>{p.department || '—'}</span></td>
-                  <td className="hidden px-1.5 py-2 text-sm text-zinc-600 sm:px-2 xl:table-cell"><span className="block truncate" title={p.designation}>{p.designation || '—'}</span></td>
-                  <td className="hidden px-1.5 py-2 text-sm text-zinc-600 sm:px-2 xl:table-cell"><span className="block truncate" title={p.organization}>{p.organization || '—'}</span></td>
-                  <td className="hidden px-1.5 py-2 text-sm text-zinc-600 sm:px-2 xl:table-cell"><span className="block truncate" title={p.region}>{p.region || '—'}</span></td>
-                  <td className="px-1.5 py-2 text-sm text-zinc-600 sm:px-2"><span className="block truncate" title={groupName(p)}>{groupName(p) || '—'}</span></td>
-                  <td className="px-1 py-2 sm:px-1"><Badge className="max-w-full truncate px-1.5" tone={p.role === 'Admin' ? 'red' : p.role === 'Trainer' ? 'blue' : 'zinc'}>{p.role.toUpperCase()}</Badge></td>
-                  <td className="px-1 py-2 sm:px-1"><Badge className="max-w-full truncate px-1.5" tone={p.status === 'Active' ? 'green' : 'zinc'}>{p.status.toUpperCase()}</Badge></td>
-                  <td className="hidden px-0.5 py-2 text-sm text-zinc-600 xl:table-cell" title={shortDate(p.createdAt)}><span className="block truncate">{new Date(`${p.createdAt}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></td>
-                  <td className="relative px-0 py-2 text-center">
+                  <td className="px-1.5 py-3 text-sm text-zinc-600 sm:px-2"><span className="block truncate" title={p.department}>{p.department || '—'}</span></td>
+                  <td className="hidden px-1.5 py-3 text-sm text-zinc-600 sm:px-2 xl:table-cell"><span className="block truncate" title={p.designation}>{p.designation || '—'}</span></td>
+                  <td className="hidden px-1.5 py-3 text-sm text-zinc-600 sm:px-2 xl:table-cell"><span className="block truncate" title={p.organization}>{p.organization || '—'}</span></td>
+                  <td className="hidden px-1.5 py-3 text-sm text-zinc-600 sm:px-2 xl:table-cell"><span className="block truncate" title={p.region}>{p.region || '—'}</span></td>
+                  <td className="px-1.5 py-3 text-sm text-zinc-600 sm:px-2"><span className="block truncate" title={groupName(p)}>{groupName(p) || '—'}</span></td>
+                  <td className="px-1 py-3 sm:px-1"><Badge className="max-w-full truncate px-1.5" tone={p.role === 'Admin' ? 'red' : p.role === 'Trainer' ? 'blue' : 'zinc'}>{p.role.toUpperCase()}</Badge></td>
+                  <td className="px-1 py-3 sm:px-1"><Badge className="max-w-full truncate px-1.5" tone={p.status === 'Active' ? 'green' : 'zinc'}>{p.status.toUpperCase()}</Badge></td>
+                  <td className="hidden px-0.5 py-3 text-sm text-zinc-600 xl:table-cell" title={shortDate(p.createdAt)}><span className="block truncate">{new Date(`${p.createdAt}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></td>
+                  <td className="relative px-0 py-3 text-center">
                     <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-full p-1 text-zinc-500 hover:bg-zinc-100" aria-label={`Actions for ${p.name}`}>
                       <MoreHorizontal className="size-4" />
                     </button>
@@ -1194,7 +1200,7 @@ export function AdminUsers() {
         <div ref={paginationRef} className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
           <span>Showing {current * pageSize + 1}–{Math.min(filtered.length, (current + 1) * pageSize)} of {filtered.length} users</span>
           <div className="flex flex-wrap items-center gap-2.5">
-            <label className="flex items-center gap-2">Rows per page<Select value={String(pageSizeOption)} onChange={(event) => { const value = event.target.value; setPageSizeOption(value === 'fit' ? 'fit' : Number(value)); resetPage() }} className="w-auto! py-1.5! text-xs!"><option value="fit">Fit page ({fitPageSize})</option><option value="10">10</option><option value="25">25</option><option value="50">50</option></Select></label>
+            <label className="flex items-center gap-2">Rows per page<Select value={String(pageSize)} onChange={(event) => { setPageSize(Number(event.target.value)); resetPage() }} className="w-auto! py-1.5! text-xs!"><option value="10">10</option><option value="25">25</option><option value="50">50</option></Select></label>
             <span className="px-1">Page {current + 1} of {pages}</span>
             <Button size="sm" aria-label="First page" disabled={current === 0} onClick={() => setPage(0)}><ChevronLeft className="size-3.5" /><ChevronLeft className="-ml-2 size-3.5" /></Button>
             <Button size="sm" aria-label="Previous page" disabled={current === 0} onClick={() => setPage(current - 1)}><ChevronLeft className="size-3.5" /></Button>
@@ -1393,7 +1399,6 @@ function GroupModal({ group, onClose }: { group?: Group; onClose: () => void }) 
       open
       onClose={onClose}
       title={group ? 'Edit group' : 'Create Group'}
-      description={group ? 'Update the group name and organization.' : 'Set up an organization group and add employees manually or from a spreadsheet.'}
       wide
       footer={
         <>
@@ -1418,7 +1423,7 @@ function GroupModal({ group, onClose }: { group?: Group; onClose: () => void }) 
             {duplicateName && <span className="mt-1 block text-xs text-brand-600">A group with this name already exists.</span>}
           </Field>
           <Field label="Organization name">
-            <Input required value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="e.g. ISON Africa" />
+            <OrganizationInput value={organization} onChange={setOrganization} />
           </Field>
         </div>
 
@@ -1429,7 +1434,6 @@ function GroupModal({ group, onClose }: { group?: Group; onClose: () => void }) 
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="text-sm font-bold text-zinc-900">Choose employees</h3>
-                    <p className="mt-0.5 text-xs text-zinc-500">Select active employees already in the training portal.</p>
                   </div>
                   <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">{selectedEmployeeIds.size} selected</span>
                 </div>
@@ -1506,6 +1510,7 @@ function GroupModal({ group, onClose }: { group?: Group; onClose: () => void }) 
 function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => void }) {
   const { data, update } = useAdmin()
   const [q, setQ] = useState('')
+  const uploadRef = useRef<HTMLInputElement>(null)
   const members = data.people.filter((p) => p.groupIds.includes(group.id))
   const createdLog = data.auditLogs.find((log) => log.action === 'Created group' && (log.entityId === group.id || log.target === group.name))
   const createdBy = group.createdBy ?? createdLog?.actor
@@ -1513,6 +1518,8 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
   const others = data.people.filter((p) => !p.groupIds.includes(group.id) && p.role === 'Participant' && (!q || `${p.name} ${p.email} ${p.department}`.toLowerCase().includes(q.toLowerCase())))
   const [paste, setPaste] = useState('')
   const [pasteResult, setPasteResult] = useState<string | null>(null)
+  const [uploadResult, setUploadResult] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState('')
 
   const addMany = (list: Person[], label: string) => {
     if (!list.length) return
@@ -1532,6 +1539,35 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
     if (!unknown.length) setPaste('')
   }
 
+  const importEmails = async (file?: File) => {
+    if (!file) return
+    setUploadError('')
+    setUploadResult(null)
+    try {
+      if (!/\.(xlsx|xls|csv)$/i.test(file.name)) throw new Error('Choose a CSV or Excel file.')
+      const workbook = read(await file.arrayBuffer(), { type: 'array' })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      if (!sheet) throw new Error('The file has no worksheet.')
+      const matrix = utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
+      if (!matrix.length) throw new Error('The file is empty.')
+      const header = (matrix[0] ?? []).map((cell) => String(cell).toLowerCase().replace(/[^a-z]/g, ''))
+      const emailColumn = header.findIndex((cell) => cell.includes('email'))
+      const values = emailColumn >= 0 ? matrix.slice(1).map((row) => row[emailColumn]) : matrix.flat()
+      const emails = [...new Set(values.flatMap((value) => String(value ?? '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? []).map((email) => email.toLowerCase()).filter((email) => EMAIL_RE.test(email)))]
+      if (!emails.length) throw new Error('No email addresses found. Include an Email column or a list of email addresses.')
+      const emailSet = new Set(emails)
+      const found = data.people.filter((person) => emailSet.has(person.email.toLowerCase()))
+      const alreadyInGroup = found.filter((person) => person.groupIds.includes(group.id)).length
+      const notFound = emails.filter((email) => !data.people.some((person) => person.email.toLowerCase() === email)).length
+      addMany(found.filter((person) => !person.groupIds.includes(group.id)), 'CSV upload')
+      setUploadResult(`${found.length - alreadyInGroup} added · ${alreadyInGroup} already in group${notFound ? ` · ${notFound} email${notFound === 1 ? '' : 's'} not found` : ''}`)
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Could not read this file.')
+    } finally {
+      if (uploadRef.current) uploadRef.current.value = ''
+    }
+  }
+
   const setMember = (p: Person, on: boolean) =>
     update(
       (d) => ({ ...d, people: d.people.map((x) => (x.id === p.id ? { ...x, groupIds: on ? [...x.groupIds, group.id] : x.groupIds.filter((g) => g !== group.id) } : x)) }),
@@ -1539,16 +1575,12 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
     )
 
   return (
-    <Modal open onClose={onClose} title={group.name} description={`${group.organization ? `${group.organization} · ` : ''}${members.length} members`} wide>
-      <div className="space-y-5">
-        <div className="grid grid-cols-2 gap-4 rounded-xl bg-zinc-50 p-3">
-          <div><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Created by</p><p className="mt-1 text-sm text-zinc-800">{createdBy || '—'}</p></div>
-          <div><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Created at</p><p className="mt-1 text-sm text-zinc-800">{createdAt ? shortDate(createdAt) : '—'}</p></div>
-        </div>
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+    <Modal open onClose={onClose} title={group.name} extraWide>
+      <div>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <div>
           <p className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">Members ({members.length})</p>
-          <ul className="max-h-[min(60vh,520px)] divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 scrollbar-thin">
+          <ul className="max-h-[min(62vh,600px)] divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 scrollbar-thin">
             {members.map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-3 py-2">
                 <Avatar name={p.name} size="sm" />
@@ -1576,7 +1608,7 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
               Add all {others.length}
             </Button>
           </div>
-          <ul className="mt-2 max-h-[min(50vh,440px)] divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 scrollbar-thin">
+          <ul className="mt-2 max-h-[min(56vh,540px)] divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 scrollbar-thin">
             {others.map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-3 py-2">
                 <Avatar name={p.name} size="sm" />
@@ -1595,9 +1627,18 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
               </li>
             )}
           </ul>
-          <div className="mt-4">
-            <Field label="Or paste emails" hint="Separate with commas, spaces or new lines.">
-              <Textarea rows={2} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder="awet.gebrehiwet@partner.safaricom.et, …" />
+        </div>
+        <div className="space-y-4 md:col-span-2 lg:col-span-1">
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">Add from file</span>
+              <Button size="sm" onClick={() => uploadRef.current?.click()}><Upload className="size-3.5" /> Upload CSV / Excel</Button>
+              <input ref={uploadRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(event) => void importEmails(event.target.files?.[0])} />
+            </div>
+            {uploadError && <p role="alert" className="mb-2 text-xs font-medium text-brand-700">{uploadError}</p>}
+            {uploadResult && <p role="status" className="mb-2 text-xs font-medium text-mpesa-700">{uploadResult}</p>}
+            <Field label={<span className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">Or paste emails</span>} hint="Separate with commas, spaces or new lines.">
+              <Textarea rows={6} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder="awet.gebrehiwet@partner.safaricom.et, …" />
             </Field>
             <div className="mt-2 flex items-center justify-between gap-3">
               <span className="text-xs text-zinc-500">{pasteResult}</span>
@@ -1605,6 +1646,10 @@ function GroupMembersModal({ group, onClose }: { group: Group; onClose: () => vo
                 Add pasted
               </Button>
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 rounded-xl bg-zinc-50 p-3">
+            <div><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Created by</p><p className="mt-1 text-sm text-zinc-800">{createdBy || '—'}</p></div>
+            <div><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Created at</p><p className="mt-1 text-sm text-zinc-800">{createdAt ? shortDate(createdAt) : '—'}</p></div>
           </div>
         </div>
         </div>
@@ -1661,8 +1706,9 @@ export function AdminGroups() {
                   ))}
                   {members.length > 5 && <span className="grid size-7 place-items-center rounded-full bg-zinc-200 text-[10px] font-semibold text-zinc-700 ring-2 ring-surface">+{members.length - 5}</span>}
                 </div>
-                <Button size="sm" onClick={() => setManaging(g)}>
+                <Button size="sm" onClick={() => setManaging(g)} className="group">
                   {members.length} members
+                  <ChevronRight className="size-3.5 text-zinc-400 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-600" />
                 </Button>
               </div>
             </Card>

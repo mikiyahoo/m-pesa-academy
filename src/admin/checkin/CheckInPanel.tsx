@@ -1,5 +1,5 @@
 import QRCode from 'qrcode'
-import { AlertCircle, Check, ClipboardCheck, Download, Link2, QrCode, Send, ShieldCheck, Upload, UserPlus, X } from 'lucide-react'
+import { AlertCircle, Check, ClipboardCheck, Download, Link2, Maximize, QrCode, Send, ShieldCheck, Upload, UserPlus, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useFeedback } from '../../components/Feedback'
@@ -43,7 +43,7 @@ function CountdownRing({ seconds, total }: { seconds: number; total: number }) {
 }
 
 /** Full-screen QR for a projector or screen at the door; Esc or the close button leaves it. */
-function BigQr({ link, title, rotating, seconds, checkedIn, total, onClose }: { link: string; title: string; rotating: boolean; seconds: number; checkedIn: number; total: number; onClose: () => void }) {
+export function BigQr({ link, title, heading = 'Scan to check in', rotating = false, seconds = 0, checkedIn, total, note, onClose }: { link: string; title: string; heading?: string; rotating?: boolean; seconds?: number; checkedIn?: number; total?: number; note?: string; onClose: () => void }) {
   const [src, setSrc] = useState('')
   useEffect(() => {
     let alive = true
@@ -60,27 +60,33 @@ function BigQr({ link, title, rotating, seconds, checkedIn, total, onClose }: { 
     return () => document.removeEventListener('keydown', esc)
   }, [onClose])
   return createPortal(
-    <div role="dialog" aria-modal aria-label="Check-in QR code" className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-6 bg-white p-6 text-center">
-      <button onClick={onClose} aria-label="Close" className="absolute top-4 right-4 grid size-11 place-items-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900">
-        <X className="size-6" />
-      </button>
-      <div>
-        <p className="text-sm font-semibold tracking-wide text-brand-600 uppercase">Scan to check in</p>
-        <h2 className="mt-1 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">{title}</h2>
-      </div>
-      {src ? (
-        <img src={src} alt="Check-in QR code" className="aspect-square w-[min(70vh,85vw)] rounded-3xl border border-zinc-200 p-3 shadow-sm" />
-      ) : (
-        <span className="grid aspect-square w-[min(70vh,85vw)] place-items-center rounded-3xl bg-zinc-100 text-zinc-400">
-          <QrCode className="size-20" />
-        </span>
-      )}
-      <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-zinc-600">
-        <span className="font-semibold text-zinc-900 tabular-nums">
-          {checkedIn} / {total} checked in
-        </span>
-        {rotating && <span className="tabular-nums">Code changes in {seconds}s</span>}
-        <span className="max-w-[90vw] truncate text-xs text-zinc-400">{link}</span>
+    <div role="dialog" aria-modal aria-label="Check-in QR code" className="fixed inset-0 z-[200] flex items-center justify-center bg-zinc-950/80 p-3 backdrop-blur-sm sm:p-6">
+      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col items-center justify-center gap-3 overflow-auto rounded-3xl border border-white/70 bg-white px-5 py-4 text-center shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:gap-4 sm:px-8 sm:py-5">
+        <button onClick={onClose} aria-label="Close" className="absolute top-3 right-3 grid size-10 place-items-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 sm:top-4 sm:right-4">
+          <X className="size-6" />
+        </button>
+        <div className="px-8">
+          <p className="text-sm font-semibold tracking-wide text-brand-600 uppercase">{heading}</p>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">{title}</h2>
+        </div>
+        {checkedIn !== undefined && (
+          <span className="inline-flex items-center gap-2 rounded-full border border-mpesa-500/25 bg-mpesa-500/10 px-4 py-1.5 text-sm font-bold text-mpesa-800">
+            <span className="size-2 rounded-full bg-mpesa-500" />
+            {checkedIn} / {total ?? '—'} checked in
+          </span>
+        )}
+        {src ? (
+          <img src={src} alt="Check-in QR code" className="aspect-square w-[min(70vh,82vw)] rounded-3xl border border-zinc-200 p-3 shadow-sm" />
+        ) : (
+          <span className="grid aspect-square w-[min(70vh,82vw)] place-items-center rounded-3xl bg-zinc-100 text-zinc-400">
+            <QrCode className="size-20" />
+          </span>
+        )}
+        <div className="flex max-w-full flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-zinc-600">
+          {note && <span className="font-medium text-zinc-700">{note}</span>}
+          {rotating && <span className="tabular-nums">Code changes in {seconds}s</span>}
+          <span className="max-w-full truncate text-xs text-zinc-400">{link}</span>
+        </div>
       </div>
     </div>,
     document.body,
@@ -243,7 +249,36 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
   }
 
   return (
-    <Card className="p-0">
+    <div className="space-y-4">
+      <div className="space-y-4">
+        <AttendanceTotals training={training} peopleCount={training.participantIds.length} />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-xl border border-zinc-200 bg-white p-3">
+            <p className="text-xs text-zinc-500">Checked in</p>
+            <p className="mt-0.5 text-xl font-bold text-zinc-900">
+              {checkins.length}
+              <span className="text-sm font-medium text-zinc-400"> / {participants.length}</span>
+            </p>
+          </div>
+          <div className="rounded-xl border border-zinc-200 bg-white p-3">
+            <p className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <span className="size-2 rounded-full bg-mpesa-500" /> Present
+            </p>
+            <p className="mt-0.5 text-xl font-bold text-zinc-900">{present}</p>
+          </div>
+          <div className="rounded-xl border border-zinc-200 bg-white p-3">
+            <p className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <span className="size-2 rounded-full bg-amber-500" /> Late
+            </p>
+            <p className="mt-0.5 text-xl font-bold text-zinc-900">{late}</p>
+          </div>
+          <div className="rounded-xl border border-zinc-200 bg-white p-3">
+            <p className="text-xs text-zinc-500">Attendance rate</p>
+            <p className="mt-0.5 text-xl font-bold text-zinc-900">{rate}%</p>
+          </div>
+        </div>
+      </div>
+      <Card className="p-0">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 p-5">
         <div>
           <h2 className="flex items-center gap-2 font-bold text-zinc-900">
@@ -252,9 +287,6 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
               <QrCode className="size-3" /> Self-service
             </span>
           </h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Participants scan the QR code or open the unique link. Check-ins within {lateMinutes} min of the start count as Present, after that as Late.
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {open ? (
@@ -330,6 +362,9 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
             <Button size="sm" onClick={copy}>
               <Link2 className="size-3.5" /> Copy unique link
             </Button>
+            <Button size="sm" onClick={() => setBigQr(true)}>
+              <Maximize className="size-3.5" /> Full screen QR
+            </Button>
             {!rotating && (
               <Button size="sm" onClick={downloadQr}>
                 <Download className="size-3.5" /> Download QR
@@ -341,35 +376,6 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
           </div>
         </div>
       )}
-
-      <div className="border-b border-zinc-200 p-5 pb-0">
-        <AttendanceTotals training={training} peopleCount={training.participantIds.length} />
-      </div>
-      <div className="grid grid-cols-2 gap-3 border-b border-zinc-200 p-5 sm:grid-cols-4">
-        <div className="rounded-xl border border-zinc-200 p-3">
-          <p className="text-xs text-zinc-500">Checked in</p>
-          <p className="mt-0.5 text-xl font-bold text-zinc-900">
-            {checkins.length}
-            <span className="text-sm font-medium text-zinc-400"> / {participants.length}</span>
-          </p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 p-3">
-          <p className="flex items-center gap-1.5 text-xs text-zinc-500">
-            <span className="size-2 rounded-full bg-mpesa-500" /> Present
-          </p>
-          <p className="mt-0.5 text-xl font-bold text-zinc-900">{present}</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 p-3">
-          <p className="flex items-center gap-1.5 text-xs text-zinc-500">
-            <span className="size-2 rounded-full bg-amber-500" /> Late
-          </p>
-          <p className="mt-0.5 text-xl font-bold text-zinc-900">{late}</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 p-3">
-          <p className="text-xs text-zinc-500">Attendance rate</p>
-          <p className="mt-0.5 text-xl font-bold text-zinc-900">{rate}%</p>
-        </div>
-      </div>
 
       {open && notCheckedIn.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-5 py-3">
@@ -493,6 +499,7 @@ export function CheckInPanel({ training }: { training: AdminTraining }) {
       )}
       {modal === 'manual' && <AttendanceRoster training={training} onClose={() => setModal(null)} onCopyLink={copy} onExport={exportCsv} />}
       {modal === 'offline' && <AttendanceUpload training={training} onClose={() => setModal(null)} />}
-    </Card>
+      </Card>
+    </div>
   )
 }

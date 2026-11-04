@@ -11,7 +11,7 @@ import { AssignmentReader } from '../components/Assignments'
 import { LATE_WINDOW_MINUTES } from '../data/trainings'
 import type { Material } from '../admin/types'
 import { assignmentDone, myLearnerId, useLearnerAssignments } from '../lib/assignments'
-import { certificateChecks, cn, formatDate, progressStatus, timeRange, todayISO } from '../lib/utils'
+import { certificateChecks, cn, formatDate, progressStatus, sessionStatus, timeRange, todayISO } from '../lib/utils'
 import { loadView, ViewToggle } from './Learning'
 import { useStore } from '../store/AppStore'
 
@@ -59,7 +59,9 @@ export function Trainings() {
 
   const { now, delta } = useMemo(() => metricsWithTrend(trainings, progress), [trainings, progress])
   // Latest three trainings (newest session date first); the full list lives on the Learning tab.
-  const latest = [...trainings].sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime)).slice(0, 4)
+  // Live today comes first, like the Trainings page.
+  const isLive = (t: (typeof trainings)[number]) => sessionStatus(t) === 'Active'
+  const latest = [...trainings].sort((a, b) => Number(isLive(b)) - Number(isLive(a)) || b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime)).slice(0, 4)
 
   // Next milestone: the started training closest to its certificate.
   const milestone = useMemo(() => {
@@ -77,7 +79,7 @@ export function Trainings() {
     ...assigned
       .filter((m) => !assignmentDone(m, myLearnerId()))
       .map((m) => ({ kind: 'reading' as const, key: `r-${m.id}`, sort: m.dueDate ?? '9999', m })),
-    ...trainings.filter((t) => t.date >= today).map((t) => ({ kind: 'session' as const, key: `s-${t.id}`, sort: t.date, t })),
+    ...trainings.filter((t) => t.date >= today).map((t) => ({ kind: 'session' as const, key: `s-${t.id}`, sort: isLive(t) ? '0' : t.date, t })),
   ]
     .sort((a, b) => a.sort.localeCompare(b.sort))
     .slice(0, 5)
@@ -251,7 +253,6 @@ export function Trainings() {
                 <Award className="size-6" />
               </span>
               <h3 className="mt-3 text-xl leading-tight font-bold text-zinc-900">Your Learning Progress</h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">Track your progress across all courses and see what’s next.</p>
             </div>
             <div className="flex shrink-0 flex-col items-end justify-between gap-3">
               <ProgressRing value={now.completionRate} />
@@ -274,6 +275,22 @@ export function Trainings() {
               {upNext.map((item) =>
                 item.kind === 'session' ? (
                   <li key={item.key}>
+                    {isLive(item.t) ? (
+                      // Live now: highlighted row with the card badge and a Join button.
+                      <Link to={`/trainings/${item.t.id}`} className="group -mx-2 my-1.5 flex items-center gap-3 rounded-xl bg-brand-50/60 px-2 py-3 ring-1 ring-brand-100 transition hover:bg-brand-50">
+                        <DateTile date={item.t.date} />
+                        <span className="min-w-0 flex-1">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-brand-700 shadow-sm ring-1 ring-brand-100">
+                            <span className="size-1.5 animate-pulse rounded-full bg-brand-600" /> Live today
+                          </span>
+                          <span className="mt-1 line-clamp-2 text-sm font-semibold text-zinc-900">{item.t.title}</span>
+                          <span className="mt-0.5 block truncate text-xs text-zinc-500">{timeRange(item.t)}</span>
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-brand-600 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-brand-600/25 group-hover:bg-brand-700">
+                          Join <ArrowRight className="size-3.5" />
+                        </span>
+                      </Link>
+                    ) : (
                     <Link to={`/trainings/${item.t.id}`} className="flex items-center gap-3 py-3 hover:opacity-80">
                       <DateTile date={item.t.date} />
                       <span className="min-w-0 flex-1">
@@ -282,6 +299,7 @@ export function Trainings() {
                       </span>
                       <ChevronRight className="size-4 shrink-0 text-zinc-400" />
                     </Link>
+                    )}
                   </li>
                 ) : (
                   <li key={item.key}>

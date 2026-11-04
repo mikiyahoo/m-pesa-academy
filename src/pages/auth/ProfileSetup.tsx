@@ -1,8 +1,9 @@
-import { AlertCircle, ChevronDown, Loader2, UserRound } from 'lucide-react'
+import { AlertCircle, Loader2, UserRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { loadAdminData, saveAdminData } from '../../admin/storage'
 import { PROFILE_FIELDS, REGIONS } from '../../admin/temporary'
 import type { Person } from '../../admin/types'
+import { SelectMenu } from '../../components/Pickers'
 import { useAuth } from '../../store/Auth'
 import { AuthShell } from './AuthShell'
 
@@ -55,29 +56,28 @@ export function ProfileSetup({ person, onDone }: { person: Person; onDone: () =>
         {PROFILE_FIELDS.map((f) => {
           const bad = tried && !form[f.key].trim()
           return (
-            <label key={f.key} className="block">
-              <span className="text-sm font-medium text-zinc-700">
+            <div key={f.key}>
+              <label htmlFor={`profile-${f.key}`} className="text-sm font-medium text-zinc-700">
                 {f.label} <span className="text-brand-600">*</span>
-              </span>
+              </label>
               {f.key === 'region' ? (
-                <span className="relative mt-1.5 block">
-                  <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} aria-invalid={bad} className={`${input} cursor-pointer appearance-none bg-white pr-9 ${bad ? 'border-brand-500' : 'border-zinc-200'}`}>
+                <div className="mt-1.5">
+                  <SelectMenu id={`profile-${f.key}`} value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} aria-invalid={bad} className={`${input} bg-surface ${bad ? 'border-brand-500' : 'border-zinc-200'}`}>
                     <option value="">Choose your region…</option>
                     {REGIONS.map((r) => (
                       <option key={r}>{r}</option>
                     ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-zinc-500" />
-                </span>
+                  </SelectMenu>
+                </div>
               ) : (
-                <input value={form[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} aria-invalid={bad} className={`${input} mt-1.5 ${bad ? 'border-brand-500' : 'border-zinc-200'}`} />
+                <input id={`profile-${f.key}`} value={form[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} aria-invalid={bad} className={`${input} mt-1.5 ${bad ? 'border-brand-500' : 'border-zinc-200'}`} />
               )}
               {bad && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-brand-700">
                   <AlertCircle className="size-3.5" /> Required
                 </span>
               )}
-            </label>
+            </div>
           )
         })}
         <button disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-70">

@@ -49,7 +49,19 @@ export function isPassed(p?: TrainingProgress) {
   return p?.quizScore !== undefined && p.quizScore >= PASS_MARK
 }
 
-export const modulesDone = (t: Training, p?: TrainingProgress) => !!p && t.modules.every((m) => p.completedModules.includes(m.id))
+/** Every required module is complete (skippable ones don't count). */
+export const modulesDone = (t: Training, p?: TrainingProgress) => t.modules.every((m) => m.skippable || !!p?.completedModules.includes(m.id))
+
+/** A module is open once every required module before it is complete; skippable ones never block. */
+export const moduleOpen = (t: Training, p: TrainingProgress | undefined, i: number) =>
+  t.modules.slice(0, i).every((m) => m.skippable || !!p?.completedModules.includes(m.id))
+
+/** The required module that keeps module i locked, if any. */
+export const blockingModule = (t: Training, p: TrainingProgress | undefined, i: number) =>
+  t.modules.slice(0, i).find((m) => !m.skippable && !p?.completedModules.includes(m.id))
+
+/** How many modules the learner has finished (in any order). */
+export const completedCount = (t: Training, p?: TrainingProgress) => t.modules.filter((m) => p?.completedModules.includes(m.id)).length
 
 /** First module that isn't complete yet; later ones stay locked (TA-3.4, URS 2.4 sequential learning). */
 export const nextModuleIndex = (t: Training, p?: TrainingProgress) => {

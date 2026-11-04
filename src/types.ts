@@ -12,6 +12,8 @@ export type Module = {
   minutes: number
   /** Documents need a minimum viewing time before they can be marked complete; videos complete when watched (TE-3.1). */
   kind: 'document' | 'video'
+  /** Optional module the admin unlocked: it can be skipped and never blocks progress. */
+  skippable?: boolean
   /** Video lesson streamed by the player (sample files under /public/trainings, TE-3.2). */
   video?: string
   /** Source deck offered for download next to the in-app slides (sample file under /public/trainings). */

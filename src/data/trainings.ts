@@ -24,6 +24,13 @@ export const trainerUser: User = {
 }
 
 /** Team representative who can request training (matches person s5 in the admin seed). */
+export const departmentAdminUser: User = {
+  name: 'Selamawit Bekele',
+  email: 'selamawit.bekele@safaricom.et',
+  phone: '0711445566',
+  role: 'Department Admin · Enterprise',
+}
+
 export const requesterUser: User = {
   name: 'Kalkidan Mekonnen',
   email: 'kalkidan.mekonnen@safaricom.et',

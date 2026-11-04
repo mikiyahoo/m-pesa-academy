@@ -1,8 +1,10 @@
-import { Award, BarChart3, CheckCircle2, ChevronDown, ClipboardCheck, Clock, Download, FileQuestion, GraduationCap, MessageSquare, Minus, Search, Star, TrendingDown, TrendingUp, UserCheck, Users, X, XCircle } from 'lucide-react'
+import { Award, BarChart3, CheckCircle2, ClipboardCheck, Clock, Download, FileQuestion, GraduationCap, MessageSquare, Minus, Search, Star, TrendingDown, TrendingUp, UserCheck, Users, X, XCircle } from 'lucide-react'
 import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '../lib/utils'
 import type { RequestStatus, TrainingStatus } from './types'
 import { UserAvatar } from '../components/UserAvatar'
+import { DatePicker, SelectMenu, type DatePickerProps, type SelectMenuProps } from '../components/Pickers'
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
   return <section className={cn('rounded-2xl border border-zinc-200/80 bg-surface p-5 transition-all', className)}>{children}</section>
@@ -42,7 +44,7 @@ export function Badge({ children, tone = 'zinc', className }: { children: ReactN
     green: 'bg-mpesa-500/10 text-mpesa-700 ring-mpesa-500/25 dark:text-mpesa-500',
     red: 'bg-brand-50 text-brand-700 ring-brand-200 dark:text-brand-500',
     amber: 'bg-amber-500/10 text-amber-800 ring-amber-500/25 dark:text-amber-400',
-    blue: 'bg-amber-500/10 text-amber-800 ring-amber-500/25 dark:text-amber-400',
+    blue: 'bg-sky-500/10 text-sky-700 ring-sky-500/25 dark:text-sky-400',
   }
   return <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ring-1 ring-inset', tones[tone], className)}>{children}</span>
 }
@@ -197,7 +199,7 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', classN
 const inputCls =
   'w-full rounded-xl border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400'
 
-export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+export function Field({ label, children, hint }: { label: ReactNode; children: ReactNode; hint?: string }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-medium text-zinc-700">{label}</span>
@@ -207,9 +209,26 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   )
 }
 
-export const Input = (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} className={cn(inputCls, props.className)} />
+/** Text inputs as usual; date inputs use our calendar picker instead of the browser's. */
+export const Input = (props: InputHTMLAttributes<HTMLInputElement>) =>
+  props.type === 'date' ? (
+    <DatePicker
+      value={typeof props.value === 'string' ? props.value : undefined}
+      onChange={props.onChange as unknown as DatePickerProps['onChange']}
+      min={typeof props.min === 'string' ? props.min : undefined}
+      max={typeof props.max === 'string' ? props.max : undefined}
+      disabled={props.disabled}
+      className={props.className}
+      placeholder={props.placeholder}
+      id={props.id}
+      aria-label={props['aria-label']}
+      onFocus={props.onFocus as unknown as () => void}
+    />
+  ) : (
+    <input {...props} className={cn(inputCls, props.className)} />
+  )
 export const Textarea = (props: TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea rows={3} {...props} className={cn(inputCls, props.className)} />
-/** Native select with our own chevron, so the arrow has the same breathing room as the text on the left. */
+/** Dropdown with our own option list (see components/Pickers); same props as a native select. */
 export const Select = ({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) => {
   // Width classes size the wrapper; everything else styles the select itself.
   const tokens = (className ?? '').split(/\s+/).filter(Boolean)
@@ -218,13 +237,22 @@ export const Select = ({ className, ...props }: SelectHTMLAttributes<HTMLSelectE
   const auto = widths.some((w) => w.startsWith('w-auto'))
   return (
     <span className={cn('relative', widths.length ? cn('inline-block', widths.join(' ')) : 'block w-full')}>
-      <select {...props} className={cn(inputCls, 'appearance-none pr-9', rest.join(' '), auto ? 'w-auto!' : 'w-full')} />
-      <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-zinc-500" aria-hidden />
+      <SelectMenu
+        value={props.value as SelectMenuProps['value']}
+        onChange={props.onChange as unknown as SelectMenuProps['onChange']}
+        disabled={props.disabled}
+        id={props.id}
+        title={props.title}
+        aria-label={props['aria-label']}
+        className={cn(rest.join(' '), auto ? 'w-auto!' : 'w-full')}
+      >
+        {props.children}
+      </SelectMenu>
     </span>
   )
 }
 
-export function Modal({ open, onClose, title, description, children, footer, wide }: { open: boolean; onClose: () => void; title: ReactNode; description?: ReactNode; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
+export function Modal({ open, onClose, title, description, children, footer, wide, extraWide }: { open: boolean; onClose: () => void; title: ReactNode; description?: ReactNode; children: ReactNode; footer?: ReactNode; wide?: boolean; /** For side-by-side lists: uses most of the screen width. */ extraWide?: boolean }) {
   const dialog = useRef<HTMLDivElement>(null)
   const restore = useRef<HTMLElement | null>(null)
   const titleId = useId()
@@ -263,7 +291,8 @@ export function Modal({ open, onClose, title, description, children, footer, wid
   }, [open, onClose])
 
   if (!open) return null
-  return (
+  // Rendered at the top of the app shell, so the sidebar and header never cover it.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={onClose} />
       <div
@@ -273,9 +302,9 @@ export function Modal({ open, onClose, title, description, children, footer, wid
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className={cn('relative flex max-h-[92vh] w-full flex-col rounded-t-3xl bg-surface shadow-2xl outline-none sm:rounded-3xl', wide ? 'sm:max-w-3xl' : 'sm:max-w-lg')}
+        className={cn('relative flex max-h-[92vh] w-full flex-col rounded-t-3xl bg-surface shadow-2xl outline-none sm:rounded-3xl', extraWide ? 'sm:max-w-6xl' : wide ? 'sm:max-w-3xl' : 'sm:max-w-lg')}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-zinc-100 p-5 sm:px-6">
+        <div className={cn('flex items-start justify-between gap-4 border-b border-zinc-100 px-5 pt-5 sm:px-6', description ? 'pb-5' : 'pb-3')}>
           <div>
             <h2 id={titleId} className="text-lg leading-tight font-bold text-zinc-900">{title}</h2>
             {description && <p id={descId} className="mt-0.5 text-sm text-zinc-500">{description}</p>}
@@ -287,7 +316,8 @@ export function Modal({ open, onClose, title, description, children, footer, wid
         <div className="overflow-y-auto p-5 scrollbar-thin sm:px-6">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-zinc-100 p-4 sm:px-6">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.querySelector('.admin-shell') ?? document.body,
   )
 }
 

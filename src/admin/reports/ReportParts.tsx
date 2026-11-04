@@ -16,12 +16,14 @@ export function FilterBar({
   clear,
   active,
   hide = [],
+  rightSlot,
 }: {
   filters: ReportFilters
   set: (p: Partial<ReportFilters>) => void
   clear: () => void
   active: number
   hide?: (keyof ReportFilters)[]
+  rightSlot?: ReactNode
 }) {
   const { data } = useAdmin()
   const [open, setOpen] = useState(false)
@@ -92,10 +94,11 @@ export function FilterBar({
           )}
         </div>
         {active > 0 && (
-          <button onClick={clear} className="ml-auto inline-flex items-center gap-1 rounded-xl px-2 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50">
+          <button onClick={clear} className={cn(!rightSlot && 'ml-auto', 'inline-flex items-center gap-1 rounded-xl px-2 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50')}>
             <X className="size-3.5" /> Clear {active}
           </button>
         )}
+        {rightSlot && <div className="ml-auto flex shrink-0 items-center gap-2">{rightSlot}</div>}
       </div>
     </Card>
   )

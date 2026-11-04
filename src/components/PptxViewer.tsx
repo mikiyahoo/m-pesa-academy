@@ -106,7 +106,77 @@ function SlideCanvas({ slide, deck, small = false }: { slide: Slide; deck: Deck;
 }
 
 /** Slide viewer with previous / next, a counter and thumbnails. Arrow keys move between slides. */
-export function PptxViewer({ url, title, globalKeys = false }: { url: string; title?: string; globalKeys?: boolean }) {
+/** Full-screen presentation: just the slide on black, with controls that hide after 5 s like a video player. */
+function Presenter({ deck, i, go, title, onExit }: { deck: Deck; i: number; go: (n: number) => void; title?: string; onExit: () => void }) {
+  const [shown, setShown] = useState(true)
+  const [hovering, setHovering] = useState(false)
+  const timer = useRef<number | undefined>(undefined)
+  const wake = () => {
+    setShown(true)
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setShown(false), 5000)
+  }
+  useEffect(() => {
+    wake()
+    return () => window.clearTimeout(timer.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // Changing slides with the keyboard shouldn't bring the controls back.
+  const visible = shown || hovering
+  const count = deck.slides.length
+  return (
+    <div
+      className={cn('relative grid h-full w-full place-items-center overflow-hidden bg-black select-none', !visible && 'cursor-none')}
+      onMouseMove={wake}
+      onClick={(e) => e.target === e.currentTarget && wake()}
+    >
+      <div className="overflow-hidden bg-white" style={{ width: `min(100vw, calc(100dvh * ${deck.width / deck.height}))` }}>
+        <SlideCanvas slide={deck.slides[i]} deck={deck} />
+      </div>
+      {/* Hovering the bottom edge always shows the controls. */}
+      <div className="absolute inset-x-0 bottom-0 h-28" onMouseEnter={() => setHovering(true)} onMouseLeave={() => setHovering(false)}>
+        <div
+          className={cn(
+            'absolute inset-x-0 bottom-0 flex items-center gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-4 pt-10 pb-9 text-white transition-opacity duration-300 sm:px-6',
+            visible ? 'opacity-100' : 'pointer-events-none opacity-0',
+          )}
+        >
+          <button type="button" onClick={() => go(-1)} disabled={i === 0} aria-label="Previous slide" className="grid size-10 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 disabled:opacity-30">
+            <ChevronLeft className="size-5" />
+          </button>
+          <button type="button" onClick={() => go(1)} disabled={i >= count - 1} aria-label="Next slide" className="grid size-10 place-items-center rounded-full bg-white/10 transition hover:bg-white/20 disabled:opacity-30">
+            <ChevronRight className="size-5" />
+          </button>
+          <span className="rounded-full bg-white/10 px-3 py-1.5 text-sm font-semibold tabular-nums">
+            {i + 1} / {count}
+          </span>
+          {title && <span className="hidden min-w-0 flex-1 truncate text-sm font-semibold text-white/85 sm:block">{title}</span>}
+          <span className="hidden text-xs text-white/60 lg:inline">← → to move · Esc to exit</span>
+          <button type="button" onClick={onExit} aria-label="Exit full screen" title="Exit full screen (Esc)" className="ml-auto grid size-10 place-items-center rounded-full bg-white/10 transition hover:bg-white/20">
+            <Minimize2 className="size-5" />
+          </button>
+        </div>
+        {/* One segment per slide; click a segment to jump to that slide. */}
+        <div className={cn('absolute inset-x-0 bottom-0 flex gap-1 px-4 pb-1.5 transition-opacity sm:px-6', visible ? 'opacity-100' : 'opacity-0')}>
+          {Array.from({ length: count }, (_, n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => go(n - i)}
+              aria-label={`Go to slide ${n + 1}`}
+              aria-current={n === i ? 'step' : undefined}
+              className="group h-3 min-w-0 flex-1 py-1"
+            >
+              <span className={cn('block h-1 w-full rounded-full transition group-hover:h-1.5', n < i ? 'bg-brand-600' : n === i ? 'bg-brand-500 ring-1 ring-white/60' : 'bg-white/25 group-hover:bg-white/45')} />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function PptxViewer({ url, title, globalKeys = false, onExitPresent, thumbsRight = false, navTarget }: { url: string; title?: string; globalKeys?: boolean; /** Render the previous / counter / next controls here (e.g. the player's bottom bar). */ navTarget?: HTMLElement | null; /** Set while full screen: shows only the slide, with auto-hiding controls. */ onExitPresent?: () => void; /** Thumbnails in a column beside the slide (wide screens) instead of a row below. */ thumbsRight?: boolean }) {
   const [deck, setDeck] = useState<Deck | null>(null)
   const [error, setError] = useState(false)
   const [i, setI] = useState(0)
@@ -122,14 +192,22 @@ export function PptxViewer({ url, title, globalKeys = false }: { url: string; ti
   }, [url])
 
   const count = deck?.slides.length ?? 0
+  // Keep the current thumbnail in view as slides change.
+  const strip = useRef<HTMLDivElement>(null)
+  const firstSlide = useRef(true)
+  useEffect(() => {
+    // Not on first show, so opening a lesson doesn't move the page.
+    if (firstSlide.current) return void (firstSlide.current = false)
+    strip.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [i])
   const go = (n: number) => setI((cur) => Math.min(Math.max(cur + n, 0), Math.max(count - 1, 0)))
 
   // In the pop-up, arrow keys move slides wherever focus is.
   useEffect(() => {
     if (!globalKeys) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') setI((cur) => Math.min(cur + 1, Math.max(count - 1, 0)))
-      if (e.key === 'ArrowLeft') setI((cur) => Math.max(cur - 1, 0))
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || (e.key === ' ' && !(e.target instanceof HTMLButtonElement))) setI((cur) => Math.min(cur + 1, Math.max(count - 1, 0)))
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') setI((cur) => Math.max(cur - 1, 0))
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -145,6 +223,38 @@ export function PptxViewer({ url, title, globalKeys = false }: { url: string; ti
       </div>
     )
 
+  const nav = (
+    <div className={cn('flex items-center gap-2', navTarget ? 'justify-center' : 'justify-between', thumbsRight && 'lg:order-last')}>
+          <button type="button" onClick={() => go(-1)} disabled={i === 0} aria-label="Previous slide" className="grid size-9 shrink-0 place-items-center rounded-full border border-zinc-200 text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-40">
+            <ChevronLeft className="size-4" />
+          </button>
+          <span className="flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap text-zinc-600 tabular-nums">
+            {!navTarget && !thumbsRight && <Presentation className="size-4 text-brand-600" />}
+            {navTarget ? (
+              <>
+                {i + 1} / {count}
+              </>
+            ) : thumbsRight ? (
+              <>
+                <span className="lg:hidden">Slide {i + 1} of {count}</span>
+                <span className="hidden lg:inline">
+                  {i + 1} / {count}
+                </span>
+              </>
+            ) : (
+              <>
+                Slide {i + 1} of {count}
+              </>
+            )}
+          </span>
+          <button type="button" onClick={() => go(1)} disabled={i >= count - 1} aria-label="Next slide" className="grid size-9 shrink-0 place-items-center rounded-full border border-zinc-200 text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-40">
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+  )
+
+  if (onExitPresent) return <Presenter deck={deck} i={i} go={go} title={title} onExit={onExitPresent} />
+
   return (
     <div
       tabIndex={0}
@@ -153,46 +263,41 @@ export function PptxViewer({ url, title, globalKeys = false }: { url: string; ti
         if (e.key === 'ArrowRight') go(1)
         if (e.key === 'ArrowLeft') go(-1)
       }}
-      className="space-y-3 outline-none"
+      className={cn('outline-none', thumbsRight ? 'grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem]' : 'space-y-3')}
       aria-label={title ? `${title} slides` : 'Slides'}
     >
-      <div className={cn('overflow-hidden rounded-xl border border-zinc-200 shadow-sm', globalKeys && 'mx-auto')} style={globalKeys ? { maxWidth: `calc((100dvh - 19.5rem) * ${deck.width / deck.height})` } : undefined}>
+      <div className={cn('overflow-hidden rounded-xl border border-zinc-200 shadow-sm', thumbsRight && 'min-w-0', globalKeys && 'mx-auto w-full')} style={globalKeys ? { maxWidth: `calc((100dvh - ${thumbsRight ? 11 : 19.5}rem) * ${deck.width / deck.height})` } : undefined}>
         <SlideCanvas slide={deck.slides[i]} deck={deck} />
       </div>
-      <div className="flex items-center justify-between gap-3">
-        <button type="button" onClick={() => go(-1)} disabled={i === 0} aria-label="Previous slide" className="grid size-9 place-items-center rounded-full border border-zinc-200 text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-40">
-          <ChevronLeft className="size-4" />
-        </button>
-        <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600 tabular-nums">
-          <Presentation className="size-4 text-brand-600" /> Slide {i + 1} of {count}
-        </span>
-        <button type="button" onClick={() => go(1)} disabled={i >= count - 1} aria-label="Next slide" className="grid size-9 place-items-center rounded-full border border-zinc-200 text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-40">
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
-      <div className="scrollbar-thin flex gap-2 overflow-x-auto pb-1">
-        {deck.slides.map((s, n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => setI(n)}
-            aria-label={`Slide ${n + 1}`}
-            aria-current={n === i ? 'true' : undefined}
-            className={cn('w-28 shrink-0 overflow-hidden rounded-lg border-2 transition', n === i ? 'border-brand-600' : 'border-zinc-200 hover:border-zinc-300')}
-          >
-            <SlideCanvas slide={s} deck={deck} small />
-          </button>
-        ))}
+      {/* Beside the slide: controls at the top, thumbnails scrolling within the slide's height. */}
+      <div className={cn('flex flex-col gap-3', thumbsRight && 'lg:min-h-0')}>
+        {navTarget ? createPortal(nav, navTarget) : nav}
+        <div className={cn(thumbsRight && 'relative lg:flex-1')}>
+          <div ref={strip} className={cn('scrollbar-thin flex gap-2', thumbsRight ? 'overflow-x-auto pb-1 lg:absolute lg:inset-0 lg:flex-col lg:overflow-x-hidden lg:overflow-y-auto lg:pr-1 lg:pb-0' : 'overflow-x-auto pb-1')}>
+            {deck.slides.map((s, n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setI(n)}
+                aria-label={`Slide ${n + 1}`}
+                aria-current={n === i ? 'true' : undefined}
+                className={cn('w-28 shrink-0 overflow-hidden rounded-lg border-2 transition', thumbsRight && 'lg:w-full', n === i ? 'border-brand-600' : 'border-zinc-200 hover:border-zinc-300')}
+              >
+                <SlideCanvas slide={s} deck={deck} small />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
 /** Pop-up slide viewer: dark backdrop, title bar with download and close, slides fitted to the screen. */
-export function SlidesDialog({ url, title, downloadable, onClose }: { url: string; title: string; downloadable?: boolean; onClose: () => void }) {
+export function SlidesDialog({ url, title, downloadable, onClose, startFull = false }: { url: string; title: string; downloadable?: boolean; onClose: () => void; /** Open straight into full screen instead of the theater pop-up. */ startFull?: boolean }) {
   const panel = useRef<HTMLDivElement>(null)
   // Full screen fills the window itself, and also asks the browser for real full screen when allowed.
-  const [full, setFull] = useState(false)
+  const [full, setFull] = useState(startFull)
   const fullRef = useRef(false)
   fullRef.current = full
   const exitFull = () => {
@@ -212,6 +317,11 @@ export function SlidesDialog({ url, title, downloadable, onClose }: { url: strin
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
     }
   }, [])
+  // Opened from "Full screen": ask the browser for real full screen right away (still within the click).
+  useEffect(() => {
+    if (startFull) void panel.current?.requestFullscreen?.().catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const toggleFull = () => {
     if (full) return exitFull()
     setFull(true)
@@ -228,8 +338,8 @@ export function SlidesDialog({ url, title, downloadable, onClose }: { url: strin
   return createPortal(
     <div className={cn('fixed inset-0 z-50 flex justify-center', full ? 'items-stretch' : 'items-end sm:items-center sm:p-6')}>
       <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm" onClick={onClose} aria-hidden />
-      <div ref={panel} role="dialog" aria-modal aria-label={`${title} slides`} className={cn('relative flex w-full flex-col overflow-hidden bg-white shadow-2xl', full ? 'h-full max-h-none max-w-none rounded-none' : 'max-h-[100dvh] max-w-6xl rounded-t-3xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl')}>
-        <header className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3 sm:px-6">
+      <div ref={panel} role="dialog" aria-modal aria-label={`${title} slides`} className={cn('relative flex w-full flex-col overflow-hidden shadow-2xl', full ? 'h-full max-h-none max-w-none rounded-none bg-black' : 'max-h-[100dvh] max-w-6xl rounded-t-3xl bg-white sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl lg:max-w-[min(100%,92rem)]')}>
+        <header className={cn('flex items-center gap-3 border-b border-zinc-100 px-4 py-3 sm:px-6', full && 'hidden')}>
           <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
             <Presentation className="size-4" />
           </span>
@@ -246,15 +356,15 @@ export function SlidesDialog({ url, title, downloadable, onClose }: { url: strin
           </button>
           {downloadable && (
             <a href={url} download className="hidden items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 sm:inline-flex">
-              <Download className="size-3.5" /> Download
+              <Download className="size-3.5" /> Download slides
             </a>
           )}
           <button type="button" onClick={onClose} aria-label="Close slides" className="grid size-9 shrink-0 place-items-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900">
             <X className="size-5" />
           </button>
         </header>
-        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-zinc-50/60 p-4 sm:p-6">
-          <PptxViewer url={url} title={title} globalKeys />
+        <div className={cn('min-h-0 flex-1', full ? 'overflow-hidden' : 'scrollbar-thin overflow-y-auto bg-zinc-50/60 p-4 sm:p-6')}>
+          <PptxViewer url={url} title={title} globalKeys thumbsRight onExitPresent={full ? exitFull : undefined} />
         </div>
       </div>
     </div>,

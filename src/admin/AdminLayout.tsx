@@ -1,12 +1,15 @@
-import { ArrowRight, Award, BadgeCheck, BarChart3, Bell, BellOff, Briefcase, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileClock, FileQuestion, GraduationCap, LayoutDashboard, LogOut, Menu, MessageSquare, Moon, RotateCcw, Search, Settings2, Sun, Trophy, type LucideIcon, UserRoundPlus, Users, X } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { ArrowRight, Award, BadgeCheck, BarChart3, Bell, BellOff, Briefcase, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileClock, FileQuestion, GraduationCap, LayoutDashboard, LogOut, type LucideIcon, MapPin, Menu, KeyRound, MessageSquare, MessagesSquare, Moon, RotateCcw, Search, Settings2, Sun, Trophy, UserRoundPlus, UserPen, Users, X } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '../lib/utils'
 import { useFeedback } from '../components/Feedback'
 import { useAuth } from '../store/Auth'
 import { CommandPalette } from './CommandPalette'
-import { TrainerScope, useAdmin } from './store'
-import { ScopeContext } from './scope'
+import { ChangePasswordDialog, EditProfileDialog, useMyProfileRequest } from '../components/ProfileSettings'
+import { DepartmentScope, TrainerScope, useAdmin } from './store'
+import { ScopeContext, useScope } from './scope'
+import { useDiscussionAttention } from './pages/Discussions'
+import { loadProfileRequests, onProfileRequestsChange } from '../lib/profileRequests'
 import { dateTime } from './helpers'
 import { UserAvatar } from '../components/UserAvatar'
 import { Empty } from './ui'
@@ -35,6 +38,7 @@ const nav: NavItem[] = [
       { label: 'Responses', to: '/admin/feedback/responses' },
     ],
   },
+  { label: 'Discussions', icon: MessagesSquare, to: '/admin/discussions' },
   {
     label: 'Assessments',
     icon: ClipboardList,
@@ -63,6 +67,7 @@ const nav: NavItem[] = [
       { label: 'By Category', to: '/admin/training-types/categories' },
     ],
   },
+  { label: 'Venues', icon: MapPin, to: '/admin/venues' },
   { label: 'Audit Logs', icon: FileClock, to: '/admin/audit-logs' },
   { label: 'Reports', icon: BarChart3, to: '/admin/reports' },
   { label: 'Leaderboard', icon: Trophy, to: '/admin/leaderboard' },
@@ -89,6 +94,7 @@ const trainerNav: NavItem[] = [
       { label: 'Responses', to: '/admin/feedback/responses' },
     ],
   },
+  { label: 'Discussions', icon: MessagesSquare, to: '/admin/discussions' },
   {
     label: 'Assessments',
     icon: ClipboardList,
@@ -112,6 +118,30 @@ const trainerNav: NavItem[] = [
   { label: 'Reports', icon: BarChart3, to: '/admin/reports' },
 ]
 
+/** Things waiting on this person, per page: shown as a count beside the page in the sidebar. */
+function useNavCounts(): Record<string, number> {
+  const { data } = useAdmin()
+  const scope = useScope()
+  const discussions = useDiscussionAttention()
+  const [profileTick, setProfileTick] = useState(0)
+  useEffect(() => onProfileRequestsChange(() => setProfileTick((n) => n + 1)), [])
+  const profileRequests = useMemo(() => (scope.role === 'admin' ? loadProfileRequests().filter((r) => r.status === 'pending').length : 0), [scope.role, profileTick])
+  return {
+    '/admin/requests': data.requests.filter((r) => r.status === 'PENDING').length,
+    '/admin/discussions': discussions,
+    '/admin/users': profileRequests,
+  }
+}
+
+function NavCount({ n, collapsed, label }: { n?: number; collapsed?: boolean; label: string }) {
+  if (!n) return null
+  return (
+    <span aria-label={`${n} ${label}`} className={cn('min-w-5 rounded-full bg-white px-1.5 py-0.5 text-center text-[10px] leading-none font-bold tabular-nums text-brand-700', collapsed ? 'absolute -top-1 -right-1' : 'ml-auto')}>
+      {n > 99 ? '99+' : n}
+    </span>
+  )
+}
+
 const itemCls = (active: boolean, collapsed = false) =>
   cn(
     'relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium transition-all',
@@ -120,7 +150,8 @@ const itemCls = (active: boolean, collapsed = false) =>
   )
 
 /** A collapsible group; the sidebar keeps only one group open at a time. */
-function NavGroup({ item, open, onToggle, onNavigate, collapsed, onExpand }: { item: NavItem; open: boolean; onToggle: () => void; onNavigate?: () => void; collapsed?: boolean; onExpand?: () => void }) {
+function NavGroup({ item, open, onToggle, onNavigate, collapsed, onExpand, counts }: { item: NavItem; open: boolean; onToggle: () => void; onNavigate?: () => void; collapsed?: boolean; onExpand?: () => void; counts: Record<string, number> }) {
+  const total = item.children!.reduce((n, c) => n + (counts[c.to] ?? 0), 0)
   const { pathname } = useLocation()
   const active = item.children!.some((c) => pathname.startsWith(c.to))
   const Icon = item.icon
@@ -142,13 +173,15 @@ function NavGroup({ item, open, onToggle, onNavigate, collapsed, onExpand }: { i
       >
         <Icon className="size-4 shrink-0" />
         {!collapsed && <span className="flex-1 text-left">{item.label}</span>}
+        {(!open || collapsed) && <NavCount n={total} collapsed={collapsed} label="waiting" />}
         {!collapsed && (open ? <ChevronDown className="size-4 text-white/60" /> : <ChevronRight className="size-4 text-white/60" />)}
       </button>
       {open && !collapsed && (
         <div className="mt-0.5 ml-[17px] space-y-0.5 border-l border-white/20 pl-3">
           {item.children!.map((c) => (
             <NavLink key={c.to} to={c.to} onClick={onNavigate} className={({ isActive }) => itemCls(isActive)}>
-              {c.label}
+              <span className="min-w-0 flex-1 truncate">{c.label}</span>
+              <NavCount n={counts[c.to]} label="waiting" />
             </NavLink>
           ))}
         </div>
@@ -163,6 +196,8 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
   const { reset } = useAdmin()
   const { confirm, toast } = useFeedback()
   const [open, setOpen] = useState(false)
+  const [dialog, setDialog] = useState<'edit' | 'password' | null>(null)
+  const request = useMyProfileRequest()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -198,6 +233,25 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
             </span>
           </div>
           <div className="p-1 text-sm">
+            <button
+              onClick={() => {
+                setOpen(false)
+                setDialog('edit')
+              }}
+              disabled={request?.status === 'pending'}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100 disabled:opacity-50"
+            >
+              <UserPen className="size-4" /> {request?.status === 'pending' ? 'Profile change pending' : 'Edit profile'}
+            </button>
+            <button
+              onClick={() => {
+                setOpen(false)
+                setDialog('password')
+              }}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"
+            >
+              <KeyRound className="size-4" /> Change password
+            </button>
             <button onClick={() => setDark(!dark)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
               {dark ? <Sun className="size-4" /> : <Moon className="size-4" />} {dark ? 'Light mode' : 'Dark mode'}
             </button>
@@ -219,6 +273,8 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
           </div>
         </div>
       )}
+      {dialog === 'edit' && <EditProfileDialog onClose={() => setDialog(null)} />}
+      {dialog === 'password' && <ChangePasswordDialog onClose={() => setDialog(null)} />}
     </div>
   )
 }
@@ -249,8 +305,7 @@ function SidebarPromo({ onNavigate }: { onNavigate?: () => void }) {
 
 function Sidebar({ onNavigate, items, promo, collapsed = false, onExpand }: { onNavigate?: () => void; items: NavItem[]; promo?: ReactNode; collapsed?: boolean; onExpand?: () => void }) {
   const { pathname } = useLocation()
-  const { data } = useAdmin()
-  const pendingRequests = data.requests.filter((request) => request.status === 'PENDING').length
+  const counts = useNavCounts()
   // Accordion: the group holding the current page opens; opening another closes it.
   const activeGroup = items.find((i) => i.children?.some((c) => pathname.startsWith(c.to)))?.label ?? ''
   const [openGroup, setOpenGroup] = useState(activeGroup)
@@ -269,16 +324,12 @@ function Sidebar({ onNavigate, items, promo, collapsed = false, onExpand }: { on
       <nav className="scrollbar-none flex-1 space-y-0.5 overflow-y-auto">
         {items.map((item) =>
           item.children ? (
-            <NavGroup key={item.label} item={item} open={openGroup === item.label} onToggle={() => setOpenGroup((g) => (g === item.label ? '' : item.label))} onNavigate={onNavigate} collapsed={collapsed} onExpand={onExpand} />
+            <NavGroup key={item.label} item={item} open={openGroup === item.label} onToggle={() => setOpenGroup((g) => (g === item.label ? '' : item.label))} onNavigate={onNavigate} collapsed={collapsed} onExpand={onExpand} counts={counts} />
           ) : (
             <NavLink key={item.label} to={item.to!} end={item.end} onClick={onNavigate} title={collapsed ? item.label : undefined} className={({ isActive }) => itemCls(isActive, collapsed)}>
               <item.icon className="size-4 shrink-0" />
               {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
-              {item.to === '/admin/requests' && pendingRequests > 0 && (
-                <span aria-label={`${pendingRequests} pending`} className={cn('min-w-5 rounded-full bg-white px-1.5 py-0.5 text-center text-[10px] leading-none font-bold tabular-nums text-brand-700', collapsed ? 'absolute -top-1 -right-1' : 'ml-auto')}>
-                  {pendingRequests > 99 ? '99+' : pendingRequests}
-                </span>
-              )}
+              <NavCount n={counts[item.to!]} collapsed={collapsed} label="waiting" />
             </NavLink>
           ),
         )}
@@ -421,13 +472,15 @@ function AlertsBell() {
   )
 }
 
-export function AdminLayout({ variant = 'admin', trainerId }: { variant?: 'admin' | 'trainer'; trainerId?: string }) {
+export function AdminLayout({ variant = 'admin', trainerId, personId }: { variant?: 'admin' | 'trainer' | 'department'; trainerId?: string; personId?: string }) {
   const { user } = useAuth()
   const { data } = useAdmin()
   // Training Requests is extra access an admin gives a trainer ("Can manage requests").
   const canManageRequests = !!data.people.find((p) => p.id === trainerId)?.canApprove
   const items = variant === 'trainer' ? trainerNav.filter((i) => i.to !== '/admin/requests' || canManageRequests) : nav
-  const title = variant === 'trainer' ? 'Trainer' : 'Admin'
+  // A department admin works on one department: their own, from their user record.
+  const department = variant === 'department' ? (data.people.find((p) => p.id === personId)?.department ?? '') : undefined
+  const title = variant === 'trainer' ? 'Trainer' : variant === 'department' ? `Dept admin · ${department || 'No department'}` : 'Admin'
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -473,12 +526,16 @@ export function AdminLayout({ variant = 'admin', trainerId }: { variant?: 'admin
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
+  // Sidebar counts follow the same scope as the pages.
+  const scoped = (node: ReactNode) =>
+    variant === 'trainer' && trainerId ? <TrainerScope trainerId={trainerId}>{node}</TrainerScope> : variant === 'department' ? <DepartmentScope department={department ?? ''}>{node}</DepartmentScope> : node
+
   return (
-    <ScopeContext.Provider value={{ role: variant, trainerId }}>
+    <ScopeContext.Provider value={{ role: variant, trainerId, department }}>
     <div className={cn('admin-shell flex h-screen bg-canvas text-zinc-900 print:block print:h-auto print:bg-white', dark && 'dark')}>
       <aside className={cn('relative z-30 hidden shrink-0 transition-[width] lg:block print:hidden bg-gradient-to-b from-brand-600 via-[#8e2118] to-[#5e1914] dark:from-[#a8302f] dark:via-[#6e1a15] dark:to-[#3d100d] isolate before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:-z-10 before:h-56 before:bg-gradient-to-b before:from-black/45 before:to-transparent', collapsed ? 'w-20' : 'w-64')}>
         <div className={cn('h-full', collapsed ? 'w-20' : 'w-64')}>
-          <Sidebar items={items} promo={variant === 'admin' ? <SidebarPromo /> : undefined} collapsed={collapsed} onExpand={() => setCollapsed(false)} />
+          {scoped(<Sidebar items={items} promo={variant === 'admin' ? <SidebarPromo /> : undefined} collapsed={collapsed} onExpand={() => setCollapsed(false)} />)}
         </div>
         <button
           onClick={() => setCollapsed((c) => !c)}
@@ -497,7 +554,7 @@ export function AdminLayout({ variant = 'admin', trainerId }: { variant?: 'admin
             <button onClick={() => setMobileOpen(false)} className="absolute top-4 right-3 z-10 rounded-full p-1 text-white/80 hover:bg-white/10" aria-label="Close menu">
               <X className="size-5" />
             </button>
-            <Sidebar onNavigate={() => setMobileOpen(false)} items={items} promo={variant === 'admin' ? <SidebarPromo onNavigate={() => setMobileOpen(false)} /> : undefined} />
+            {scoped(<Sidebar onNavigate={() => setMobileOpen(false)} items={items} promo={variant === 'admin' ? <SidebarPromo onNavigate={() => setMobileOpen(false)} /> : undefined} />)}
           </aside>
         </div>
       )}
@@ -545,6 +602,10 @@ export function AdminLayout({ variant = 'admin', trainerId }: { variant?: 'admin
                 <TrainerScope trainerId={trainerId}>
                   <Outlet />
                 </TrainerScope>
+              ) : variant === 'department' ? (
+                <DepartmentScope department={department ?? ''}>
+                  <Outlet />
+                </DepartmentScope>
               ) : (
                 <Outlet />
               )}

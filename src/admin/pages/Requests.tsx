@@ -8,14 +8,27 @@ import { DuplicateWarning, JoinLink, RequestDetails, RequestStatusPill, RequestT
 import { dateTime, shortDate, time12 } from '../helpers'
 import { findDuplicates, makeJoinLink, personByEmail, REJECTION_REASONS } from '../requests'
 import { useAdmin } from '../store'
-import type { RequestStatus, TrainingRequest } from '../types'
+import type { Person, RequestStatus, TrainingRequest } from '../types'
 import { Avatar, Button, Card, Empty, Field, Modal, PageHeader, Select, TabBar, Tabs, Textarea } from '../ui'
 import { NewTrainingModal, type TrainingPreset } from './Trainings'
 
 type Filter = 'ALL' | Exclude<RequestStatus, 'DRAFT'>
 const now = () => localISO()
 
-function RejectModal({ request, onClose }: { request: TrainingRequest; onClose: () => void }) {
+/** A new training prefilled from a request (used after approving). */
+export const requestPreset = (r: TrainingRequest, people: Person[], trainerIds?: string[]): TrainingPreset => ({
+  name: r.topic,
+  typeId: r.trainingTypeId || undefined,
+  trainerId: trainerIds?.[0] ?? r.trainerId,
+  trainerIds: trainerIds ?? r.trainerIds,
+  date: r.preferredDate,
+  startTime: r.preferredTime,
+  location: r.delivery === 'Online' ? 'ONLINE' : r.location,
+  participantIds: r.participants.map((p) => personByEmail(people, p.email)?.id).filter((x): x is string => !!x),
+  requestId: r.id,
+})
+
+export function RejectModal({ request, onClose }: { request: TrainingRequest; onClose: () => void }) {
   const { update } = useAdmin()
   const [reason, setReason] = useState('')
   const [comment, setComment] = useState('')
@@ -69,7 +82,7 @@ function RejectModal({ request, onClose }: { request: TrainingRequest; onClose: 
   )
 }
 
-function ApproveModal({ request, onClose, onApproved }: { request: TrainingRequest; onClose: () => void; onApproved: (trainerIds: string[]) => void }) {
+export function ApproveModal({ request, onClose, onApproved }: { request: TrainingRequest; onClose: () => void; onApproved: (trainerIds: string[]) => void }) {
   const { data, update } = useAdmin()
   const { confirm } = useFeedback()
   const trainers = data.people.filter((p) => p.role === 'Trainer' && p.status === 'Active')
@@ -209,17 +222,7 @@ export function AdminRequests() {
   const viewed = data.requests.find((r) => r.id === viewing)
   const acting = data.requests.find((r) => r.id === modal?.id)
 
-  const presetFor = (r: TrainingRequest, trainerIds?: string[]): TrainingPreset => ({
-    name: r.topic,
-    typeId: r.trainingTypeId || undefined,
-    trainerId: trainerIds?.[0] ?? r.trainerId,
-    trainerIds: trainerIds ?? r.trainerIds,
-    date: r.preferredDate,
-    startTime: r.preferredTime,
-    location: r.delivery === 'Online' ? 'ONLINE' : r.location,
-    participantIds: r.participants.map((p) => personByEmail(data.people, p.email)?.id).filter((x): x is string => !!x),
-    requestId: r.id,
-  })
+  const presetFor = (r: TrainingRequest, trainerIds?: string[]) => requestPreset(r, data.people, trainerIds)
 
   return (
     <>

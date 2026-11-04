@@ -1,4 +1,4 @@
-import { AlertTriangle, Ban, CalendarClock, Mail, UserCog, UserPlus } from 'lucide-react'
+import { AlertTriangle, Ban, CalendarClock, UserCog, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { useFeedback } from '../components/Feedback'
 import { cn, localISO, todayISO } from '../lib/utils'
@@ -134,7 +134,6 @@ export function RescheduleModal({ training, onClose }: { training: AdminTraining
       open
       onClose={onClose}
       title="Reschedule"
-      description="Trainer and participants are notified of the new time. The change is kept in the schedule history."
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -198,7 +197,6 @@ export function CancelModal({ training, onClose }: { training: AdminTraining; on
       open
       onClose={onClose}
       title="Cancel training"
-      description="Everyone invited is notified. The session stays on record as cancelled."
       footer={
         <>
           <Button onClick={onClose}>Keep it</Button>
@@ -257,7 +255,6 @@ export function ChangeTrainerModal({ training, onClose }: { training: AdminTrain
       open
       onClose={onClose}
       title="Change trainer"
-      description={`Currently ${from}.`}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -327,7 +324,7 @@ export function InviteModal({ training, onClose, onInviteNew }: { training: Admi
       open
       onClose={onClose}
       title="Invite participants"
-      description={`${training.participantIds.length} already invited`}
+      wide
       footer={
         <>
           {onInviteNew && (
@@ -342,41 +339,49 @@ export function InviteModal({ training, onClose, onInviteNew }: { training: Admi
         </>
       }
     >
-      <div className="space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <span className="self-center text-xs text-zinc-500">Add a group:</span>
-          {data.groups.map((g) => (
-            <button
-              key={g.id}
-              onClick={() => setSelected((s) => [...new Set([...s, ...candidates.filter((p) => p.groupIds.includes(g.id)).map((p) => p.id)])])}
-              className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-700 hover:bg-zinc-100"
-            >
-              + {g.name}
-            </button>
-          ))}
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-xs text-zinc-500">Add a group:</span>
+            {data.groups.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => setSelected((s) => [...new Set([...s, ...candidates.filter((p) => p.groupIds.includes(g.id)).map((p) => p.id)])])}
+                className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-700 transition hover:border-brand-200 hover:bg-brand-50/50"
+              >
+                + {g.name}
+              </button>
+            ))}
+          </div>
+          <SearchInput value={q} onChange={setQ} placeholder="Search by name, email or department" />
+          <ul className="max-h-[min(58vh,24rem)] divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 scrollbar-thin">
+            {visible.map((p) => (
+              <li key={p.id}>
+                <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-zinc-50">
+                  <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} className="size-4 accent-brand-600" />
+                  <Avatar name={p.name} size="sm" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-zinc-900">{p.name}</span>
+                    <span className={cn('block truncate text-xs', busy.has(p.id) ? 'text-amber-700' : 'text-zinc-500')}>{busy.has(p.id) ? `Busy: ${busy.get(p.id)}` : p.email}</span>
+                  </span>
+                  <span className="max-w-32 truncate text-xs text-zinc-500">{p.department}</span>
+                </label>
+              </li>
+            ))}
+            {!visible.length && <li className="p-6 text-center text-sm text-zinc-500">Everyone matching is already invited.</li>}
+          </ul>
         </div>
-        <SearchInput value={q} onChange={setQ} placeholder="Search by name, email or department" />
-        <ul className="max-h-72 divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 scrollbar-thin">
-          {visible.map((p) => (
-            <li key={p.id}>
-              <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-zinc-50">
-                <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} className="size-4 accent-brand-600" />
-                <Avatar name={p.name} size="sm" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-zinc-900">{p.name}</span>
-                  <span className={cn('block truncate text-xs', busy.has(p.id) ? 'text-amber-700' : 'text-zinc-500')}>{busy.has(p.id) ? `Busy: ${busy.get(p.id)}` : p.email}</span>
-                </span>
-                <span className="text-xs text-zinc-500">{p.department}</span>
-              </label>
-            </li>
-          ))}
-          {!visible.length && <li className="p-6 text-center text-sm text-zinc-500">Everyone matching is already invited.</li>}
-        </ul>
-        <label className="flex items-center gap-2 text-sm text-zinc-700">
-          <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="size-4 accent-brand-600" />
-          <Mail className="size-4 text-zinc-500" /> Email the invitation (internal teams by group email, others individually)
-        </label>
-        {notify && <Textarea rows={2} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional note to include in the email" aria-label="Invitation note" />}
+        <aside className="space-y-3">
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50/60 p-3">
+            <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-brand-600" />
+            <span>
+              <span className="block text-sm font-medium text-zinc-800">Email the invitation</span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-zinc-500">Internal teams receive it by group email; others receive it individually.</span>
+            </span>
+          </label>
+          {notify && <Textarea rows={5} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional note to include in the email" aria-label="Invitation note" className="min-h-32" />}
+          <p className="text-xs text-zinc-500">{selected.length ? `${selected.length} participant${selected.length === 1 ? '' : 's'} selected` : 'Select participants or add a group to continue.'}</p>
+        </aside>
       </div>
     </Modal>
   )

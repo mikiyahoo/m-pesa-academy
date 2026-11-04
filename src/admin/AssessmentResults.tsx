@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Download, Eye, RotateCcw } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Download, Eye, QrCode, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { dateTime } from './helpers'
 import { exportXlsx } from './reports/export'
@@ -6,6 +6,7 @@ import { useAdmin } from './store'
 import type { AdminTraining, Assessment, AssessmentSubmission, Person } from './types'
 import { Avatar, Badge, Button, Empty, Modal, StatCard } from './ui'
 import { FullPageDialog } from './Wizard'
+import { BigQr } from './checkin/CheckInPanel'
 import { useFeedback } from '../components/Feedback'
 import { useAuth } from '../store/Auth'
 import { cn, localISO } from '../lib/utils'
@@ -54,12 +55,15 @@ function download(t: AdminTraining, a: Assessment, label: string, rows: Row[]) {
 }
 
 /** Summary, per-participant results and an Excel export for one of a training's assessments. */
-export function AssessmentResults({ training, assessment, label }: { training: AdminTraining; assessment: Assessment; label: string }) {
+export function AssessmentResults({ training, assessment, label, takeable = false }: { training: AdminTraining; assessment: Assessment; label: string; takeable?: boolean }) {
   const { data, update } = useAdmin()
   const { user } = useAuth()
   const { confirm, toast } = useFeedback()
   const [open, setOpen] = useState(false)
   const [details, setDetails] = useState<Row | null>(null)
+  const [qr, setQr] = useState(false)
+  // Scanning opens the assessment check in the learner portal (sign-in first if needed).
+  const takeLink = `${window.location.origin}/assess/${training.id}`
 
   // Clears the person's attempts for this assessment so they can take it again (admins and trainers).
   const resetAttempt = async (r: Row) => {
@@ -100,6 +104,17 @@ export function AssessmentResults({ training, assessment, label }: { training: A
           </span>
           <ArrowRight className="size-4 shrink-0 text-zinc-700" />
         </button>
+        {takeable && (
+          <button
+            type="button"
+            onClick={() => setQr(true)}
+            aria-label={`Show the ${label} QR code`}
+            title="QR code to take the assessment"
+            className="grid size-9 shrink-0 place-items-center rounded-xl text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+          >
+            <QrCode className="size-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => download(training, assessment, label, rows)}
@@ -188,8 +203,18 @@ export function AssessmentResults({ training, assessment, label }: { training: A
         </FullPageDialog>
       )}
 
+      {qr && (
+        <BigQr
+          link={takeLink}
+          title={assessment.title}
+          heading="Scan to take the assessment"
+          note={`${training.name} · sign in, finish the journey, then start`}
+          onClose={() => setQr(false)}
+        />
+      )}
+
       {details && (
-        <Modal open wide onClose={() => setDetails(null)} title={details.person.name} description={`${assessment.title} · ${details.subs.length} attempt${details.subs.length === 1 ? '' : 's'}`} footer={<Button onClick={() => setDetails(null)}>Close</Button>}>
+        <Modal open wide onClose={() => setDetails(null)} title={details.person.name}>
           <div className="space-y-5">
             {details.subs.map((sub) => (
               <section key={sub.id}>

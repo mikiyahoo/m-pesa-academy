@@ -1,6 +1,6 @@
 import { seedAdminData } from './seed'
 import type { AdminData } from './types'
-import { currentUser, LEARNER_GROUP_IDS } from '../data/trainings'
+import { currentUser, departmentAdminUser, LEARNER_GROUP_IDS } from '../data/trainings'
 import { DEMO_LEARNER_ID } from '../lib/learner'
 
 /**
@@ -12,6 +12,30 @@ export const ADMIN_STORAGE_KEY = 'mpesa-learning:admin:v8'
 const ASSIGNMENT_SAMPLE_MIGRATION_KEY = 'mpesa-learning:assignment-samples:v1'
 
 /** The learner portal's demo account as an admin person (group ISON), so admins can invite and assign them. */
+/** Demo department admin (Enterprise) so the role can be tried without setting it up first. */
+export const DEMO_DEPARTMENT_ADMIN_ID = 'dept-admin-demo'
+function withDemoDepartmentAdmin(data: AdminData): AdminData {
+  if (data.people.some((p) => p.id === DEMO_DEPARTMENT_ADMIN_ID)) return data
+  return {
+    ...data,
+    people: [
+      ...data.people,
+      {
+        id: DEMO_DEPARTMENT_ADMIN_ID,
+        name: departmentAdminUser.name,
+        email: departmentAdminUser.email,
+        phone: departmentAdminUser.phone,
+        role: 'Department Admin',
+        status: 'Active',
+        department: 'Enterprise',
+        designation: 'Enterprise Training Lead',
+        groupIds: [],
+        createdAt: '2026-01-12',
+      },
+    ],
+  }
+}
+
 function withDemoLearner(data: AdminData): AdminData {
   if (data.people.some((p) => p.id === DEMO_LEARNER_ID)) return data
   return {
@@ -107,11 +131,11 @@ function withSampleAssignments(data: AdminData): AdminData {
 export function loadAdminData(): AdminData {
   try {
     const raw = localStorage.getItem(ADMIN_STORAGE_KEY)
-    if (raw) return withSampleAssignments(withPendingRequestSamples(withDemoLearner(JSON.parse(raw))))
+    if (raw) return withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(JSON.parse(raw)))))
   } catch {
     // Fall through to seed data.
   }
-  return withSampleAssignments(withPendingRequestSamples(withDemoLearner(seedAdminData())))
+  return withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(seedAdminData()))))
 }
 
 /** Fired after admin data is saved, so the learner portal can pick up newly scheduled trainings. */

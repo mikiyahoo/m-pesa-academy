@@ -62,7 +62,7 @@ export function Wizard<T extends string>({
         </span>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin [scrollbar-gutter:stable]">
         <div className="mx-auto grid max-w-6xl gap-6 p-4 sm:p-6 lg:grid-cols-[240px_minmax(0,1fr)]">
           {/* Phones: progress bar. */}
           <div className="flex gap-1.5 lg:hidden">
@@ -150,7 +150,7 @@ export function WizardCard({ icon: Icon, title, action, children }: { icon: Reac
 }
 
 /** Full-page container for long admin forms that manage their own steps: top bar, optional left rail, body, bottom bar. */
-export function FullPageDialog({ title, subtitle, onClose, aside, footer, children }: { title: string; subtitle?: ReactNode; onClose: () => void; aside?: ReactNode; footer: ReactNode; children: ReactNode }) {
+export function FullPageDialog({ title, subtitle, onClose, aside, top, bare = false, footer, children }: { title: string; subtitle?: ReactNode; onClose: () => void; aside?: ReactNode; /** Full-width area above the body, e.g. a horizontal stepper. */ top?: ReactNode; /** The body lays out its own cards (no wrapping card, wider page). */ bare?: boolean; footer: ReactNode; children: ReactNode }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('[role=dialog][aria-modal]') && onClose()
     document.addEventListener('keydown', onKey)
@@ -166,13 +166,14 @@ export function FullPageDialog({ title, subtitle, onClose, aside, footer, childr
         {subtitle && <span className="hidden text-xs font-semibold text-brand-700 sm:block">{subtitle}</span>}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-        <div className={cn('mx-auto grid max-w-6xl gap-6 p-4 sm:p-6', !!aside && 'lg:grid-cols-[240px_minmax(0,1fr)]')}>
+        {top}
+        <div className={cn('mx-auto grid gap-6 p-4 sm:p-6', bare ? 'max-w-7xl' : 'max-w-6xl', !!aside && 'lg:grid-cols-[240px_minmax(0,1fr)]')}>
           {aside && <nav aria-label="Steps">{aside}</nav>}
-          <div className="min-w-0 rounded-2xl border border-zinc-200/80 bg-surface p-5 sm:p-7">{children}</div>
+          <div className={cn('min-w-0', !bare && 'rounded-2xl border border-zinc-200/80 bg-surface p-5 sm:p-7')}>{children}</div>
         </div>
       </div>
-      <footer className="shrink-0 border-t border-zinc-200 bg-surface/95 px-4 py-3 backdrop-blur sm:px-6" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
-        <div className="mx-auto flex max-w-6xl items-center justify-end gap-2">{footer}</div>
+      <footer className="shrink-0 overflow-hidden border-t border-zinc-200 bg-surface/95 py-3 backdrop-blur scrollbar-thin [scrollbar-gutter:stable]" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
+        <div className={cn('mx-auto flex items-center justify-end gap-2 px-4 sm:px-6', bare ? 'max-w-7xl' : 'max-w-6xl')}>{footer}</div>
       </footer>
     </InPage>
   )

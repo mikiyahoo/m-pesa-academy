@@ -2,7 +2,6 @@ import { GuestNotice } from "../components/GuestNotice";
 import {
   BookOpenCheck,
   CalendarDays,
-  ChevronRight,
   Filter,
   LayoutGrid,
   List,
@@ -16,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CalendarSidebar, CalendarView } from "./CalendarPage";
 import { SegmentTabs } from "../components/SegmentTabs";
+import { SelectMenu } from "../components/Pickers";
 import { journeys } from "../data/journeys";
 import { TrainingCard, useFavourites } from "../components/TrainingCard";
 import { cn, sessionStatus, todayISO } from "../lib/utils";
@@ -177,9 +177,10 @@ export function Learning() {
           f.toLowerCase().includes(query),
         ),
     )
-    // Most recent first.
+    // Live today first, then most recent first.
     .sort(
       (a, b) =>
+        Number(sessionStatus(b) === "Active") - Number(sessionStatus(a) === "Active") ||
         b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime),
     );
 
@@ -218,21 +219,20 @@ export function Learning() {
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200/80 bg-white p-2.5 sm:gap-3">
         {/* Phones: status and category dropdowns plus one view button, all in a row. */}
-        <label className="relative min-w-0 flex-[1.1] sm:hidden">
-          <span className="sr-only">Show</span>
-          <select
+        <div className="relative min-w-0 flex-[1.1] sm:hidden">
+          <SelectMenu
             value={tab}
             onChange={(e) => setTab(e.target.value as Tab)}
-            className="h-10 w-full appearance-none rounded-xl bg-brand-600 pr-7 pl-3 text-xs font-semibold text-white shadow-sm shadow-brand-600/30 outline-none focus:ring-2 focus:ring-brand-200"
+            aria-label="Filter trainings by status"
+            className="h-10 text-xs font-semibold"
           >
             {tabs.map((t) => (
-              <option key={t.value} value={t.value} className="bg-white text-zinc-900">
+              <option key={t.value} value={t.value}>
                 {t.label} ({counts[t.value] ?? 0})
               </option>
             ))}
-          </select>
-          <ChevronRight className="pointer-events-none absolute top-1/2 right-2 size-4 -translate-y-1/2 rotate-90 text-white" />
-        </label>
+          </SelectMenu>
+        </div>
         <div className="hidden min-w-0 flex-wrap items-center gap-2 sm:flex">
           <SegmentTabs
             label="Filter trainings by status"
@@ -255,21 +255,20 @@ export function Learning() {
           />
         </div>
         <div className="flex items-center gap-2 max-sm:contents">
-          <label className="relative max-sm:min-w-0 max-sm:flex-1">
-            <span className="sr-only">Category</span>
+          <div className="relative max-sm:min-w-0 max-sm:flex-1 sm:w-44">
             <Filter className="pointer-events-none absolute top-1/2 left-3 hidden size-4 -translate-y-1/2 text-zinc-500 sm:block" />
-            <select
+            <SelectMenu
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="appearance-none rounded-xl border border-zinc-200 bg-white py-2 pr-9 pl-9 max-sm:h-10 max-sm:w-full max-sm:pr-7 max-sm:pl-3 max-sm:text-xs text-sm text-zinc-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              aria-label="Filter trainings by category"
+              className="h-10 w-full pl-3 text-xs text-zinc-700 sm:pl-9 sm:text-sm"
             >
               <option value="">All Categories</option>
               {categories.map((c) => (
                 <option key={c}>{c}</option>
               ))}
-            </select>
-            <ChevronRight className="pointer-events-none absolute top-1/2 right-3 size-4 max-sm:right-2 -translate-y-1/2 rotate-90 text-zinc-500" />
-          </label>
+            </SelectMenu>
+          </div>
           <ViewToggle view={view} onChange={setView} calendar />
         </div>
       </div>

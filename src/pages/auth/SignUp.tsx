@@ -1,8 +1,9 @@
-import { ChevronDown, Globe2, Loader2 } from 'lucide-react'
+import { Globe2, Loader2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { loadAdminData } from '../../admin/storage'
 import { REGIONS } from '../../admin/temporary'
+import { SelectMenu } from '../../components/Pickers'
 import { publicAccessSettings, validateGuest, type GuestSignUp, type GuestSignUpErrors } from '../../lib/publicAccess'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../store/Auth'
@@ -82,19 +83,16 @@ export function SignUp() {
             {errors[f.key] && <span className="mt-1 block text-xs text-brand-600">{errors[f.key]}</span>}
           </label>
         ))}
-        <label className="block">
-          <span className="text-sm font-medium text-zinc-700">Region</span>
-          <span className="relative block">
-            <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} aria-invalid={!!errors.region} className={cn(input(errors.region), 'cursor-pointer appearance-none bg-white pr-9')}>
+        <div>
+          <label htmlFor="guest-region" className="text-sm font-medium text-zinc-700">Region</label>
+          <SelectMenu id="guest-region" value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} aria-invalid={!!errors.region} className={cn(input(errors.region), 'bg-surface')}>
               <option value="">Choose your region…</option>
               {REGIONS.map((r) => (
                 <option key={r}>{r}</option>
               ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 mt-0.5 size-4 -translate-y-1/2 text-zinc-500" />
-          </span>
+          </SelectMenu>
           {errors.region && <span className="mt-1 block text-xs text-brand-600">{errors.region}</span>}
-        </label>
+        </div>
 
         <label className="flex items-start gap-2 text-sm text-zinc-600 sm:col-span-2">
           <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-brand-600" />

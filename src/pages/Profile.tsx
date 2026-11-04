@@ -5,6 +5,7 @@ import { StatStrip } from '../components/CalendarParts'
 import { SegmentTabs } from '../components/SegmentTabs'
 import { JourneyTimeline } from '../components/JourneyTimeline'
 import { UserAvatar } from '../components/UserAvatar'
+import { AccountActions, AccountRequestStatus } from '../components/ProfileSettings'
 import { LATE_WINDOW_MINUTES } from '../data/trainings'
 import { loadNotificationPrefs, saveNotificationPrefs, type NotificationPrefs } from '../lib/notificationPrefs'
 import { computeMetrics } from '../lib/stats'
@@ -74,13 +75,18 @@ export function Profile() {
           <p className="text-xl font-bold text-zinc-900">{user.name}</p>
           <p className="mt-0.5 text-sm text-zinc-500">{user.role}</p>
         </div>
-        <button
-          onClick={() => logout()}
-          className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:border-brand-200 hover:bg-brand-50"
-        >
-          <LogOut className="size-4" /> Sign out
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <AccountActions />
+          <button
+            onClick={() => logout()}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:border-brand-200 hover:bg-brand-50"
+          >
+            <LogOut className="size-4" /> Sign out
+          </button>
+        </div>
       </section>
+
+      <AccountRequestStatus />
 
       <StatStrip
         items={[
@@ -110,28 +116,37 @@ export function Profile() {
         <div className="space-y-6">
           {/* Achievement Hero */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border border-amber-200/70 bg-gradient-to-br from-amber-500/10 via-amber-50/50 to-orange-50/30 p-5">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-800">
-                <Trophy className="size-4 text-amber-600" /> Total Points
-              </div>
-              <p className="mt-2 text-3xl font-black text-amber-950">{userPoints.toLocaleString()}</p>
-              <p className="mt-1 text-xs text-amber-800/80">Keep learning to climb the ranks!</p>
+            <div className="flex min-w-0 items-center gap-3.5 rounded-2xl border border-zinc-200/80 bg-surface p-4 shadow-card sm:p-5">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-amber-500/10 text-amber-600 sm:size-12">
+                <Trophy className="size-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-zinc-600 sm:text-[13px]">Total points</span>
+                <span className="mt-0.5 block text-xl leading-tight font-bold tracking-tight text-zinc-900 sm:text-[1.65rem]">{userPoints.toLocaleString()}</span>
+                <span className="mt-1 block text-xs text-zinc-500">Keep learning to climb the ranks!</span>
+              </span>
             </div>
-            <div className="rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-500/10 via-emerald-50/50 to-teal-50/30 p-5">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-800">
-                <Award className="size-4 text-emerald-600" /> Badges Unlocked
-              </div>
-              <p className="mt-2 text-3xl font-black text-emerald-950">
-                {earnedBadges.length} <span className="text-base font-normal text-zinc-500">/ {ALL_BADGES.length}</span>
-              </p>
-              <p className="mt-1 text-xs text-emerald-800/80">{Math.round((earnedBadges.length / ALL_BADGES.length) * 100)}% badges collected</p>
+            <div className="flex min-w-0 items-center gap-3.5 rounded-2xl border border-zinc-200/80 bg-surface p-4 shadow-card sm:p-5">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-mpesa-500/10 text-mpesa-600 sm:size-12">
+                <Award className="size-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-zinc-600 sm:text-[13px]">Badges unlocked</span>
+                <span className="mt-0.5 block text-xl leading-tight font-bold tracking-tight text-zinc-900 sm:text-[1.65rem]">
+                  {earnedBadges.length} <span className="text-sm font-medium text-zinc-400">/ {ALL_BADGES.length}</span>
+                </span>
+                <span className="mt-1 block text-xs text-zinc-500">{Math.round((earnedBadges.length / ALL_BADGES.length) * 100)}% badges collected</span>
+              </span>
             </div>
-            <div className="rounded-2xl border border-brand-200/70 bg-gradient-to-br from-brand-500/10 via-brand-50/50 to-sky-50/30 p-5">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-800">
-                <Flame className="size-4 text-brand-600" /> Recent Activity
-              </div>
-              <p className="mt-2 text-3xl font-black text-brand-950">{pointEvents.length}</p>
-              <p className="mt-1 text-xs text-brand-800/80">Recognized learning events</p>
+            <div className="flex min-w-0 items-center gap-3.5 rounded-2xl border border-zinc-200/80 bg-surface p-4 shadow-card sm:p-5">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600 sm:size-12">
+                <Flame className="size-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-zinc-600 sm:text-[13px]">Recent activity</span>
+                <span className="mt-0.5 block text-xl leading-tight font-bold tracking-tight text-zinc-900 sm:text-[1.65rem]">{pointEvents.length}</span>
+                <span className="mt-1 block text-xs text-zinc-500">Recognized learning events</span>
+              </span>
             </div>
           </div>
 
@@ -140,9 +155,6 @@ export function Profile() {
             <h2 className="flex items-center gap-2 text-base font-bold text-zinc-900">
               <Sparkles className="size-5 text-amber-500" /> Badges & Achievements
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-500">
-              Earn badges by completing courses, passing quizzes with top scores, and attending group sessions.
-            </p>
 
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {ALL_BADGES.map((b) => {
@@ -192,7 +204,6 @@ export function Profile() {
             <h2 className="flex items-center gap-2 text-base font-bold text-zinc-900">
               <Flame className="size-4 text-orange-500" /> Points History
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-500">Every activity that contributed to your score.</p>
 
             {pointEvents.length === 0 ? (
               <p className="mt-4 text-xs text-zinc-400">No activity logged yet.</p>
@@ -222,7 +233,6 @@ export function Profile() {
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 sm:p-6">
           <h2 className="text-base font-bold text-zinc-900">Account details</h2>
-          <p className="mt-0.5 text-xs text-zinc-500">Managed by your administrator — contact Learning & Development to change them.</p>
           <dl className="mt-4 divide-y divide-zinc-100">
             {details.map((d) => (
               <div key={d.label} className="flex items-center gap-3 py-3">
@@ -240,7 +250,6 @@ export function Profile() {
           <h2 className="flex items-center gap-2 text-base font-bold text-zinc-900">
             <BellRing className="size-4 text-brand-600" /> Notifications
           </h2>
-          <p className="mt-0.5 text-xs text-zinc-500">Choose what shows up in your notification bell.</p>
           <ul className="mt-4 divide-y divide-zinc-100">
             {prefRows.map((r) => (
               <li key={r.key} className="flex items-center justify-between gap-4 py-3">

@@ -87,7 +87,7 @@ export function DuplicateWarning({ duplicates, data }: { duplicates: TrainingReq
       <div>
         <p className="font-semibold">Possible duplicate</p>
         <p className="mt-0.5 text-amber-800">
-          {duplicates.length === 1 ? 'Another request' : `${duplicates.length} other requests`} from {duplicates[0].team} for the same training type on{' '}
+          {duplicates.length === 1 ? 'Another request' : `${duplicates.length} other requests`} from {duplicates[0].team} on the same topic for{' '}
           {shortDate(duplicates[0].preferredDate)}:{' '}
           {duplicates.map((d) => `“${d.topic}” (${statusLabel[d.status].toLowerCase()}, ${data.people.find((p) => p.id === d.requesterId)?.name ?? 'unknown'})`).join(', ')}.
         </p>

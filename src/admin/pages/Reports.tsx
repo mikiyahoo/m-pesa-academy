@@ -191,7 +191,6 @@ export function AdminReports() {
     <>
       <PageHeader
         title="Reports"
-        description={scope.trainerId ? 'Results for the sessions you conduct.' : 'Participation, results, feedback and certificates across all trainings.'}
         actions={
           <ExportMenu
             filename={`report-${tab}`}

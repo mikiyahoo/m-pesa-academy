@@ -1,22 +1,31 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { approvedDetails, customPassword, originalEmail } from '../lib/profileRequests'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { loadAdminData, saveAdminData } from '../admin/storage'
 import { accessBlock, isTemporary } from '../admin/temporary'
 import type { Person } from '../admin/types'
 import { createGuest, validateGuest, type GuestSignUp, type GuestSignUpErrors } from '../lib/publicAccess'
-import { adminUser, currentUser, DEMO_PASSWORD, requesterUser, trainerUser } from '../data/trainings'
+import { adminUser, currentUser, DEMO_PASSWORD, departmentAdminUser, requesterUser, trainerUser } from '../data/trainings'
 import { localISO } from '../lib/utils'
 import type { User } from '../types'
 
 const STORAGE_KEY = 'mpesa-learning:auth:v2'
+/**
+ * Sign-in lives in sessionStorage (one per tab, so several roles can be open side by side).
+ * A tab opened from a link starts empty, so the opening tab leaves a short-lived hand-off.
+ */
+const HANDOFF_KEY = 'mpesa-learning:auth-handoff'
+const HANDOFF_MS = 15_000
+const INTRO_SEEN_KEY = 'mpesa-learning:intro-seen'
 
 type Stage = 'signedOut' | 'otp' | 'signedIn'
-export type Role = 'learner' | 'admin' | 'requester' | 'trainer'
+export type Role = 'learner' | 'admin' | 'department' | 'requester' | 'trainer'
 
 const accounts: { role: Role; user: User; personId?: string }[] = [
   { role: 'learner', user: currentUser },
   { role: 'admin', user: adminUser },
   { role: 'requester', user: requesterUser },
   { role: 'trainer', user: trainerUser, personId: 's3' },
+  { role: 'department', user: departmentAdminUser, personId: 'dept-admin-demo' },
 ]
 
 /** A signed-in or signing-in identity. Temporary users carry their person id from the admin data. */
@@ -67,9 +76,19 @@ const externalIdentity = (person: Person): Identity => ({
 function loadSession(): Identity | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const s = JSON.parse(raw) as Identity
-    return s.role && s.user ? s : null
+    if (raw) {
+      const s = JSON.parse(raw) as Identity
+      return s.role && s.user ? s : null
+    }
+    // A new tab opened from a link in a signed-in tab: take over that sign-in (and skip the intro).
+    const handoff = localStorage.getItem(HANDOFF_KEY)
+    if (!handoff) return null
+    localStorage.removeItem(HANDOFF_KEY)
+    const { s, at } = JSON.parse(handoff) as { s: Identity; at: number }
+    if (!s?.role || !s.user || Date.now() - at > HANDOFF_MS) return null
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+    sessionStorage.setItem(INTRO_SEEN_KEY, '1')
+    return s
   } catch {
     return null
   }
@@ -90,6 +109,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [notice, setNotice] = useState<string | null>(null)
   const stage: Stage = session ? 'signedIn' : pending ? 'otp' : 'signedOut'
 
+  // Opening an app link in a new tab (target=_blank, Ctrl/⌘-click or middle-click) hands the sign-in over.
+  useEffect(() => {
+    if (!session) return
+    const onOpen = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
+      if (!a || a.origin !== window.location.origin) return
+      const newTab = a.target === '_blank' || e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1
+      if (!newTab) return
+      try {
+        localStorage.setItem(HANDOFF_KEY, JSON.stringify({ s: session, at: Date.now() }))
+      } catch {
+        // Best-effort: the new tab asks to sign in instead.
+      }
+    }
+    document.addEventListener('click', onOpen, true)
+    document.addEventListener('auxclick', onOpen, true)
+    return () => {
+      document.removeEventListener('click', onOpen, true)
+      document.removeEventListener('auxclick', onOpen, true)
+    }
+  }, [session])
+
   const signIn = (s: Identity | null) => {
     saveSession(s)
     setSession(s)
@@ -104,21 +145,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pending,
       notice,
       login: (email, password) => {
-        const id = email.trim().toLowerCase()
-        const account = accounts.find((a) => a.user.email === id || a.user.phone === id)
+        const id = originalEmail(email)
+        // Anyone an admin has made a Department Admin can sign in with their work email (demo password).
+        const deptPerson = loadAdminData().people.find((p) => p.role === 'Department Admin' && (p.email.toLowerCase() === id || p.phone === id))
+        const account =
+          accounts.find((a) => a.user.email === id || a.user.phone === id) ??
+          (deptPerson
+            ? { role: 'department' as Role, personId: deptPerson.id, user: { name: deptPerson.name, email: deptPerson.email, phone: deptPerson.phone, role: `Department Admin · ${deptPerson.department}` } }
+            : undefined)
         if (!account) {
           const external = loadAdminData().people.some((p) => isTemporary(p) && (p.email.toLowerCase() === id || p.phone === id))
           return external
             ? 'Guests and external trainees don’t use a password. Choose “Sign in with a code” instead.'
             : 'No account found for that email or phone number. New here? Create a guest account to join public trainings.'
         }
-        if (password !== DEMO_PASSWORD) return 'Incorrect password. Please try again.'
+        if (password !== (customPassword(account.user.email) ?? DEMO_PASSWORD)) return 'Incorrect password. Please try again.'
         // An admin can deactivate an account or give it an end date (validity period).
         const record = loadAdminData().people.find((p) => p.email.toLowerCase() === account.user.email.toLowerCase())
         if (record?.status === 'Inactive') return 'Your account is inactive. Contact the training team.'
         if (record?.accessEnd && record.accessEnd < localISO().slice(0, 10)) return 'Your access period has ended. Contact the training team to extend it.'
         setNotice(null)
-        setPending({ ...account, phone: account.user.phone, code: newCode(), expiresAt: Date.now() + OTP_TTL_MS })
+        const approved = approvedDetails(account.user)
+        setPending({ ...account, user: approved, phone: approved.phone, code: newCode(), expiresAt: Date.now() + OTP_TTL_MS })
         return null
       },
       loginWithInvite: (token) => {

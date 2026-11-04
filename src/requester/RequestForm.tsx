@@ -91,7 +91,7 @@ type StepId = 'about' | 'audience' | 'when' | 'goals' | 'review'
 
 /** The request form as five steps; each lists the fields it validates. */
 const STEPS: { id: StepId; title: string; fields: string[] }[] = [
-  { id: 'about', title: 'About the training', fields: ['topic', 'trainingTypeId', 'categories', 'otherCategory'] },
+  { id: 'about', title: 'About the training', fields: ['topic', 'categories', 'otherCategory'] },
   { id: 'audience', title: 'Audience & participants', fields: ['targetGroupIds', 'participants'] },
   { id: 'when', title: 'Delivery & timing', fields: ['delivery', 'location', 'preferredDate', 'preferredTime'] },
   { id: 'goals', title: 'Objectives & files', fields: ['objectives', 'description', 'attachments'] },
@@ -247,8 +247,8 @@ export function RequestForm() {
     goTo(STEPS[stepIndex + 1].id)
   }
   const duplicates = useMemo(
-    () => (form.trainingTypeId && form.preferredDate ? findDuplicates({ id: existing?.id ?? '', team, trainingTypeId: form.trainingTypeId, preferredDate: form.preferredDate }, data.requests) : []),
-    [form.trainingTypeId, form.preferredDate, team, data.requests, existing?.id],
+    () => (form.categories.length && form.preferredDate ? findDuplicates({ id: existing?.id ?? '', team, trainingTypeId: form.trainingTypeId, preferredDate: form.preferredDate, categories: form.categories }, data.requests) : []),
+    [form.trainingTypeId, form.categories, form.preferredDate, team, data.requests, existing?.id],
   )
 
   if (id && !existing) return <Navigate to="/requests" replace />
@@ -471,39 +471,6 @@ export function RequestForm() {
             <Err id="rq-topic-err" msg={show('topic')} />
             <span className="ml-auto shrink-0 text-[11px] text-zinc-400 tabular-nums">{form.topic.length}/80</span>
           </div>
-        </div>
-        <div>
-          <Label optional>Training type</Label>
-          <div id="rq-type" role="radiogroup" aria-label="Training type" aria-invalid={!!show('trainingTypeId')} className="grid gap-2.5 sm:grid-cols-2">
-            {data.trainingTypes.map((t) => {
-              const on = form.trainingTypeId === t.id
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => set('trainingTypeId', on ? '' : t.id)}
-                  className={cn(
-                    'flex items-start gap-3 rounded-xl border p-3.5 text-left transition',
-                    on ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-100' : show('trainingTypeId') ? 'border-brand-300 hover:border-brand-400' : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/60',
-                  )}
-                >
-                  <span className={cn('mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2', on ? 'border-brand-600 bg-brand-600 text-white' : 'border-zinc-300')}>
-                    {on && <Check className="size-3" strokeWidth={3.5} />}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-sm font-semibold text-zinc-900">{t.name}</span>
-                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-600">{t.level}</span>
-                    </span>
-                    <span className="mt-0.5 line-clamp-2 block text-xs text-zinc-500">{t.description}</span>
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-          <Err id="rq-type-err" msg={show('trainingTypeId')} />
         </div>
         <div>
           <Label>Categories</Label>
@@ -816,7 +783,7 @@ export function RequestForm() {
       {step === 'review' && (
         <ReviewStep
           rows={[
-            { step: 'about', title: 'About the training', items: [['Title', form.topic], ['Training type', data.trainingTypes.find((t) => t.id === form.trainingTypeId)?.name ?? ''], ['Categories', [...form.categories, ...(otherOn && form.otherCategory ? [form.otherCategory] : [])].join(', ')]] },
+            { step: 'about', title: 'About the training', items: [['Title', form.topic], ['Categories', [...form.categories, ...(otherOn && form.otherCategory ? [form.otherCategory] : [])].join(', ')]] },
             { step: 'audience', title: 'Audience & participants', items: [['Groups', form.targetGroupIds.map((g) => data.groups.find((x) => x.id === g)?.name ?? g).join(', ')], ['Other audience', form.audienceNote], ['Participants', form.participants.length ? `${form.participants.length} people${temporary ? ` · ${temporary} temporary` : ''}` : '']] },
             { step: 'when', title: 'Delivery & timing', items: [['Delivery', form.delivery === 'Online' ? 'Online (Microsoft Teams)' : 'In person'], ...(form.delivery === 'Physical' ? [['Location', form.location] as [string, string]] : []), ['Preferred date', form.preferredDate ? shortDate(form.preferredDate) : ''], ['Preferred time', form.preferredTime]] },
             { step: 'goals', title: 'Objectives & files', items: [['Objectives', form.objectives], ['Details', form.description], ['Attachments', form.attachments.map((a) => a.name).join(', ')]] },

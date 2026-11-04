@@ -1,4 +1,4 @@
-import { AlertTriangle, BadgeCheck, CheckCircle2, ChevronRight, Circle, Download, Play, Printer, RotateCcw } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, BarChart3, CheckCircle2, ChevronLeft, ChevronRight, Circle, Download, GraduationCap, Play, Printer, RotateCcw } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { downloadCertificatePdf, printCertificate } from '../../lib/certificateExport'
 import { downloadPdfBytes, fillCertificatePdf, printPdfBytes } from '../../lib/fillableCertificate'
@@ -9,11 +9,11 @@ import { shortDate } from '../helpers'
 import { anonymiser, attendanceMap, bestScore, eligibility, runIssuing, templateFor } from '../insights'
 import { filterTrainings, useReportFilters } from '../reports/filters'
 import { trainerIdsOf } from '../scheduling'
-import { ExportMenu, FilterBar, Stat } from '../reports/ReportParts'
+import { ExportMenu, FilterBar } from '../reports/ReportParts'
 import { useScope } from '../scope'
 import { useAdmin } from '../store'
 import type { AdminData, AdminTraining, IssuedCertificate } from '../types'
-import { Badge, Button, Card, Empty, Field, Modal, PageHeader, SearchInput, Select, Table, Textarea } from '../ui'
+import { Badge, Button, Card, Empty, Field, Modal, PageHeader, SearchInput, Select, StatCard, Table, Textarea } from '../ui'
 import { CertificatePreview } from './Settings'
 
 const MANUAL_REASONS = ['Attendance recorded on paper', 'Assessment taken offline', 'Feedback collected on paper', 'System issue during the session', 'Approved exception']
@@ -37,6 +37,8 @@ export function AdminCertificates() {
   const { filters, set, clear, active } = useReportFilters()
   const [openId, setOpenId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [sessionPage, setSessionPage] = useState(0)
+  const [rosterPage, setRosterPage] = useState(0)
   const [manual, setManual] = useState<{ t: AdminTraining; pid: string } | null>(null)
   const [preview, setPreview] = useState<{ t: AdminTraining; c: IssuedCertificate } | null>(null)
   const previewArt = useRef<HTMLDivElement>(null)
@@ -73,6 +75,10 @@ export function AdminCertificates() {
       }),
     [data, trainings],
   )
+  const sessionPageSize = 10
+  const sessionPageCount = Math.max(1, Math.ceil(rows.length / sessionPageSize))
+  const currentSessionPage = Math.min(sessionPage, sessionPageCount - 1)
+  const visibleSessions = rows.slice(currentSessionPage * sessionPageSize, (currentSessionPage + 1) * sessionPageSize)
   const notTriggered = rows.filter((r) => r.t.status === 'COMPLETED' && !r.t.certificatesRunAt)
   const name = (pid: string) => data.people.find((p) => p.id === pid)?.name ?? pid
   const trainerNames = (t: AdminTraining) => trainerIdsOf(t).map(name).join(', ') || '—'
@@ -102,6 +108,11 @@ export function AdminCertificates() {
 
   const totals = { issued: rows.reduce((s, r) => s + r.issued, 0), pending: rows.reduce((s, r) => s + r.pending, 0), eligible: rows.reduce((s, r) => s + r.eligible, 0) }
   const q = query.trim().toLowerCase()
+  const rosterPageSize = 10
+  const setCertificateFilters = (patch: Partial<typeof filters>) => {
+    set(patch)
+    setSessionPage(0)
+  }
 
   return (
     <>
@@ -129,10 +140,10 @@ export function AdminCertificates() {
       />
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <Stat label="Issued" value={totals.issued} tone="green" />
-        <Stat label="Eligible" value={totals.eligible} hint="Attended, feedback, passed" />
-        <Stat label="Eligible, not issued" value={totals.pending} tone="amber" />
-        <Stat label="Sessions not triggered" value={notTriggered.length} tone="red" />
+        <StatCard icon={BarChart3} label="Issued" value={totals.issued} tone="green" />
+        <StatCard icon={BarChart3} label="Eligible" value={totals.eligible} hint="Attended, feedback, passed" />
+        <StatCard icon={BarChart3} label="Eligible, not issued" value={totals.pending} tone="amber" />
+        <StatCard icon={GraduationCap} label="Sessions not triggered" value={notTriggered.length} tone="red" />
       </div>
 
       {notTriggered.length > 0 && (
@@ -156,7 +167,20 @@ export function AdminCertificates() {
       )}
 
       <div className="mt-5">
-        <FilterBar filters={filters} set={set} clear={clear} active={active} hide={scope.trainerId ? ['trainerId', 'status'] : ['status']} />
+        <FilterBar
+          filters={filters}
+          set={setCertificateFilters}
+          clear={() => { clear(); setSessionPage(0) }}
+          active={active}
+          hide={scope.trainerId ? ['trainerId', 'status'] : ['status']}
+          rightSlot={rows.length > 0 && (
+            <>
+              <span className="whitespace-nowrap text-xs text-zinc-500">Page {currentSessionPage + 1} of {sessionPageCount}</span>
+              <Button size="sm" aria-label="Previous page of certificate sessions" disabled={currentSessionPage === 0} onClick={() => setSessionPage(currentSessionPage - 1)}><ChevronLeft className="size-3.5" /></Button>
+              <Button size="sm" aria-label="Next page of certificate sessions" disabled={currentSessionPage >= sessionPageCount - 1} onClick={() => setSessionPage(currentSessionPage + 1)}><ChevronRight className="size-3.5" /></Button>
+            </>
+          )}
+        />
       </div>
 
       {rows.length === 0 ? (
@@ -165,13 +189,16 @@ export function AdminCertificates() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {rows.map((r) => {
+          {visibleSessions.map((r) => {
             const open = openId === r.t.id
             const tpl = templateFor(data, r.t)
             const roster = r.roster.filter((x) => !q || x.person?.name.toLowerCase().includes(q) || x.person?.email.toLowerCase().includes(q))
+            const rosterPageCount = Math.max(1, Math.ceil(roster.length / rosterPageSize))
+            const currentRosterPage = Math.min(rosterPage, rosterPageCount - 1)
+            const visibleRoster = roster.slice(currentRosterPage * rosterPageSize, (currentRosterPage + 1) * rosterPageSize)
             return (
               <Card key={r.t.id} className="p-0">
-                <button onClick={() => setOpenId(open ? null : r.t.id)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 text-left sm:px-5">
+                <button onClick={() => { setOpenId(open ? null : r.t.id); setRosterPage(0); setQuery('') }} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 text-left sm:px-5">
                   <ChevronRight className={cn('size-4 shrink-0 text-zinc-400 transition', open && 'rotate-90')} />
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium text-zinc-900">{r.t.name}</span>
@@ -190,7 +217,7 @@ export function AdminCertificates() {
                 {open && (
                   <div className="border-t border-zinc-200 p-4 sm:p-5">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                      <SearchInput value={query} onChange={setQuery} placeholder="Search trainees…" className="w-full sm:w-64" />
+                      <SearchInput value={query} onChange={(value) => { setQuery(value); setRosterPage(0) }} placeholder="Search trainees…" className="w-full sm:w-64" />
                       <div className="flex gap-2">
                         <Link to={`/admin/trainings/${r.t.id}`} className="inline-flex items-center rounded-xl px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100">
                           Open session
@@ -201,7 +228,7 @@ export function AdminCertificates() {
                       </div>
                     </div>
                     <Table head={['Trainee', 'Attendance', 'Feedback', 'Assessment', 'Certificate', '']} minWidth={760}>
-                      {roster.map((x) => (
+                      {visibleRoster.map((x) => (
                         <tr key={x.pid}>
                           <td className="px-4 py-2.5">
                             <p className="font-medium">{x.person?.name}</p>
@@ -253,6 +280,16 @@ export function AdminCertificates() {
                         </tr>
                       ))}
                     </Table>
+                    {roster.length > 0 && (
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
+                        <span>Showing {currentRosterPage * rosterPageSize + 1}–{Math.min((currentRosterPage + 1) * rosterPageSize, roster.length)} of {roster.length} trainees</span>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" aria-label="Previous trainee page" disabled={currentRosterPage === 0} onClick={() => setRosterPage(currentRosterPage - 1)}><ChevronLeft className="size-3.5" /></Button>
+                          <span className="whitespace-nowrap">Page {currentRosterPage + 1} of {rosterPageCount}</span>
+                          <Button size="sm" aria-label="Next trainee page" disabled={currentRosterPage >= rosterPageCount - 1} onClick={() => setRosterPage(currentRosterPage + 1)}><ChevronRight className="size-3.5" /></Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </Card>
@@ -260,6 +297,7 @@ export function AdminCertificates() {
           })}
         </div>
       )}
+
 
       {manual && <ManualIssueModal name={name(manual.pid)} training={manual.t.name} onClose={() => setManual(null)} onIssue={(reason) => issueOne(manual.t, manual.pid, reason)} />}
       {preview && (

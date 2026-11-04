@@ -1,4 +1,4 @@
-import { ArrowRight, Award, BookOpen, Briefcase, ChartNoAxesColumn, ChevronDown, ChevronLeft, CircleHelp, ClipboardList, FilePlus2, Home, LogOut, Menu, RotateCcw, Route, Search, type LucideIcon, UserRound, X } from 'lucide-react'
+import { ArrowRight, Award, BookOpen, Briefcase, ChartNoAxesColumn, ChevronDown, ChevronLeft, CircleHelp, ClipboardList, FilePlus2, Home, LogOut, Menu, RotateCcw, Search, type LucideIcon, UserRound, X } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { cn, progressStatus } from '../lib/utils'
@@ -16,7 +16,6 @@ type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean; sec
 const learnerNav: NavItem[] = [
     { to: '/trainings', label: 'Home', icon: Home, end: true },
     { to: '/learning', label: 'Trainings', icon: BookOpen, end: true },
-    { to: '/learning?tab=Paths', label: 'Learning Paths', icon: Route },
     { to: '/certificates', label: 'Certificates', icon: Award },
     { to: '/report', label: 'Report', icon: ChartNoAxesColumn },
     { to: '/help', label: 'Help & Support', icon: CircleHelp },

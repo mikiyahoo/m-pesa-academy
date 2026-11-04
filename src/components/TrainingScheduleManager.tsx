@@ -28,6 +28,7 @@ import {
   type TeamSchedule,
 } from '../lib/scheduling'
 import { cn, formatDate } from '../lib/utils'
+import { DatePicker, SelectMenu } from './Pickers'
 
 export function TrainingScheduleManager() {
   const { trainings } = useStore()
@@ -56,6 +57,10 @@ export function TrainingScheduleManager() {
     e.preventDefault()
     const training = trainings.find((t) => t.id === selectedTrainingId)
     if (!training) return
+    if (!deadlineDate) {
+      toast('Choose a completion deadline.', { tone: 'error' })
+      return
+    }
 
     addTeamSchedule({
       trainingId: training.id,
@@ -230,20 +235,23 @@ export function TrainingScheduleManager() {
 
             <form onSubmit={handleCreateSchedule} className="mt-4 space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                <label htmlFor="team-training-course" className="mb-1 block text-xs font-bold uppercase tracking-wider text-zinc-600">
                   Select Training Course
                 </label>
-                <select
+                <SelectMenu
+                  id="team-training-course"
                   value={selectedTrainingId}
                   onChange={(e) => setSelectedTrainingId(e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 p-2.5 text-sm font-medium outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                  disabled={!trainings.length}
+                  aria-label="Select training course"
+                  className="text-sm font-medium"
                 >
-                  {trainings.map((t) => (
+                  {trainings.length ? trainings.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.title} ({t.category})
                     </option>
-                  ))}
-                </select>
+                  )) : <option value="">No trainings available</option>}
+                </SelectMenu>
               </div>
 
               <div>
@@ -262,15 +270,15 @@ export function TrainingScheduleManager() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                  <label htmlFor="team-training-deadline" className="mb-1 block text-xs font-bold uppercase tracking-wider text-zinc-600">
                     Completion Deadline
                   </label>
-                  <input
-                    type="date"
+                  <DatePicker
+                    id="team-training-deadline"
                     value={deadlineDate}
                     onChange={(e) => setDeadlineDate(e.target.value)}
-                    required
-                    className="w-full rounded-xl border border-zinc-300 p-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                    aria-label="Completion deadline"
+                    className="text-sm"
                   />
                 </div>
                 <div>
@@ -296,7 +304,7 @@ export function TrainingScheduleManager() {
                   type="checkbox"
                   checked={mandatory}
                   onChange={(e) => setMandatory(e.target.checked)}
-                  className="size-4 rounded text-brand-600 focus:ring-brand-500"
+                  className="size-4 rounded accent-brand-600"
                 />
               </div>
 
@@ -366,7 +374,7 @@ export function TrainingScheduleManager() {
                     type="checkbox"
                     checked={prefs.push}
                     onChange={(e) => handleUpdatePrefs({ push: e.target.checked })}
-                    className="size-4 rounded text-brand-600 focus:ring-brand-500"
+                    className="size-4 rounded accent-brand-600"
                   />
                 </div>
               </div>
@@ -393,7 +401,7 @@ export function TrainingScheduleManager() {
                     type="checkbox"
                     checked={prefs.email}
                     onChange={(e) => handleUpdatePrefs({ email: e.target.checked })}
-                    className="size-4 rounded text-brand-600 focus:ring-brand-500"
+                    className="size-4 rounded accent-brand-600"
                   />
                 </div>
               </div>
@@ -420,7 +428,7 @@ export function TrainingScheduleManager() {
                     type="checkbox"
                     checked={prefs.sms}
                     onChange={(e) => handleUpdatePrefs({ sms: e.target.checked })}
-                    className="size-4 rounded text-brand-600 focus:ring-brand-500"
+                    className="size-4 rounded accent-brand-600"
                   />
                 </div>
               </div>

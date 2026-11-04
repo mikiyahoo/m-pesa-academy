@@ -271,25 +271,37 @@ export function CalendarSidebar({
           <ul className="mt-4 space-y-2.5">
             {selectedSessions.map((t) => {
               const kind = kindOf(t, progress[t.id]);
+              const live = kind === "Active";
               return (
                 <li key={t.id}>
                   <Link
                     to={`/trainings/${t.id}`}
-                    className="group block overflow-hidden rounded-xl border border-zinc-200 transition hover:border-zinc-300 hover:shadow-sm"
+                    className={cn(
+                      "group block overflow-hidden rounded-xl border transition hover:shadow-sm",
+                      live ? "border-brand-200 ring-1 ring-brand-100 hover:border-brand-300" : "border-zinc-200 hover:border-zinc-300",
+                    )}
                   >
                     {t.cover && (
-                      <img
-                        src={t.cover}
-                        alt=""
-                        className="h-24 w-full object-cover"
-                      />
+                      <div className="relative">
+                        <img
+                          src={t.cover}
+                          alt=""
+                          className={cn("w-full object-cover", live ? "h-32" : "h-24")}
+                        />
+                        {/* Same badge as the training cards. */}
+                        {live && (
+                          <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-brand-700 shadow-sm ring-1 ring-brand-100 backdrop-blur">
+                            <span className="size-1.5 animate-pulse rounded-full bg-brand-600" /> Live today
+                          </span>
+                        )}
+                      </div>
                     )}
                     <div className="p-3.5">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-semibold text-zinc-900">
                           {t.title}
                         </p>
-                        <StatusPill tone={KIND_TONE[kind]}>{kind}</StatusPill>
+                        {!live && <StatusPill tone={KIND_TONE[kind]}>{kind}</StatusPill>}
                       </div>
                       <p className="mt-1.5 flex items-center gap-1.5 text-xs text-zinc-500">
                         <Clock className="size-3.5" /> {timeRange(t)}
@@ -302,7 +314,14 @@ export function CalendarSidebar({
                         )}{" "}
                         {t.teamsJoinUrl ? "Microsoft Teams" : t.venue}
                       </p>
-                      <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 group-hover:gap-1.5">
+                      <span
+                        className={cn(
+                          "mt-3 inline-flex items-center gap-1 text-xs font-semibold",
+                          live
+                            ? "w-full justify-center rounded-xl bg-brand-600 px-3 py-2.5 text-sm text-white shadow-sm shadow-brand-600/25 group-hover:bg-brand-700"
+                            : "text-brand-600 group-hover:gap-1.5",
+                        )}
+                      >
                         {kind === "Active"
                           ? "Join or check in"
                           : kind === "Completed"
@@ -370,7 +389,7 @@ export function CalendarSidebar({
                         <Clock className="size-3.5" /> {timeRange(t)}
                       </span>
                       <span className="mt-1.5 block">
-                        <StatusPill tone={KIND_TONE[kind]}>{kind}</StatusPill>
+                        <StatusPill tone={KIND_TONE[kind]}>{kind === "Active" ? "Live today" : kind}</StatusPill>
                       </span>
                     </span>
                     <ChevronRight className="size-4 shrink-0 text-zinc-400 transition group-hover:translate-x-0.5" />

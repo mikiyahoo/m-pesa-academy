@@ -85,7 +85,6 @@ export function RequesterDashboard() {
               <h2 className="flex items-center gap-2 font-bold text-zinc-900">
                 <FilePen className="size-5 text-zinc-700" /> Drafts
               </h2>
-              <p className="mt-0.5 text-xs text-zinc-500">Drafts are deleted 24 hours after you start them.</p>
               <ul className="mt-3 divide-y divide-zinc-100">
                 {drafts.map((d) => (
                   <li key={d.id} className="flex flex-wrap items-center gap-3 py-3">

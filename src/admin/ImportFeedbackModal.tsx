@@ -1,4 +1,4 @@
-﻿import { AlertCircle, AlertTriangle, Check, CheckCircle2, Copy, Download, FileText, FileUp, HelpCircle, Sparkles, Trash2, UploadCloud } from "lucide-react"
+import { AlertCircle, AlertTriangle, Check, CheckCircle2, Copy, Download, FileText, HelpCircle, Sparkles, Trash2, UploadCloud } from "lucide-react"
 import { useMemo, useRef, useState } from "react"
 import { cn } from "../lib/utils"
 import type { FeedbackQuestionType } from "./types"
@@ -148,8 +148,7 @@ export function ImportFeedbackModal({
       open
       onClose={onClose}
       wide
-      title={<span className="flex items-center gap-2"><FileUp className="size-5 text-brand-600" /> Import Feedback Questions from Document</span>}
-      description="Upload a Word (.docx), Markdown, or plain text file with one question per paragraph."
+      title="Import Feedback Questions from Document"
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4 text-xs text-zinc-600">
@@ -270,7 +269,6 @@ export function ImportFeedbackModal({
         {activeTab === "guide" && (
           <div className="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 text-xs text-zinc-700">
             <h3 className="font-bold text-sm text-zinc-900">Supported Format</h3>
-            <p>Write one question per paragraph. After each question add optional <code className="rounded bg-zinc-200 px-1">Type:</code> and <code className="rounded bg-zinc-200 px-1">Category:</code> lines. Separate questions with a blank line.</p>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-xl border border-zinc-200 bg-white p-3 space-y-2">
                 <div className="flex items-center justify-between"><span className="font-bold text-zinc-900">5-point Likert Scale</span><Badge tone="blue">likert</Badge></div>

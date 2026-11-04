@@ -5,7 +5,7 @@ import { useFeedback } from '../components/Feedback'
 import { Banner } from '../components/Banner'
 import { PASS_MARK, LATE_WINDOW_MINUTES } from '../data/trainings'
 import { downloadIcs } from '../lib/ics'
-import { cn, certificateChecks, durationMinutes, formatDate, isPassed, nextModuleIndex, progressPercent, progressStatus, sessionStatus, timeRange } from '../lib/utils'
+import { blockingModule, cn, certificateChecks, completedCount, durationMinutes, moduleOpen, modulesDone as requiredModulesDone, formatDate, isPassed, nextModuleIndex, progressPercent, progressStatus, sessionStatus, timeRange } from '../lib/utils'
 import { useStore } from '../store/AppStore'
 import { learnPath } from './learn/outline'
 import { UserAvatar } from '../components/UserAvatar'
@@ -119,8 +119,8 @@ export function TrainingDetail() {
   const session = sessionStatus(training)
   const percent = progressPercent(training, p)
   const nextIdx = nextModuleIndex(training, p)
-  const modulesDone = nextIdx === training.modules.length
-  const doneCount = nextIdx
+  const modulesDone = requiredModulesDone(training, p)
+  const doneCount = completedCount(training, p)
   const { checks: certChecks, eligible, mark } = certificateChecks(training, p, LATE_WINDOW_MINUTES)
   const isTeams = !!training.teamsJoinUrl
   const isOnlineOnly = training.venue === 'ONLINE'
@@ -253,7 +253,7 @@ export function TrainingDetail() {
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-br from-white via-white to-[#fdf3f4]">
         <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-6 px-4 pt-8 pb-24 sm:px-8 sm:pt-12 sm:pb-28 gap-y-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-x-12">
-          <div className="min-w-0">
+          <div className="lg:col-span-2">
             <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-zinc-500">
               <Link to="/trainings" className="rounded p-0.5 text-zinc-700 hover:text-zinc-900" aria-label="Trainings home">
                 <Home className="size-4" />
@@ -265,8 +265,34 @@ export function TrainingDetail() {
               <ChevronRight className="size-4 text-zinc-300" />
               <span className="font-medium text-zinc-700">{training.category}</span>
             </nav>
+            {isLocked && missingPrerequisites.length > 0 && (
+              <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 shadow-xs sm:flex-row sm:items-center sm:p-5">
+                <span className="grid size-12 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-700">
+                  <Lock className="size-6" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base font-bold text-zinc-900">Prerequisite Course Required</h2>
+                  <p className="mt-0.5 text-sm text-zinc-700">
+                    This course is part of the <span className="font-semibold">{prereqJourney?.title}</span> learning pathway. Complete the prerequisite first.
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {missingPrerequisites.map((mp) => (
+                    <Link
+                      key={mp.id}
+                      to={`/trainings/${mp.id}`}
+                      className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700"
+                    >
+                      <PlayCircle className="size-4" /> Start {mp.title} <ChevronRight className="size-4" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="min-w-0">
 
-            <h1 className="mt-6 max-w-xl text-3xl leading-[1.1] font-bold tracking-tight text-zinc-900 sm:text-[2.6rem]">{training.title}</h1>
+            <h1 className="max-w-xl text-3xl leading-[1.1] font-bold tracking-tight text-zinc-900 sm:text-[2.6rem]">{training.title}</h1>
             <div className="mt-4 flex items-center gap-2.5 text-[15px] text-zinc-500">
               <UserAvatar name={training.trainer} className="size-9" />
               Trainer:
@@ -279,34 +305,6 @@ export function TrainingDetail() {
               {primaryButton()}
             </div>
 
-            {isLocked && missingPrerequisites.length > 0 && (
-              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 sm:p-5 shadow-xs">
-                <div className="flex items-start gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-800">
-                    <Lock className="size-5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-sm font-bold text-amber-900">
-                      Prerequisite Course Required
-                    </h4>
-                    <p className="mt-0.5 text-xs text-amber-800">
-                      This course is part of the <span className="font-semibold">{prereqJourney?.title}</span> learning pathway. Complete the prerequisite first:
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {missingPrerequisites.map((mp) => (
-                        <Link
-                          key={mp.id}
-                          to={`/trainings/${mp.id}`}
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-amber-700 transition"
-                        >
-                          Start: {mp.title} <ArrowRight className="size-3.5" />
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             <div className="mt-5 space-y-2.5 text-sm text-zinc-600">
               {(status !== 'Not Started' || mark !== 'Not yet') && (
@@ -475,7 +473,6 @@ export function TrainingDetail() {
                 </span>
                 <div>
                   <h2 className="text-lg font-bold text-zinc-900">Learn step-by-step</h2>
-                  <p className="text-sm text-zinc-500">Modules unlock in order — finish each one to unlock the next.</p>
                 </div>
               </div>
               <span className="text-sm text-zinc-500">
@@ -484,8 +481,8 @@ export function TrainingDetail() {
             </div>
             <ol className="mt-5">
               {training.modules.map((m, i) => {
-                const done = i < nextIdx
-                const locked = i > nextIdx
+                const done = !!p?.completedModules.includes(m.id)
+                const locked = !done && !moduleOpen(training, p, i)
                 const last = i === training.modules.length - 1
                 return (
                   <li key={m.id} className="relative">
@@ -504,7 +501,7 @@ export function TrainingDetail() {
                       {locked ? (
                         <span className="flex-1 cursor-not-allowed pl-1 text-left text-[15px] text-zinc-800">
                           {m.title} <span className="text-zinc-500">({m.minutes} min{m.kind === 'video' ? ' · video' : ''})</span>
-                          <span className="block text-xs text-zinc-400">Finish module {nextIdx} first</span>
+                          <span className="block text-xs text-zinc-400">Finish “{blockingModule(training, p, i)?.title}” first</span>
                         </span>
                       ) : (
                         <Link to={learnPath(training.id, m.id)} className={cn('flex-1 pl-1 text-left text-[15px] hover:text-brand-600', done ? 'text-zinc-400' : 'text-zinc-800')}>
@@ -545,9 +542,8 @@ export function TrainingDetail() {
           </section>
 
           <section id="discussion" className={cn(card, 'scroll-mt-48')}>
-            <div className="mb-6 border-b border-zinc-100 pb-4">
-              <SectionTitle icon={MessageSquare}>Course Discussions &amp; Q&amp;A</SectionTitle>
-              <p className="mt-1 text-sm text-zinc-500">Ask questions, share experiences, and learn directly from instructors and peers.</p>
+            <div className="mb-5">
+              <SectionTitle icon={MessageSquare}>Course Discussions</SectionTitle>
             </div>
             <CourseDiscussion trainingId={training.id} />
           </section>
@@ -587,7 +583,6 @@ export function TrainingDetail() {
               </span>
               <div>
                 <h2 className="text-lg font-bold text-zinc-900">Certificate checklist</h2>
-                <p className="text-sm text-zinc-500">All three are needed to earn your certificate.</p>
               </div>
             </div>
             <ul className="mt-4 space-y-2.5">

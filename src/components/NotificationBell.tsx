@@ -7,6 +7,8 @@ import { loadNotificationPrefs } from '../lib/notificationPrefs'
 import { assignmentDone, myLearnerId, useLearnerAssignments } from '../lib/assignments'
 import { scopedKey } from '../lib/learner'
 import { useStore } from '../store/AppStore'
+import { useAuth } from '../store/Auth'
+import { loadThreads, onThreadsChange } from '../lib/discussions'
 
 const READ_KEY = 'mpesa-learning:notifications-read'
 const RAISED_KEY = 'mpesa-learning:notifications-raised'
@@ -57,6 +59,10 @@ export function NotificationBell() {
   const learnerId = myLearnerId()
   useEffect(() => setRead(readIds()), [learnerId])
   const ref = useRef<HTMLDivElement>(null)
+  const { user } = useAuth()
+  // New replies to my questions raise a notification straight away.
+  const [forumTick, setForumTick] = useState(0)
+  useEffect(() => onThreadsChange(() => setForumTick((n) => n + 1)), [])
 
   useEffect(() => {
     if (!open) return
@@ -101,10 +107,27 @@ export function NotificationBell() {
         at: m.assignedAt?.slice(0, 10) ?? today,
       })
     }
+    // Replies from others to questions I asked.
+    const titles = new Map(trainings.map((t) => [t.id, t.title]))
+    for (const th of loadThreads()) {
+      if (th.authorId !== user.email || !titles.has(th.trainingId)) continue
+      for (const rep of th.replies) {
+        if (rep.authorId === user.email || rep.hidden) continue
+        list.push({
+          id: `reply-${rep.id}`,
+          icon: MessageSquare,
+          tone: rep.isTrainer ? 'bg-mpesa-500/10 text-mpesa-600' : 'bg-brand-50 text-brand-600',
+          title: rep.isTrainer ? 'Trainer answered your question' : `${rep.authorName} replied`,
+          text: th.title,
+          to: `/trainings/${th.trainingId}`,
+          at: rep.createdAt.slice(0, 10),
+        })
+      }
+    }
     // Newest raised first; notes raised together keep their date order.
     const raised = raisedAt(list.map((n) => n.id))
     return list.sort((a, b) => raised[b.id].localeCompare(raised[a.id]) || b.at.localeCompare(a.at))
-  }, [trainings, progress, open, assigned])
+  }, [trainings, progress, open, assigned, user.email, forumTick])
 
   const unread = notes.filter((n) => !read.includes(n.id)).length
   const save = (ids: string[]) => {

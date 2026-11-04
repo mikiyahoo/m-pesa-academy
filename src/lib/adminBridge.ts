@@ -46,7 +46,7 @@ export function adminToLearnerTraining(data: AdminData, t: AdminTraining, person
   const trainer = trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ') || 'Training team'
   const type = data.trainingTypes.find((x) => x.id === t.typeId)
   const material = (id?: string) => data.materials.find((m) => m.id === id)
-  const journeyModules = (journey?.modules ?? []).map((jm, i) => toModule(`${t.id}-${jm.id}`, jm.title, material(jm.materialIds[0]), i))
+  const journeyModules = (journey?.modules ?? []).map((jm, i) => ({ ...toModule(`${t.id}-${jm.id}`, jm.title, material(jm.materialIds[0]), i), skippable: jm.skippable || undefined }))
   // Additional materials picked for this training come after the journey modules.
   const extras = (t.extraMaterialIds ?? [])
     .map((id) => material(id))

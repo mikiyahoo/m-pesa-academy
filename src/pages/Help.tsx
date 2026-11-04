@@ -1,5 +1,6 @@
 import { ArrowRight, Award, BookOpenText, ChevronDown, ClipboardCheck, LifeBuoy, MessageSquare, PlayCircle, Search, Send, ThumbsDown, ThumbsUp, Video, X } from 'lucide-react'
 import { EmptyState } from '../components/EmptyState'
+import { SelectMenu } from '../components/Pickers'
 import { useAuth } from '../store/Auth'
 import { useRef, useState, type FormEvent } from 'react'
 import { guides, type Guide } from '../data/guides'
@@ -248,13 +249,13 @@ export function Help() {
             <h2 className="flex items-center gap-2 text-base font-bold text-zinc-900">
               <MessageSquare className="size-4 text-brand-600" /> Still need help?
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-500">Message the Learning & Development team. We usually reply within one working day.</p>
-            <label className="relative mt-4 block">
+            <div className="mt-4">
               <span className="mb-1.5 block text-xs font-semibold text-zinc-600">Topic</span>
-              <select
+              <SelectMenu
                 value={about}
                 onChange={(e) => setAbout(e.target.value as Topic | 'other')}
-                className="w-full cursor-pointer appearance-none rounded-xl border border-zinc-200 bg-white py-2.5 pr-9 pl-3 text-sm text-zinc-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                aria-label="Choose a topic"
+                className="h-10 text-sm"
               >
                 {TOPICS.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -262,9 +263,8 @@ export function Help() {
                   </option>
                 ))}
                 <option value="other">Something else</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 bottom-3 size-4 text-zinc-500" />
-            </label>
+              </SelectMenu>
+            </div>
             <label className="mt-3 block">
               <span className="mb-1.5 block text-xs font-semibold text-zinc-600">Message</span>
               <textarea

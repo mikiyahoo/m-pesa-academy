@@ -1,4 +1,7 @@
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { AssessmentGate } from './pages/AssessmentGate'
+import { AdminVenues } from './admin/pages/Venues'
 import { loadAdminData } from './admin/storage'
 import { AdminLayout } from './admin/AdminLayout'
 import { AdminAssignments } from './admin/pages/Assignments'
@@ -8,12 +11,14 @@ import { AdminTemporaryAccess } from './admin/pages/TemporaryAccess'
 import { AdminJourneyDetail, AdminJourneys, AdminMaterials } from './admin/pages/Content'
 import { AdminDashboard } from './admin/pages/Dashboard'
 import { AdminAssessments, AdminFeedbackForms, AdminFeedbackResponses, AdminSubmissions } from './admin/pages/Evaluation'
+import { AdminDiscussions } from './admin/pages/Discussions'
 import { AdminGroups, AdminUserView, AdminUsers } from './admin/pages/People'
 import { AdminReports } from './admin/pages/Reports'
 import { AdminRequests } from './admin/pages/Requests'
 import { AdminAuditLogs } from './admin/pages/AuditLogs'
 import { AdminCertificateTemplates, AdminTrainingTypes } from './admin/pages/Settings'
 import { AdminTrainingDetail } from './admin/pages/TrainingDetail'
+import { AdminTrainingAttendance } from './admin/pages/TrainingAttendance'
 import { AdminTrainings } from './admin/pages/Trainings'
 import { TrainerDashboard } from './admin/pages/TrainerDashboard'
 import { AdminLeaderboard } from './admin/pages/Leaderboard'
@@ -50,9 +55,24 @@ function RequestsAccess({ trainerId }: { trainerId: string }) {
   return allowed ? <AdminRequests /> : <Navigate to="/admin" replace />
 }
 
+const RETURN_KEY = 'mpesa-learning:return-to'
+
 export default function App() {
   const { stage, role, personId } = useAuth()
   const { pathname } = useLocation()
+  const navigate = useNavigate()
+  // An assessment or feedback QR scanned while signed out: remember it and go there right after sign-in.
+  useEffect(() => {
+    if (stage !== 'signedIn' && /^\/(assess|give-feedback)\//.test(pathname)) sessionStorage.setItem(RETURN_KEY, pathname)
+  }, [stage, pathname])
+  useEffect(() => {
+    if (stage !== 'signedIn') return
+    const to = sessionStorage.getItem(RETURN_KEY)
+    if (!to) return
+    sessionStorage.removeItem(RETURN_KEY)
+    if (to !== pathname) navigate(to, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage])
 
   // The certificate QR code opens a public verification page, signed in or not.
   const verify = pathname.match(/^\/verify\/([^/]+)/)?.[1]
@@ -66,14 +86,15 @@ export default function App() {
   if (stage === 'signedOut') return <Login />
   if (stage === 'otp') return <Otp />
 
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'department') {
     return (
       <AdminStoreProvider>
         <Routes>
-          <Route path="/admin" element={<AdminLayout />}>
+          <Route path="/admin" element={<AdminLayout variant={role === 'department' ? 'department' : 'admin'} personId={personId} />}>
             <Route index element={<AdminDashboard />} />
             <Route path="trainings" element={<AdminTrainings />} />
             <Route path="trainings/:id" element={<AdminTrainingDetail />} />
+            <Route path="trainings/:id/attendance" element={<AdminTrainingAttendance />} />
             <Route path="requests" element={<AdminRequests />} />
             <Route path="calendar" element={<Navigate to="/admin/trainings?view=calendar" replace />} />
             <Route path="categories" element={<AdminCategories />} />
@@ -84,6 +105,7 @@ export default function App() {
             <Route path="feedback" element={<Navigate to="/admin/feedback/forms" replace />} />
             <Route path="feedback/forms" element={<AdminFeedbackForms />} />
             <Route path="feedback/responses" element={<AdminFeedbackResponses />} />
+            <Route path="discussions" element={<AdminDiscussions />} />
             <Route path="assessments" element={<Navigate to="/admin/assessments/pre" replace />} />
             <Route path="assessments/:kind" element={<AdminAssessments />} />
             <Route path="submissions" element={<AdminSubmissions />} />
@@ -95,6 +117,7 @@ export default function App() {
             <Route path="groups" element={<AdminGroups />} />
             <Route path="training-types" element={<AdminTrainingTypes />} />
             <Route path="training-types/categories" element={<AdminTrainingTypes byCategory />} />
+            <Route path="venues" element={<AdminVenues />} />
             <Route path="audit-logs" element={<AdminAuditLogs />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="leaderboard" element={<AdminLeaderboard />} />
@@ -115,6 +138,7 @@ export default function App() {
             <Route index element={<TrainerDashboard />} />
             <Route path="trainings" element={<AdminTrainings />} />
             <Route path="trainings/:id" element={<AdminTrainingDetail />} />
+            <Route path="trainings/:id/attendance" element={<AdminTrainingAttendance />} />
             <Route path="calendar" element={<Navigate to="/admin/trainings?view=calendar" replace />} />
             <Route path="requests" element={<RequestsAccess trainerId={personId ?? 's3'} />} />
             <Route path="journeys" element={<AdminJourneys />} />
@@ -123,6 +147,7 @@ export default function App() {
             <Route path="feedback" element={<Navigate to="/admin/feedback/forms" replace />} />
             <Route path="feedback/forms" element={<AdminFeedbackForms />} />
             <Route path="feedback/responses" element={<AdminFeedbackResponses />} />
+            <Route path="discussions" element={<AdminDiscussions />} />
             <Route path="assessments" element={<Navigate to="/admin/assessments/pre" replace />} />
             <Route path="assessments/:kind" element={<AdminAssessments />} />
             <Route path="submissions" element={<AdminSubmissions />} />
@@ -147,6 +172,8 @@ export default function App() {
     <>
       <Route path="/trainings" element={<Trainings />} />
       <Route path="/trainings/:id" element={<TrainingDetail />} />
+      <Route path="/assess/:id" element={<AssessmentGate />} />
+      <Route path="/give-feedback/:id" element={<AssessmentGate kind="feedback" />} />
       <Route path="/certificates" element={<Certificates />} />
       <Route path="/certificates/:id" element={<CertificateView />} />
       <Route path="/calendar" element={<Navigate to="/learning?view=calendar" replace />} />

@@ -1,16 +1,11 @@
-import { BookOpen, Check, ChevronDown, Download, FileText, Presentation, Timer } from "lucide-react";
-import { SlidesDialog } from "../../../components/PptxViewer";
+import { Check, CheckCircle2, Download, FileText, Maximize2, RectangleHorizontal, RotateCcw, Timer } from "lucide-react";
+import { PptxViewer, SlidesDialog } from "../../../components/PptxViewer";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { canDownload, DOCUMENT_MIN_SECONDS } from "../../../data/trainings";
 import { cn } from "../../../lib/utils";
 import type { Module } from "../../../types";
-import {
-  CompletionRow,
-  ItemTitle,
-  Watermark,
-  btnPrimary,
-  clock,
-} from "./shared";
+import { Watermark, btnPrimary, clock } from "./shared";
 
 type Props = {
   module: Module;
@@ -23,326 +18,162 @@ type Props = {
   onUndo: () => void;
 };
 
+/** Takeaways: the document's section titles when present, otherwise general points from its title. */
+function learnPoints(m: Module) {
+  const fromSlides = (m.slides ?? []).map((s) => s.title).slice(0, 4);
+  if (fromSlides.length) return fromSlides;
+  const topic = m.title.toLowerCase();
+  return [`Why ${topic} matters for your customers`, `Practical steps for ${topic}`, "Real examples from M-PESA agents and merchants", "Tips you can apply right away"];
+}
+
 /**
- * Document lesson shown as a reading. A minimum reading time must pass before it
- * can be marked complete (TE-3.1); the source deck stays downloadable (D4).
+ * Document lesson, laid out like a video: the material opens straight away at the top, with the
+ * title, completion and description below. A minimum reading time must pass before it can be
+ * marked complete (TE-3.1); the source deck stays downloadable where allowed (D4).
  */
-export function ReadingItem({
-  module: m,
-  index,
-  total,
-  done,
-  canUndo,
-  watermark,
-  onComplete,
-  onUndo,
-}: Props) {
+export function ReadingItem({ module: m, index, total, done, canUndo, watermark, onComplete, onUndo }: Props) {
   const [elapsed, setElapsed] = useState(0);
-  const [showDeck, setShowDeck] = useState(false);
+  // Theater: large pop-up over the page. Full screen: the slides fill the screen.
+  const [showDeck, setShowDeck] = useState<false | "theater" | "full">(false);
   const slides = m.slides ?? [];
 
   useEffect(() => {
     if (done) return;
-    const t = window.setInterval(
-      () => setElapsed((e) => Math.min(e + 1, DOCUMENT_MIN_SECONDS)),
-      1000,
-    );
+    const t = window.setInterval(() => setElapsed((e) => Math.min(e + 1, DOCUMENT_MIN_SECONDS)), 1000);
     return () => window.clearInterval(t);
   }, [done]);
 
-  // Highlights the section currently near the top of the reading pane.
-  const [active, setActive] = useState(0);
-  useEffect(() => {
-    const sections = [
-      ...document.querySelectorAll<HTMLElement>("[data-section]"),
-    ];
-    if (!sections.length) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0])
-          setActive(Number((visible[0].target as HTMLElement).dataset.section));
-      },
-      { rootMargin: "0px 0px -60% 0px" },
-    );
-    sections.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, [m.id]);
+  // The course player's bottom bar has a slot for lesson tools.
+  const [footerSlot, setFooterSlot] = useState<HTMLElement | null>(null);
+  const [navEl, setNavEl] = useState<HTMLSpanElement | null>(null);
+  useEffect(() => setFooterSlot(document.getElementById("player-footer-tools")), []);
 
   const ready = done || elapsed >= DOCUMENT_MIN_SECONDS;
   const pct = done ? 100 : (elapsed / DOCUMENT_MIN_SECONDS) * 100;
 
-  return (
-    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-6 sm:px-8 sm:py-10 xl:grid-cols-[minmax(0,1fr)_260px] 2xl:gap-10">
-      <article className="relative min-w-0">
-        <Watermark text={watermark} />
-        <ItemTitle
-          eyebrow={
-            <>
-              <BookOpen className="size-4 text-brand-600" /> Module {index + 1}{" "}
-              of {total} • {m.minutes} min
-            </>
-          }
-          title={m.title}
-        />
+  const tools = m.deck && (
+        <>
+          <button type="button" onClick={() => setShowDeck("theater")} aria-haspopup="dialog" className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
+            <RectangleHorizontal className="size-3.5" /> Theater mode
+          </button>
+          <button type="button" onClick={() => setShowDeck("full")} aria-haspopup="dialog" className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
+            <Maximize2 className="size-3.5" /> Full screen
+          </button>
+          {canDownload(m) ? (
+            <a href={m.deck} download className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
+              <Download className="size-3.5" /> Download slides
+            </a>
+          ) : (
+            <span className="rounded-xl bg-zinc-100 px-3 py-2 text-xs font-medium text-zinc-500">View only</span>
+          )}
+          {/* Slide controls at the end, from the viewer. */}
+          <span ref={setNavEl} className="flex items-center empty:hidden" />
+        </>
+  );
 
-        {/* Reading-time bar: status on the left, progress, time on the right */}
-        <div className="mt-6 flex items-center gap-3 rounded-2xl bg-zinc-100/80 px-3 py-3 sm:gap-5 sm:px-4">
-          <span className="flex shrink-0 items-center gap-2.5">
-            <span
-              className={cn(
-                "grid size-8 shrink-0 place-items-center rounded-full",
-                ready
-                  ? "bg-mpesa-600 text-white"
-                  : "bg-white text-brand-600 shadow-sm",
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-10">
+      {/* The material itself, first — no extra click to open it. */}
+      <div className="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+        {m.deck ? (
+          <div className="p-3 sm:p-4">
+            <PptxViewer url={m.deck} title={m.title} thumbsRight navTarget={footerSlot ? navEl : null} />
+          </div>
+        ) : slides.length ? (
+          <div className="scrollbar-thin max-h-[70vh] overflow-y-auto bg-zinc-100/70 p-3 sm:p-6">
+            <div className="mx-auto max-w-3xl rounded-xl bg-white px-6 py-8 text-[15px] leading-relaxed text-zinc-700 shadow-sm ring-1 ring-zinc-200/70 sm:px-12 sm:py-12">
+              <p className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Document</p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-zinc-900">{m.title}</h2>
+              <div className="mt-8 space-y-8">
+                {slides.map((s, i) => (
+                  <section key={s.title} className={cn(i > 0 && "border-t border-zinc-100 pt-8")}>
+                    <h3 className="flex items-center gap-3 text-lg font-bold text-zinc-900">
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white tabular-nums">{String(i + 1).padStart(2, "0")}</span>
+                      {s.title}
+                    </h3>
+                    <ul className="mt-3 space-y-2.5">
+                      {s.bullets.map((b) => (
+                        <li key={b} className="flex gap-3">
+                          <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-zinc-400" />
+                          <span>{b}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid aspect-video place-items-center text-sm text-zinc-500">The trainer hasn't attached the document yet.</div>
+        )}
+        <Watermark text={watermark} />
+      </div>
+
+      {/* In the player's bottom bar when it's there; otherwise under the slides. */}
+      {tools && (footerSlot ? createPortal(tools, footerSlot) : <div className="mt-3 flex flex-wrap items-center justify-end gap-2 px-1">{tools}</div>)}
+      {m.deck && showDeck && <SlidesDialog url={m.deck} title={m.title} downloadable={canDownload(m)} onClose={() => setShowDeck(false)} startFull={showDeck === "full"} />}
+
+      {/* Details line up with the viewer edges, same as the video lesson. */}
+      <div className="px-1">
+        <div className="mt-7 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              <FileText className="size-4 text-brand-600" /> {m.deck ? "Presentation" : "Document"} • Module {index + 1} of {total} • {m.minutes} min
+            </p>
+            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-zinc-900 sm:text-[1.7rem]">{m.title}</h1>
+          </div>
+          {done ? (
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span className="inline-flex items-center gap-2 rounded-full bg-mpesa-500/10 px-3.5 py-2 text-sm font-semibold text-mpesa-700">
+                <CheckCircle2 className="size-4 fill-mpesa-600 text-white" /> Completed
+              </span>
+              {canUndo && (
+                <button onClick={onUndo} className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-800">
+                  <RotateCcw className="size-3" /> Mark as not complete
+                </button>
               )}
-            >
-              {ready ? (
-                <Check className="size-4" strokeWidth={3} />
-              ) : (
-                <Timer className="size-4" />
-              )}
-            </span>
-            <span
-              className={cn(
-                "hidden text-xs font-semibold sm:inline",
-                ready ? "text-mpesa-700" : "text-zinc-700",
-              )}
-            >
-              {done ? "Completed" : ready ? "Ready to complete" : "Reading…"}
-            </span>
-          </span>
-          <span className="relative h-1.5 flex-1 rounded-full bg-zinc-300/70">
-            <span
-              className={cn(
-                "absolute inset-y-0 left-0 rounded-full transition-[width] duration-1000 ease-linear",
-                ready ? "bg-mpesa-600" : "bg-zinc-900",
-              )}
-              style={{ width: `${pct}%` }}
-            />
-          </span>
-          <span className="shrink-0 text-xs font-semibold text-zinc-700 tabular-nums">
-            {clock(done ? DOCUMENT_MIN_SECONDS : elapsed)} /{" "}
-            {clock(DOCUMENT_MIN_SECONDS)}
-          </span>
+            </div>
+          ) : (
+            <button onClick={onComplete} disabled={!ready} className={cn(btnPrimary, "shrink-0")}>
+              {ready ? <Check className="size-4" strokeWidth={3} /> : <Timer className="size-4" />}
+              {ready ? "Mark as complete" : `Complete in ${clock(DOCUMENT_MIN_SECONDS - elapsed)}`}
+            </button>
+          )}
         </div>
 
-        {/* Narrower screens: the "On this page" list becomes a jump menu. */}
-        {slides.length > 1 && (
-          <label className="mt-5 flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 xl:hidden">
-            <span className="shrink-0 text-xs font-semibold text-zinc-500">Jump to</span>
-            <select
-              value=""
-              onChange={(e) => {
-                const i = Number(e.target.value);
-                if (!Number.isNaN(i)) document.getElementById(sectionId(i))?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-sm font-medium text-zinc-900 outline-none"
-              aria-label="Jump to section"
-            >
-              <option value="" disabled>
-                {String(active + 1).padStart(2, "0")} · {slides[active]?.title}
-              </option>
-              {slides.map((sl, i) => (
-                <option key={sl.title} value={i}>
-                  {String(i + 1).padStart(2, "0")} · {sl.title}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none size-4 shrink-0 text-zinc-500" aria-hidden />
-          </label>
+        {!done && (
+          <div className="mt-4 flex max-w-2xl items-center gap-3">
+            <span className="relative h-1.5 flex-1 rounded-full bg-zinc-200">
+              <span className={cn("absolute inset-y-0 left-0 rounded-full transition-[width] duration-1000 ease-linear", ready ? "bg-mpesa-600" : "bg-brand-600")} style={{ width: `${pct}%` }} />
+            </span>
+            <span className="shrink-0 text-xs font-semibold text-zinc-600 tabular-nums">
+              {clock(elapsed)} / {clock(DOCUMENT_MIN_SECONDS)}
+            </span>
+          </div>
         )}
 
-        <div className="mt-9 space-y-8 text-[15px] leading-relaxed text-zinc-700">
-          <section>
-            <p>Hello,</p>
-            <p className="mt-3">
-              This reading walks you through{" "}
-              <span className="font-semibold text-zinc-900">
-                {m.title.toLowerCase()}
-              </span>
-              . Take your time — the next lesson unlocks once you mark this one
-              complete.
-            </p>
-            {slides.length > 0 && (
-              <>
-                <h2 className="mt-6 font-bold text-zinc-900">
-                  What this reading covers
-                </h2>
-                <ul className="mt-3 list-disc space-y-1.5 pl-6 marker:text-brand-600">
-                  {slides.map((s) => (
-                    <li key={s.title}>{s.title}</li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </section>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600">
+          Read through the {m.deck ? "slides" : "document"} above. After {clock(DOCUMENT_MIN_SECONDS)} of reading you can mark it complete to unlock the next lesson.
+          {m.deck && !canDownload(m) ? " This file can be viewed in the portal only." : ""}
+        </p>
 
-          {slides.map((s, i) => (
-            <section
-              key={s.title}
-              id={sectionId(i)}
-              data-section={i}
-              className={cn(
-                "scroll-mt-6",
-                i === 0 && "border-t border-zinc-200/80 pt-8",
-              )}
-            >
-              <h2 className="flex items-center gap-3 text-lg font-bold text-zinc-900">
-                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white tabular-nums">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                {s.title}
-              </h2>
-              <ul className="mt-3 space-y-2.5">
-                {s.bullets.map((b) => (
-                  <li key={b} className="flex gap-3">
-                    <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-zinc-400" />
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-          {!slides.length && (
-            <p className="text-zinc-500">
-              The trainer hasn't attached the reading for this module yet.
-            </p>
-          )}
-
-          {m.deck && (
-            <div className={cn("flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-200 p-4", slides.length > 1 && "xl:hidden")}>
-              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
-                <FileText className="size-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-zinc-900">
-                  Presentation slides
-                </p>
-                <p className="text-xs text-zinc-500">
-                  {canDownload(m)
-                    ? "PowerPoint • downloadable for your group"
-                    : "View in the portal • downloads are limited to other groups"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowDeck(true)}
-                aria-haspopup="dialog"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand-700"
-              >
-                <Presentation className="size-3.5" /> View slides
-              </button>
-              {canDownload(m) ? (
-                <a
-                  href={m.deck}
-                  download
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
-                >
-                  <Download className="size-3.5" /> Download
-                </a>
-              ) : (
-                <span className="rounded-xl bg-zinc-100 px-3 py-2 text-xs font-medium text-zinc-500">
-                  View only
-                </span>
-              )}
-            </div>
-          )}
-          {m.deck && showDeck && <SlidesDialog url={m.deck} title={m.title} downloadable={canDownload(m)} onClose={() => setShowDeck(false)} />}
-        </div>
-
-        <CompletionRow done={done} canUndo={canUndo} onUndo={onUndo}>
-          <p className="text-sm text-zinc-600">
-            {ready
-              ? "Finished reading? Mark it complete to unlock the next lesson."
-              : `Keep reading — you can complete this in ${DOCUMENT_MIN_SECONDS - elapsed}s.`}
-          </p>
-          <button onClick={onComplete} disabled={!ready} className={btnPrimary}>
-            <Check className="size-4" strokeWidth={3} /> Mark as complete
-          </button>
-        </CompletionRow>
-      </article>
-
-      {slides.length > 1 && (
-        <aside className="hidden xl:block">
-          <div className="sticky top-6 space-y-4">
-          <nav aria-label="On this page" className="rounded-2xl border border-zinc-200/80 bg-white p-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-bold text-zinc-900">On this page</p>
-              <span className="text-xs font-semibold text-zinc-500 tabular-nums">
-                {active + 1} / {slides.length}
-              </span>
-            </div>
-            <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-zinc-100" aria-hidden>
-              <div className="h-full rounded-full bg-brand-600 transition-all duration-300" style={{ width: `${((active + 1) / slides.length) * 100}%` }} />
-            </div>
-            <ol className={cn("scrollbar-thin -mx-1 mt-3 overflow-y-auto px-1", m.deck ? "max-h-[calc(100vh-24rem)]" : "max-h-[calc(100vh-12rem)]")}>
-              {slides.map((s, i) => {
-                const current = active === i;
-                const read = i < active;
-                return (
-                  <li key={s.title} className="relative">
-                    {/* Rail joining the step dots. */}
-                    {i < slides.length - 1 && <span aria-hidden className={cn("absolute top-8 bottom-0 left-[1.3rem] w-px", read ? "bg-brand-200" : "bg-zinc-200")} />}
-                    <button
-                      onClick={() => document.getElementById(sectionId(i))?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                      aria-current={current ? "true" : undefined}
-                      title={s.title}
-                      className={cn(
-                        "relative flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left text-xs leading-snug transition",
-                        current ? "bg-brand-50 text-brand-700" : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "grid size-[1.375rem] shrink-0 place-items-center rounded-full text-[10px] font-bold tabular-nums",
-                          current ? "bg-brand-600 text-white" : read ? "bg-brand-100 text-brand-700" : "border border-zinc-200 bg-white text-zinc-500",
-                        )}
-                      >
-                        {read ? <Check className="size-3" strokeWidth={3} /> : i + 1}
-                      </span>
-                      <span className={cn("line-clamp-2 min-w-0 pt-0.5", current && "font-semibold")}>{s.title}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          </nav>
-          {m.deck && (
-            <section aria-label="Presentation slides" className="rounded-2xl border border-zinc-200/80 bg-white p-4">
-              <div className="flex items-center gap-3">
-                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
-                  <FileText className="size-5" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-zinc-900">Presentation slides</p>
-                  <p className="text-xs text-zinc-500">{canDownload(m) ? "PowerPoint • downloadable" : "View in the portal only"}</p>
-                </div>
-              </div>
-              <div className="mt-3.5 grid gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowDeck(true)}
-                  aria-haspopup="dialog"
-                  className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-brand-600 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-700"
-                >
-                  <Presentation className="size-3.5" /> View slides
-                </button>
-                {canDownload(m) && (
-                  <a href={m.deck} download className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-zinc-200 px-3 py-2.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
-                    <Download className="size-3.5" /> Download
-                  </a>
-                )}
-              </div>
-            </section>
-          )}
+        <div className="mt-6 flex gap-4 rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-4 sm:p-5">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-mpesa-600 text-white">
+            <Check className="size-4" strokeWidth={3} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-zinc-900">What you'll learn</p>
+            <ul className="mt-2 grid gap-x-8 gap-y-1.5 sm:grid-cols-2">
+              {learnPoints(m).map((point) => (
+                <li key={point} className="flex gap-2 text-[13px] text-zinc-600">
+                  <Check className="mt-0.5 size-3.5 shrink-0 text-mpesa-600" strokeWidth={3} /> {point}
+                </li>
+              ))}
+            </ul>
           </div>
-        </aside>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
-
-const sectionId = (i: number) => `reading-section-${i + 1}`;

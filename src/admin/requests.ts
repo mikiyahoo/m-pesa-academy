@@ -41,14 +41,17 @@ export function draftTimeLeft(r: TrainingRequest, now = Date.now()) {
  * Requests from the same team for the same training type on the same preferred date
  * (RQ-1.6, URS 3.1). Drafts and rejected requests don't count.
  */
-export function findDuplicates(req: Pick<TrainingRequest, 'id' | 'team' | 'trainingTypeId' | 'preferredDate'>, all: TrainingRequest[]) {
+/** Same team and date, about the same thing: a shared category, or the same training type when both have one. */
+export function findDuplicates(req: Pick<TrainingRequest, 'id' | 'team' | 'trainingTypeId' | 'preferredDate' | 'categories'>, all: TrainingRequest[]) {
+  const sameTopic = (r: TrainingRequest) =>
+    (!!r.trainingTypeId && r.trainingTypeId === req.trainingTypeId) || r.categories.some((c) => req.categories.some((x) => x.toLowerCase() === c.toLowerCase()))
   return all.filter(
     (r) =>
       r.id !== req.id &&
       (r.status === 'PENDING' || r.status === 'APPROVED') &&
       r.team.toLowerCase() === req.team.toLowerCase() &&
-      r.trainingTypeId === req.trainingTypeId &&
-      r.preferredDate === req.preferredDate,
+      r.preferredDate === req.preferredDate &&
+      sameTopic(r),
   )
 }
 

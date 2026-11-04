@@ -1,4 +1,4 @@
-import { AlertCircle, AlertTriangle, Check, CheckCircle2, Copy, Download, FileText, FileUp, HelpCircle, Sparkles, Trash2, UploadCloud } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Check, CheckCircle2, Copy, Download, FileText, HelpCircle, Sparkles, Trash2, UploadCloud } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { cn } from '../lib/utils'
 import { uid } from './store'
@@ -286,12 +286,7 @@ export function ImportQuestionsModal({
       open
       onClose={onClose}
       wide
-      title={
-        <span className="flex items-center gap-2">
-          <FileUp className="size-5 text-brand-600" /> Import Questions from Document
-        </span>
-      }
-      description="Upload a Word (.docx) or text document, or paste questions formatted in standard Aiken / Q&A format."
+      title="Import Questions from Document"
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4 text-xs text-zinc-600">
@@ -343,7 +338,7 @@ export function ImportQuestionsModal({
               activeTab === 'upload' ? 'border-brand-600 text-brand-700' : 'border-transparent text-zinc-500 hover:text-zinc-800',
             )}
           >
-            <UploadCloud className="size-4" /> Upload Document (.docx, .txt)
+            <UploadCloud className="size-4" /> Upload Document
           </button>
           <button
             type="button"

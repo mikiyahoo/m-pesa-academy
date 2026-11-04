@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   Check,
   CheckCircle2,
+  CloudDownload,
   Download,
   HardDrive,
   RefreshCw,
@@ -60,17 +61,17 @@ export function OfflineCourseToggle({
             ? 'bg-mpesa-50 text-mpesa-700 hover:bg-mpesa-100 ring-1 ring-mpesa-200'
             : 'text-zinc-600 hover:bg-zinc-100',
         )}
-        title={downloaded ? 'Saved for offline reading (click to remove)' : 'Download course for offline access'}
+        title={downloaded ? 'The whole course is saved on this device (click to remove)' : 'Save the whole course on this device to read offline'}
       >
         {downloading ? (
           <RefreshCw className="size-3.5 animate-spin text-brand-600" />
         ) : downloaded ? (
           <CheckCircle2 className="size-3.5 text-mpesa-600" />
         ) : (
-          <Download className="size-3.5" />
+          <CloudDownload className="size-3.5" />
         )}
         <span className="hidden sm:inline">
-          {downloading ? 'Downloading…' : downloaded ? 'Offline Ready' : 'Download'}
+          {downloading ? 'Saving…' : downloaded ? 'Saved offline' : 'Save offline'}
         </span>
       </button>
     )

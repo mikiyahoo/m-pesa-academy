@@ -2,10 +2,12 @@ import {
   ArrowRight,
   BarChart3,
   CalendarDays,
+  ClipboardCheck,
   ChevronDown,
   ChevronUp,
   Clock,
   FileText,
+  ImagePlus,
   Layers,
   Link2,
   MapPin,
@@ -13,14 +15,16 @@ import {
   MoreHorizontal,
   PlayCircle,
   Plus,
+  QrCode,
   RefreshCw,
+  Trash2,
   UserCog,
   UserPlus,
   Users,
   X,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { useFeedback } from '../../components/Feedback'
 import { CancelModal, ChangeTrainerModal, ConflictList, InviteModal, RescheduleModal, ScheduleHistory } from '../ScheduleModals'
@@ -28,12 +32,15 @@ import { describeRecurrence, findConflicts, trainerIdsOf } from '../scheduling'
 import { InviteTemporaryModal } from './TemporaryAccess'
 import { MaterialPreview } from '../MaterialPreview'
 import { AssessmentResults } from '../AssessmentResults'
+import { prepareTrainingCover } from '../TrainingForm'
+import { BigQr } from '../checkin/CheckInPanel'
 import { AttendancePanel } from '../teams/AttendancePanel'
 import { CheckInPanel } from '../checkin/CheckInPanel'
 import { TrainingCertificates } from '../TrainingCertificates'
 import { longDate, shortDate, time12 } from '../helpers'
-import { classProgress, participantProgress, useAdmin } from '../store'
+import { classProgress, participantProgress, uid, useAdmin } from '../store'
 import type { AdminTraining, AssessmentKind, Material, TrainingStatus } from '../types'
+import { TrainingDiscussionsCard } from './Discussions'
 import { Avatar, Badge, Button, Card, CardTitle, Empty, Field, Modal, ProgressBar, Select, trainingStatusTone } from '../ui'
 import { combinedJourney, trainingJourneys } from '../journeys'
 
@@ -228,8 +235,88 @@ function ExtraMaterialsCard({ training, onPreview }: { training: AdminTraining; 
   )
 }
 
+/** The training's cover image: change or remove it after the training was created. */
+function CoverCard({ training }: { training: AdminTraining }) {
+  const { data, update } = useAdmin()
+  const { toast } = useFeedback()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const cover = training.coverId ? data.trainingCovers?.[training.coverId] : undefined
+  // Sessions of one series share their cover, so a change applies to the whole series.
+  const series = training.seriesId ? data.trainings.filter((t) => t.seriesId === training.seriesId) : [training]
+  const ids = new Set(series.map((t) => t.id))
+
+  const setCover = (dataUrl: string | undefined) => {
+    const coverId = dataUrl ? uid('cover') : undefined
+    update(
+      (d) => {
+        const covers = { ...d.trainingCovers }
+        if (training.coverId && !d.trainings.some((t) => !ids.has(t.id) && t.coverId === training.coverId)) delete covers[training.coverId]
+        if (coverId && dataUrl) covers[coverId] = dataUrl
+        return { ...d, trainingCovers: covers, trainings: d.trainings.map((t) => (ids.has(t.id) ? { ...t, coverId } : t)) }
+      },
+      { action: dataUrl ? 'Changed training cover' : 'Removed training cover', target: training.name },
+    )
+  }
+
+  const onFile = async (file?: File) => {
+    if (!file) return
+    setBusy(true)
+    setError('')
+    try {
+      setCover(await prepareTrainingCover(file))
+      toast(series.length > 1 ? `Cover updated for all ${series.length} sessions` : 'Cover updated')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'The image could not be used.')
+    } finally {
+      setBusy(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle
+        action={
+          <div className="flex gap-1.5">
+            <Button size="sm" onClick={() => fileRef.current?.click()} disabled={busy}>
+              <ImagePlus className="size-3.5" /> {busy ? 'Processing…' : cover ? 'Change' : 'Upload'}
+            </Button>
+            {cover && (
+              <Button size="sm" variant="ghost" onClick={() => setCover(undefined)} aria-label="Remove cover">
+                <Trash2 className="size-3.5" />
+              </Button>
+            )}
+          </div>
+        }
+      >
+        Cover image
+      </CardTitle>
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => void onFile(e.target.files?.[0])} />
+      <button type="button" onClick={() => fileRef.current?.click()} className="group relative block w-full overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50" aria-label={cover ? 'Change cover image' : 'Upload a cover image'}>
+        {cover ? (
+          <img src={cover} alt="" className="aspect-[16/7] w-full object-cover transition group-hover:opacity-85" />
+        ) : (
+          <span className="grid aspect-[16/7] w-full place-items-center text-center text-xs text-zinc-500">
+            <span>
+              <ImagePlus className="mx-auto mb-1.5 size-6 text-brand-600" />
+              No cover yet — learners see the default banner.
+              <span className="mt-0.5 block text-zinc-400">JPG, PNG or WebP · up to 8 MB</span>
+            </span>
+          </span>
+        )}
+      </button>
+      {series.length > 1 && <p className="mt-2 text-xs text-zinc-500">Shared by all {series.length} sessions in this series.</p>}
+      {error && <p className="mt-2 text-xs text-brand-600">{error}</p>}
+    </Card>
+  )
+}
+
 export function AdminTrainingDetail() {
+  const [feedbackQr, setFeedbackQr] = useState(false)
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const { data, update } = useAdmin()
   const training = data.trainings.find((t) => t.id === id)
   const [openModules, setOpenModules] = useState<string[]>([])
@@ -304,6 +391,9 @@ export function AdminTrainingDetail() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button onClick={() => navigate(`/admin/trainings/${training.id}/attendance`)}>
+            <ClipboardCheck className="size-4" /> Check-in &amp; attendance
+          </Button>
           {training.inviteLink && editable && (
             <Button
               onClick={async () => {
@@ -452,6 +542,7 @@ export function AdminTrainingDetail() {
         </div>
 
         <div className="space-y-5">
+          <CoverCard training={training} />
           <Card>
             <CardTitle>Assessments</CardTitle>
             <div className="space-y-3 text-sm">
@@ -463,7 +554,7 @@ export function AdminTrainingDetail() {
               ).map(([kind, label, a]) =>
                 a ? (
                   <div key={kind} className="group relative">
-                    <AssessmentResults training={training} assessment={a} label={label} />
+                    <AssessmentResults training={training} assessment={a} label={label} takeable={kind === 'POST'} />
                     <button
                       onClick={() => detachAssessment(kind)}
                       className="absolute -top-2 -right-2 hidden size-6 place-items-center rounded-full border border-zinc-200 bg-surface text-zinc-400 shadow-sm hover:text-brand-600 group-hover:grid focus:grid"
@@ -488,7 +579,8 @@ export function AdminTrainingDetail() {
           <Card>
             <CardTitle>Feedback</CardTitle>
             {form ? (
-              <Link to={`/admin/feedback/responses?training=${training.id}`} className="flex items-center gap-3 rounded-xl border border-zinc-200 p-3 transition hover:bg-zinc-50">
+              <div className="flex items-center gap-1 rounded-xl border border-zinc-200 transition hover:bg-zinc-50">
+              <Link to={`/admin/feedback/responses?training=${training.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-3">
                 <MessageSquare className="size-5 text-brand-600" />
                 <span className="flex-1">
                   <span className="block text-sm font-semibold text-zinc-900">{form.title}</span>
@@ -498,10 +590,22 @@ export function AdminTrainingDetail() {
                 </span>
                 <ArrowRight className="size-4 text-zinc-700" />
               </Link>
+                <button
+                  type="button"
+                  onClick={() => setFeedbackQr(true)}
+                  aria-label="Show the feedback QR code"
+                  title="QR code to give feedback"
+                  className="mr-1.5 grid size-9 shrink-0 place-items-center rounded-xl text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+                >
+                  <QrCode className="size-4" />
+                </button>
+              </div>
             ) : (
               <p className="text-sm text-zinc-500">No feedback form attached.</p>
             )}
           </Card>
+
+          <TrainingDiscussionsCard trainingId={training.id} />
 
           <Card>
             <CardTitle action={<span className="text-xs text-zinc-500">{participants.length}</span>}>Participants</CardTitle>
@@ -543,6 +647,15 @@ export function AdminTrainingDetail() {
       {modal === 'invite' && <InviteModal training={training} onClose={() => setModal(null)} onInviteNew={() => setModal('invite-new')} />}
       {modal === 'invite-new' && <InviteTemporaryModal trainingId={training.id} onClose={() => setModal(null)} />}
       {(modal === 'PRE' || modal === 'POST') && <AttachAssessmentModal training={training} kind={modal} onClose={() => setModal(null)} />}
+      {feedbackQr && form && (
+        <BigQr
+          link={`${window.location.origin}/give-feedback/${training.id}`}
+          title={form.title}
+          heading="Scan to give feedback"
+          note={`${training.name} · sign in, then share your feedback`}
+          onClose={() => setFeedbackQr(false)}
+        />
+      )}
     </>
   )
 }

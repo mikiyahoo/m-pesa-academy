@@ -6,7 +6,7 @@ import { isExternalPerson, trainingsForExternal } from '../lib/publicAccess'
 import { syncCheckIn, syncFeedback, syncModules, syncQuiz } from '../lib/adminSync'
 import { resolveLearner, scopedKey, setActiveLearner } from '../lib/learner'
 import { useAuth } from './Auth'
-import { localISO, nextModuleIndex, progressStatus, todayISO } from '../lib/utils'
+import { localISO, moduleOpen, progressStatus, todayISO } from '../lib/utils'
 import type { CheckInMethod, FeedbackSubmission, Training, TrainingProgress } from '../types'
 
 const STORAGE_KEY = 'mpesa-learning:progress:v2'
@@ -133,9 +133,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         update(trainingId, (p) => {
           const t = getTraining(trainingId)
           if (!t) return p
-          // Only the next module in order can be completed; later ones are locked.
-          const next = t.modules[nextModuleIndex(t, p)]
-          if (!next || next.id !== moduleId) return p
+          // A module can be completed once the required modules before it are done (skippable ones don't block).
+          const i = t.modules.findIndex((m) => m.id === moduleId)
+          if (i < 0 || p.completedModules.includes(moduleId) || !moduleOpen(t, p, i)) return p
           return { ...p, completedModules: [...p.completedModules, moduleId] }
         })
       },

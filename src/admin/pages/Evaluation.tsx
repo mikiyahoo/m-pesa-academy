@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ClipboardList, Copy, FileQuestion, FileText, FileUp, Library, ListChecks, MessageSquare, Plus, Settings2, Sparkles, Star, Trash2, Wand2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Copy, FileQuestion, FileText, FileUp, Library, ListChecks, MessageSquare, Plus, Settings2, Sparkles, Star, Trash2, Wand2 } from 'lucide-react'
 import { Wizard, WizardCard } from '../Wizard'
 import { useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
@@ -299,7 +299,8 @@ function FeedbackBank() {
 
 export function AdminFeedbackForms() {
   const { data } = useAdmin()
-  const [editing, setEditing] = useState<FeedbackForm | 'new' | null>(null)
+  // "?new=1" (from "+" beside Feedback form in the schedule form) opens the new-form editor straight away.
+  const [editing, setEditing] = useState<FeedbackForm | 'new' | null>(() => (new URLSearchParams(window.location.search).get('new') ? 'new' : null))
   const [tab, setTab] = useState<'forms' | 'bank'>('forms')
   return (
     <>
@@ -359,8 +360,13 @@ export function AdminFeedbackForms() {
 export function AdminFeedbackResponses() {
   const { data } = useAdmin()
   const [params, setParams] = useSearchParams()
+  const [commentPage, setCommentPage] = useState(0)
   const trainingId = params.get('training') ?? ''
   const responses = data.feedbackResponses.filter((r) => !trainingId || r.trainingId === trainingId)
+  const commentPageSize = 6
+  const commentPageCount = Math.max(1, Math.ceil(responses.length / commentPageSize))
+  const safeCommentPage = Math.min(commentPage, commentPageCount - 1)
+  const pageResponses = responses.slice(safeCommentPage * commentPageSize, (safeCommentPage + 1) * commentPageSize)
   const trainingsWithResponses = data.trainings.filter((t) => data.feedbackResponses.some((r) => r.trainingId === t.id))
   const formOf = (id: string) => data.feedbackForms.find((f) => f.id === id)
   const likertOf = (r: (typeof responses)[number]) => r.ratings.filter((_, i) => (formOf(r.formId)?.questionTypes?.[i] ?? 'likert') === 'likert')
@@ -404,7 +410,7 @@ export function AdminFeedbackResponses() {
         }
       />
       <div className="mb-5 max-w-md">
-        <Select value={trainingId} onChange={(e) => setParams(e.target.value ? { training: e.target.value } : {})}>
+        <Select value={trainingId} onChange={(e) => { setCommentPage(0); setParams(e.target.value ? { training: e.target.value } : {}) }}>
           <option value="">All trainings</option>
           {trainingsWithResponses.map((t) => (
             <option key={t.id} value={t.id}>
@@ -468,10 +474,10 @@ export function AdminFeedbackResponses() {
               </Card>
             )}
           </div>
-          <Card>
+          <Card className="lg:flex lg:h-[min(74vh,48rem)] lg:min-h-[32rem] lg:flex-col">
             <CardTitle>Comments</CardTitle>
-            <ul className="divide-y divide-zinc-100">
-              {responses.map((r) => {
+            <ul className="divide-y divide-zinc-100 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+              {pageResponses.map((r) => {
                 const p = data.people.find((x) => x.id === r.participantId)
                 const t = data.trainings.find((x) => x.id === r.trainingId)
                 const texts = answersFor(r)
@@ -498,6 +504,20 @@ export function AdminFeedbackResponses() {
                 )
               })}
             </ul>
+            <div className="mt-auto -mx-5 -mb-5 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 bg-zinc-50/40 px-5 py-3">
+              <span className="text-xs text-zinc-500">
+                Showing {safeCommentPage * commentPageSize + 1}–{Math.min((safeCommentPage + 1) * commentPageSize, responses.length)} of {responses.length} responses
+              </span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" aria-label="Previous page of comments" disabled={safeCommentPage === 0} onClick={() => setCommentPage(safeCommentPage - 1)}>
+                  <ChevronLeft className="size-3.5" />
+                </Button>
+                <span className="whitespace-nowrap text-xs text-zinc-500">Page {safeCommentPage + 1} of {commentPageCount}</span>
+                <Button size="sm" aria-label="Next page of comments" disabled={safeCommentPage >= commentPageCount - 1} onClick={() => setCommentPage(safeCommentPage + 1)}>
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
+            </div>
           </Card>
         </div>
       ) : (
@@ -676,7 +696,7 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <label className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
           <input type="checkbox" className="accent-mpesa-600" checked={mandatory} onChange={(e) => setMandatory(e.target.checked)} />
-          Mandatory — must pass to complete
+          Must pass to complete only
         </label>
         <label className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
           <input type="checkbox" className="accent-mpesa-600" checked={shuffle} onChange={(e) => setShuffle(e.target.checked)} />
@@ -903,7 +923,8 @@ export function AdminAssessments() {
   const { data, update } = useAdmin()
   const { toast } = useFeedback()
   const [tab, setTab] = useState<'list' | 'bank'>('list')
-  const [editing, setEditing] = useState<Assessment | 'new' | null>(null)
+  // "?new=1" (from "+ Create new" in the schedule form) opens the new-assessment editor straight away.
+  const [editing, setEditing] = useState<Assessment | 'new' | null>(() => (new URLSearchParams(window.location.search).get('new') ? 'new' : null))
   const [viewing, setViewing] = useState<Assessment | null>(null)
   const [bankOpen, setBankOpen] = useState(false)
   const [bankImportOpen, setBankImportOpen] = useState(false)
@@ -1237,10 +1258,15 @@ export function AdminSubmissions() {
   const { data, update } = useAdmin()
   const { toast } = useFeedback()
   const [assessmentId, setAssessmentId] = useState('')
+  const [page, setPage] = useState(0)
   const [grading, setGrading] = useState<AssessmentSubmission | null>(null)
   const [viewing, setViewing] = useState<AssessmentSubmission | null>(null)
 
   const rows = data.submissions.filter((s) => !assessmentId || s.assessmentId === assessmentId)
+  const pageSize = 10
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize))
+  const currentPage = Math.min(page, pageCount - 1)
+  const visibleRows = rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize)
   const graded = rows.filter((s) => s.status === 'graded' && s.score !== undefined)
   const average = graded.length ? graded.reduce((a, s) => a + (s.score ?? 0), 0) / graded.length : 0
   const needsGrading = rows.filter((s) => s.status === 'needs-grading').length
@@ -1287,7 +1313,7 @@ export function AdminSubmissions() {
               <Sparkles className="size-4" /> AI Auto-Grade All ({needsGrading})
             </Button>
           )}
-          <Select value={assessmentId} onChange={(e) => setAssessmentId(e.target.value)} aria-label="Assessment" className="w-auto">
+          <Select value={assessmentId} onChange={(e) => { setAssessmentId(e.target.value); setPage(0) }} aria-label="Assessment" className="w-auto">
             <option value="">All assessments</option>
             {data.assessments.map((a) => (
               <option key={a.id} value={a.id}>
@@ -1327,7 +1353,7 @@ export function AdminSubmissions() {
       </div>
 
       <Table head={['Participant', 'Assessment', 'Training', 'Attempt', 'Score', 'Status', 'Submitted', '']} minWidth={980}>
-        {rows.map((s) => {
+        {visibleRows.map((s) => {
           const a = data.assessments.find((x) => x.id === s.assessmentId)
           const p = data.people.find((x) => x.id === s.personId)
           const t = data.trainings.find((x) => x.id === s.trainingId)
@@ -1373,6 +1399,16 @@ export function AdminSubmissions() {
           )
         })}
       </Table>
+      {rows.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
+          <span>Showing {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, rows.length)} of {rows.length} submissions</span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" aria-label="Previous page" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}><ChevronLeft className="size-3.5" /></Button>
+            <span className="whitespace-nowrap">Page {currentPage + 1} of {pageCount}</span>
+            <Button size="sm" aria-label="Next page" disabled={currentPage >= pageCount - 1} onClick={() => setPage(currentPage + 1)}><ChevronRight className="size-3.5" /></Button>
+          </div>
+        </div>
+      )}
       {rows.length === 0 && (
         <Card>
           <Empty icon={ClipboardList} title="No submissions yet" text="Submissions appear once learners complete an assessment." />

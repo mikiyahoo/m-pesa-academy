@@ -306,6 +306,8 @@ export function CoursePlayer() {
                   )}
                 </span>
               </button>
+              {/* Lesson tools (e.g. Full screen, Download) render here from the item. */}
+              <div id="player-footer-tools" className="flex shrink-0 items-center gap-2 empty:hidden" />
               <div className="flex min-w-0 items-center gap-3">
                 {next && (
                   <div className="hidden min-w-0 items-center gap-2.5 md:flex">

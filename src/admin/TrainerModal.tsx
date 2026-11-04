@@ -71,7 +71,6 @@ export function AddTrainerModal({ onClose, onCreated }: { onClose: () => void; o
       open
       onClose={onClose}
       title="Add trainer"
-      description="Select an existing staff account or create a new trainer profile."
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>

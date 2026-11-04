@@ -1,10 +1,11 @@
 import { Eye, EyeOff, Info, Loader2, Lock, Mail, MessageSquareText, UserPlus, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   adminUser,
   currentUser,
   DEMO_PASSWORD,
+  departmentAdminUser,
   requesterUser,
   trainerUser,
 } from "../../data/trainings";
@@ -16,6 +17,11 @@ const DEMO_HINT_KEY = "mpesa-learning:demo-hint";
 export function Login() {
   const { login, loginWithCode, notice } = useAuth();
   const [params, setParams] = useSearchParams();
+  // Arrived from an assessment QR code.
+  const returnTo = sessionStorage.getItem("mpesa-learning:return-to") ?? "";
+  const path = useLocation().pathname;
+  const fromFeedback = path.startsWith("/give-feedback/") || returnTo.startsWith("/give-feedback/");
+  const fromAssessment = fromFeedback || path.startsWith("/assess/") || returnTo.startsWith("/assess/");
   // Guests and external trainees sign in with a code to their phone instead of a password.
   const codeMode = params.get("mode") === "code";
   const setCodeMode = (on: boolean) => {
@@ -66,6 +72,11 @@ export function Login() {
       <p className="mt-1 text-sm text-zinc-500">
         {codeMode ? "For guests and external trainees. We’ll text a 6-digit code to your phone." : "Sign in to continue to M-PESA Academy."}
       </p>
+      {fromAssessment && !notice && (
+        <p className="mt-4 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-800">
+          Sign in to {fromFeedback ? "give your feedback" : "take your assessment"}. We’ll check your training progress and open it for you.
+        </p>
+      )}
       {notice && (
         <p className="mt-4 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
           {notice}
@@ -197,6 +208,7 @@ export function Login() {
               ["Learner", currentUser.email],
               ["Admin", adminUser.email],
               ["Trainer", trainerUser.email],
+              ["Dept admin", departmentAdminUser.email],
               ["Requester", requesterUser.email],
             ].map(([label, email]) => (
               <div

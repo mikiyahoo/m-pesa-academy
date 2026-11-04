@@ -1,5 +1,5 @@
 import { LATE_WINDOW_MINUTES } from '../../data/trainings'
-import { certificateChecks, formatDate, formatTime, isPassed, nextModuleIndex, sessionStatus } from '../../lib/utils'
+import { blockingModule, certificateChecks, formatDate, formatTime, isPassed, moduleOpen, modulesDone as requiredDone, nextModuleIndex, sessionStatus } from '../../lib/utils'
 import type { Training, TrainingProgress } from '../../types'
 
 export type ItemKind = 'session' | 'reading' | 'video' | 'assessment' | 'feedback' | 'certificate'
@@ -40,7 +40,7 @@ export const ITEM_LABEL: Record<ItemKind, string> = {
  */
 export function buildOutline(t: Training, p?: TrainingProgress) {
   const next = nextModuleIndex(t, p)
-  const modulesDone = next === t.modules.length
+  const modulesDone = requiredDone(t, p)
   const passed = isPassed(p)
   const { eligible, checks } = certificateChecks(t, p, LATE_WINDOW_MINUTES)
   const session = sessionStatus(t)
@@ -57,9 +57,9 @@ export function buildOutline(t: Training, p?: TrainingProgress) {
     id: m.id,
     kind: m.kind === 'video' ? 'video' : 'reading',
     title: m.title,
-    meta: `${m.kind === 'video' ? 'Video' : 'Reading'} • ${m.minutes} min`,
-    state: i < next ? 'done' : i === next ? 'open' : 'locked',
-    lockedReason: i > next ? `Finish “${t.modules[next].title}” first` : undefined,
+    meta: `${m.skippable ? 'Optional • ' : ''}${m.kind === 'video' ? 'Video' : 'Reading'} • ${m.minutes} min`,
+    state: p?.completedModules.includes(m.id) ? 'done' : moduleOpen(t, p, i) ? 'open' : 'locked',
+    lockedReason: moduleOpen(t, p, i) ? undefined : `Finish “${blockingModule(t, p, i)?.title}” first`,
     moduleIndex: i,
   }))
 
@@ -69,7 +69,7 @@ export function buildOutline(t: Training, p?: TrainingProgress) {
     title: 'Final assessment',
     meta: `Graded assessment • ${t.quiz.length} questions`,
     state: passed ? 'done' : modulesDone ? 'open' : 'locked',
-    lockedReason: modulesDone ? undefined : `Complete all ${t.modules.length} modules to unlock the assessment`,
+    lockedReason: modulesDone ? undefined : `Complete the required modules to unlock the assessment`,
   }
 
   const feedbackItem: OutlineItem = {
@@ -104,7 +104,7 @@ export function buildOutline(t: Training, p?: TrainingProgress) {
     session === 'Active' && !p?.checkInAt
       ? 'session'
       : !modulesDone
-        ? t.modules[next].id
+        ? (t.modules[next] ?? t.modules[0]).id
         : !passed
           ? 'assessment'
           : !p?.feedback

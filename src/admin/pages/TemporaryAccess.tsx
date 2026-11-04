@@ -1,5 +1,6 @@
+import { OrganizationInput } from '../OrganizationInput'
 import { Ban, CalendarPlus, ChevronLeft, ChevronRight, Copy, Download, Eye, Globe2, GraduationCap, Mail, MoreHorizontal, Pencil, RotateCcw, Upload, UserPlus, Users } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
 import { cn, localISO, todayISO } from '../../lib/utils'
@@ -216,7 +217,7 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
         )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Organisation (optional)">
-              <Input value={org} onChange={(e) => setOrg(e.target.value)} placeholder="e.g. ISON Africa" />
+              <OrganizationInput value={org} onChange={setOrg} />
             </Field>
             {toInvite.length <= 1 && (
               <Field label="Mobile number for the sign-in code (optional)">
@@ -304,7 +305,6 @@ function ExtendModal({ person, onClose }: { person: Person; onClose: () => void 
       open
       onClose={onClose}
       title="Extend access"
-      description={`${person.name}'s access currently ends ${person.accessEnd ? shortDate(person.accessEnd) : '—'}. You can extend it even after it has ended.`}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -425,7 +425,7 @@ function EditInvitedUserModal({ person, onClose }: { person: Person; onClose: ()
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Organisation">
-            <Input value={org} onChange={(e) => setOrg(e.target.value)} placeholder="e.g. ISON Africa" />
+            <OrganizationInput value={org} onChange={setOrg} />
           </Field>
           <Field label="Phone number">
             <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09XXXXXXXX" />
@@ -509,8 +509,7 @@ export function AdminTemporaryAccess() {
   const [menu, setMenu] = useState<string | null>(null)
   const [viewing, setViewing] = useState<Person | null>(null)
   const [page, setPage] = useState(0)
-  const [pageSizeOption, setPageSizeOption] = useState<number | 'fit'>('fit')
-  const [fitPageSize, setFitPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(10)
   const filtersRef = useRef<HTMLDivElement>(null)
   const tableRef = useRef<HTMLDivElement>(null)
   const paginationRef = useRef<HTMLDivElement>(null)
@@ -520,49 +519,11 @@ export function AdminTemporaryAccess() {
     f === 'all' || (f === 'active' && (s === 'active' || s === 'expiring')) || (f === 'pending' && (s === 'pending' || s === 'scheduled')) || (f === 'expiring' && s === 'expiring') || (f === 'ended' && (s === 'expired' || s === 'revoked'))
   const inFilter = (p: Person, s: AccessState, f: Filter) => (f === 'guests' ? isGuest(p) : match(s, f))
   const rows = temps.filter(({ p, state }) => inFilter(p, state, filter) && (!q || `${p.name} ${p.email} ${p.organization ?? ''}`.toLowerCase().includes(q.toLowerCase())))
-  const pageSize = pageSizeOption === 'fit' ? fitPageSize : pageSizeOption
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const current = Math.min(page, pages - 1)
   const pageRows = rows.slice(current * pageSize, current * pageSize + pageSize)
   const count = (f: Filter) => temps.filter(({ p, state }) => inFilter(p, state, f)).length
 
-  useEffect(() => {
-    const table = tableRef.current
-    const pagination = paginationRef.current
-    if (!table || !pagination) return
-
-    const measureFit = () => {
-      if (!window.matchMedia('(min-width: 768px)').matches) return
-      const firstRow = table.querySelector('tbody tr')
-      const rowHeight = firstRow?.getBoundingClientRect().height ?? 0
-      const headerHeight = table.querySelector('thead')?.getBoundingClientRect().height ?? 0
-      if (!rowHeight || !headerHeight) return
-
-      const scroller = table.closest('main')?.parentElement
-      const scrollerRect = scroller?.getBoundingClientRect()
-      const availableHeight = (scroller?.clientHeight ?? window.innerHeight) - 32
-      const top = scroller && scrollerRect
-        ? table.getBoundingClientRect().top - scrollerRect.top + scroller.scrollTop
-        : table.getBoundingClientRect().top
-      const pagerHeight = pagination.getBoundingClientRect().height
-      const pagerGap = Number.parseFloat(getComputedStyle(pagination).marginTop) || 0
-      const nextFit = Math.max(1, Math.min(50, Math.floor((availableHeight - top - headerHeight - pagerHeight - pagerGap) / rowHeight)))
-      setFitPageSize((currentFit) => currentFit === nextFit ? currentFit : nextFit)
-    }
-
-    const observer = new ResizeObserver(measureFit)
-    observer.observe(table)
-    observer.observe(pagination)
-    if (filtersRef.current) observer.observe(filtersRef.current)
-    window.addEventListener('resize', measureFit)
-    const frame = window.requestAnimationFrame(measureFit)
-
-    return () => {
-      window.cancelAnimationFrame(frame)
-      window.removeEventListener('resize', measureFit)
-      observer.disconnect()
-    }
-  }, [pageRows.length > 0])
 
   const copy = async (p: Person) => {
     if (!p.inviteToken) return
@@ -703,7 +664,7 @@ export function AdminTemporaryAccess() {
                   const left = daysLeft(p)
                   return (
                     <tr key={p.id} className="hover:bg-zinc-50">
-                      <td className="min-w-0 px-1.5 py-2 sm:px-2">
+                      <td className="min-w-0 px-1.5 py-2.5 sm:px-2">
                         <button onClick={() => setViewing(p)} className="flex min-w-0 items-center gap-2.5 text-left">
                           <Avatar name={p.name} size="sm" />
                           <span className="min-w-0 leading-tight">
@@ -715,8 +676,8 @@ export function AdminTemporaryAccess() {
                           </span>
                         </button>
                       </td>
-                      <td className="hidden px-1.5 py-2 text-sm text-zinc-600 lg:table-cell sm:px-2"><span className="block truncate" title={p.organization}>{p.organization || '—'}</span></td>
-                      <td className="px-1.5 py-2 text-sm text-zinc-600 sm:px-2">
+                      <td className="hidden px-1.5 py-2.5 text-sm text-zinc-600 lg:table-cell sm:px-2"><span className="block truncate" title={p.organization}>{p.organization || '—'}</span></td>
+                      <td className="px-1.5 py-2.5 text-sm text-zinc-600 sm:px-2">
                         <span className="block truncate leading-tight">{p.accessStart ? shortDate(p.accessStart) : '—'} – {p.accessEnd ? shortDate(p.accessEnd) : '—'}</span>
                         {left !== null && state !== 'revoked' && (
                           <span className={cn('block truncate text-xs', left < 0 ? 'text-brand-600' : left <= 7 ? 'text-amber-700' : 'text-zinc-500')}>
@@ -724,10 +685,10 @@ export function AdminTemporaryAccess() {
                           </span>
                         )}
                       </td>
-                      <td className="px-1 py-2 sm:px-1"><Badge className="max-w-full truncate px-1.5" tone={stateTone[state]}>{accessLabel[state].toUpperCase()}</Badge></td>
-                      <td className="hidden px-1.5 py-2 text-sm text-zinc-600 lg:table-cell sm:px-2">{trainingsFor(p.id, data.trainings).length}</td>
-                      <td className="hidden px-1.5 py-2 text-sm text-zinc-600 xl:table-cell" title={p.lastSignInAt ? dateTime(p.lastSignInAt) : p.acceptedAt ? dateTime(p.acceptedAt) : 'Never'}><span className="block truncate">{p.lastSignInAt ? dateTime(p.lastSignInAt) : p.acceptedAt ? dateTime(p.acceptedAt) : 'Never'}</span></td>
-                      <td className="relative px-0 py-2 text-center">
+                      <td className="px-1 py-2.5 sm:px-1"><Badge className="max-w-full truncate px-1.5" tone={stateTone[state]}>{accessLabel[state].toUpperCase()}</Badge></td>
+                      <td className="hidden px-1.5 py-2.5 text-sm text-zinc-600 lg:table-cell sm:px-2">{trainingsFor(p.id, data.trainings).length}</td>
+                      <td className="hidden px-1.5 py-2.5 text-sm text-zinc-600 xl:table-cell" title={p.lastSignInAt ? dateTime(p.lastSignInAt) : p.acceptedAt ? dateTime(p.acceptedAt) : 'Never'}><span className="block truncate">{p.lastSignInAt ? dateTime(p.lastSignInAt) : p.acceptedAt ? dateTime(p.acceptedAt) : 'Never'}</span></td>
+                      <td className="relative px-0 py-2.5 text-center">
                         <button onClick={() => setMenu(menu === p.id ? null : p.id)} className="rounded-full p-1 text-zinc-500 hover:bg-zinc-100" aria-label={`Actions for ${p.name}`}>
                           <MoreHorizontal className="size-4" />
                         </button>
@@ -766,7 +727,7 @@ export function AdminTemporaryAccess() {
         <div ref={paginationRef} className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
           <span>Showing {current * pageSize + 1}–{Math.min(rows.length, (current + 1) * pageSize)} of {rows.length} users</span>
           <div className="flex flex-wrap items-center gap-2.5">
-            <label className="flex items-center gap-2">Rows per page<Select value={String(pageSizeOption)} onChange={(event) => { const value = event.target.value; setPageSizeOption(value === 'fit' ? 'fit' : Number(value)); setPage(0) }} className="w-auto! py-1.5! text-xs!"><option value="fit">Fit page ({fitPageSize})</option><option value="10">10</option><option value="25">25</option><option value="50">50</option></Select></label>
+            <label className="flex items-center gap-2">Rows per page<Select value={String(pageSize)} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0) }} className="w-auto! py-1.5! text-xs!"><option value="10">10</option><option value="25">25</option><option value="50">50</option></Select></label>
             <span className="px-1">Page {current + 1} of {pages}</span>
             <Button size="sm" aria-label="First page" disabled={current === 0} onClick={() => setPage(0)}><ChevronLeft className="size-3.5" /><ChevronLeft className="-ml-2 size-3.5" /></Button>
             <Button size="sm" aria-label="Previous page" disabled={current === 0} onClick={() => setPage(current - 1)}><ChevronLeft className="size-3.5" /></Button>

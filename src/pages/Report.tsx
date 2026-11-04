@@ -1,10 +1,12 @@
-import { ArrowUpDown, Award, BookOpen, CalendarDays, CalendarX2, CheckCircle2, ChevronDown, Clock3, Download, MessageSquare, PlayCircle, Search, SearchX, Star, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowUpDown, Award, BookOpen, CalendarDays, CalendarX2, CheckCircle2, Clock3, Download, MessageSquare, PlayCircle, Search, SearchX, Star, TrendingDown, TrendingUp } from 'lucide-react'
 import { RowMenu } from '../components/RowMenu'
 import { EmptyState } from '../components/EmptyState'
 import { SegmentTabs } from '../components/SegmentTabs'
 import { SegmentRing } from '../components/SegmentRing'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { DateRangePicker } from '../components/DateRangePicker'
+import { SelectMenu } from '../components/Pickers'
 import { LATE_WINDOW_MINUTES } from '../data/trainings'
 import { daysAgoISO, metricsWithTrend } from '../lib/stats'
 import { attendanceMark, cn, durationMinutes, formatDate, parseDate, progressPercent, progressStatus, sessionStatus, todayISO } from '../lib/utils'
@@ -83,20 +85,6 @@ export function Report() {
   const [statusFilter, setStatusFilter] = useState<'All' | 'Completed' | 'In Progress' | 'Not Started'>('All')
   const [search, setSearch] = useState('')
   const [dateSort, setDateSort] = useState<'asc' | 'desc'>('asc')
-  // The date panel closes on any click outside it, like the other dropdowns.
-  const rangeMenu = useRef<HTMLDetailsElement>(null)
-  useEffect(() => {
-    const close = (e: Event) => {
-      const el = rangeMenu.current
-      if (el?.open && !el.contains(e.target as Node)) el.open = false
-    }
-    document.addEventListener('mousedown', close)
-    document.addEventListener('touchstart', close)
-    return () => {
-      document.removeEventListener('mousedown', close)
-      document.removeEventListener('touchstart', close)
-    }
-  }, [])
   const [rangePreset, setRangePreset] = useState<'All Dates' | 'This Month' | 'Last 30 Days' | 'Custom Range'>('This Month')
 
   const allRows = trainings
@@ -129,7 +117,7 @@ export function Report() {
   ] as const
 
   const rows = allRows
-    .filter((r) => r.t.date >= rangeStart && r.t.date <= rangeEnd)
+    .filter((r) => (!rangeStart || r.t.date >= rangeStart) && (!rangeEnd || r.t.date <= rangeEnd))
     .sort((a, b) => dateSort === 'asc' ? a.t.date.localeCompare(b.t.date) : b.t.date.localeCompare(a.t.date))
   const scoreTrendRows = allRows.filter((row) => row.score !== undefined).sort((a, b) => a.t.date.localeCompare(b.t.date))
   const scoreTrendValues = scoreTrendRows.flatMap((row) => row.score === undefined ? [] : [row.score])
@@ -202,17 +190,20 @@ export function Report() {
           <h1 className="text-2xl leading-tight font-bold tracking-tight text-zinc-900">Report</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <details ref={rangeMenu} className="group relative z-30">
-            <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50">
-              <CalendarDays className="size-4 shrink-0 text-zinc-600" />
-              <span className="whitespace-nowrap">{formatDate(rangeStart, { month: 'short', day: 'numeric', year: 'numeric' })} – {formatDate(rangeEnd, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-              <ChevronDown className="size-3.5 shrink-0 text-zinc-500 transition group-open:rotate-180" />
-            </summary>
-            <div className="absolute left-0 mt-2 grid w-[min(18rem,calc(100vw-2rem))] gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl sm:right-0 sm:left-auto">
-              <label className="grid gap-1 text-xs font-medium text-zinc-600">From<input type="date" value={rangeStart} max={rangeEnd} onChange={(event) => { if (event.target.value) { setRangeStart(event.target.value); setRangePreset('Custom Range') } }} className="w-full min-w-0 rounded-xl border border-zinc-200 px-2.5 py-2 text-sm text-zinc-800 outline-none focus:border-brand-500" /></label>
-              <label className="grid gap-1 text-xs font-medium text-zinc-600">To<input type="date" value={rangeEnd} min={rangeStart} onChange={(event) => { if (event.target.value) { setRangeEnd(event.target.value); setRangePreset('Custom Range') } }} className="w-full min-w-0 rounded-xl border border-zinc-200 px-2.5 py-2 text-sm text-zinc-800 outline-none focus:border-brand-500" /></label>
-            </div>
-          </details>
+          <DateRangePicker
+            value={{ from: rangeStart, to: rangeEnd }}
+            onChange={(range) => {
+              setRangeStart(range.from)
+              setRangeEnd(range.to)
+              const today = parseDate(todayISO())
+              const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
+              const monthEnd = toISODate(new Date(today.getFullYear(), today.getMonth() + 1, 0))
+              const thirtyDaysAgo = new Date(today)
+              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29)
+              const last30Start = toISODate(thirtyDaysAgo)
+              setRangePreset(!range.from && !range.to ? 'All Dates' : range.from === monthStart && range.to === monthEnd ? 'This Month' : range.from === last30Start && range.to === todayISO() ? 'Last 30 Days' : 'Custom Range')
+            }}
+          />
           <button onClick={exportCsv} className="flex items-center gap-2 rounded-xl bg-brand-600 px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-700 sm:text-sm">
             <Download className="size-4" /> Export<span className="hidden min-[400px]:inline"> CSV</span>
           </button>
@@ -337,24 +328,23 @@ export function Report() {
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search trainings..." className="w-full sm:w-48 rounded-xl border border-zinc-200 bg-white py-2 pl-9 pr-3 text-xs outline-none placeholder:text-zinc-400 focus:border-brand-500 lg:w-56" />
             </label>
-            <label className="relative max-sm:min-w-0 max-sm:flex-1">
+            <div className="relative max-sm:min-w-0 max-sm:flex-1">
               <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-500" />
-              <select
+              <SelectMenu
                 value={rangePreset}
                 onChange={(event) => {
                   const preset = event.target.value as typeof rangePreset
                   if (preset !== 'Custom Range') chooseDatePreset(preset)
                 }}
                 aria-label="Filter training activity by date"
-                className="w-full cursor-pointer appearance-none rounded-xl border border-zinc-200 bg-white py-2 pr-8 pl-9 text-xs font-semibold max-sm:h-10 sm:w-36 text-zinc-700 outline-none focus:border-brand-500"
+                className="h-10 pl-9 text-xs font-semibold sm:w-36"
               >
                 <option>All Dates</option>
                 <option>This Month</option>
                 <option>Last 30 Days</option>
                 <option disabled>Custom Range</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-zinc-500" aria-hidden />
-            </label>
+              </SelectMenu>
+            </div>
           </div>
         </div>
         <div className="relative overflow-x-auto scrollbar-thin">
