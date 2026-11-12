@@ -187,6 +187,19 @@ export function AdminReports() {
     [tab, data, filters.from, filters.to, filters.typeId, filters.groupId, filters.region, filters.trainerId, filters.status, filters.delivery, base],
   )
 
+  // Written into every export so the file says what it covers (US39).
+  const filterSummary = [
+    filters.from || filters.to ? `Dates: ${filters.from || '…'} to ${filters.to || '…'}` : '',
+    filters.typeId ? `Type: ${data.trainingTypes.find((x) => x.id === filters.typeId)?.name ?? filters.typeId}` : '',
+    filters.groupId ? `Group: ${data.groups.find((x) => x.id === filters.groupId)?.name ?? filters.groupId}` : '',
+    filters.region ? `Region: ${filters.region}` : '',
+    filters.trainerId ? `Trainer: ${data.people.find((x) => x.id === filters.trainerId)?.name ?? filters.trainerId}` : '',
+    filters.status ? `Status: ${filters.status}` : '',
+    filters.delivery ? `Delivery: ${filters.delivery}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
     <>
       <PageHeader
@@ -197,6 +210,7 @@ export function AdminReports() {
             title={`M-PESA Academy — ${TABS.find((t) => t.value === tab)?.label} report`}
             sheets={report.sheets}
             personal={report.personal}
+            filters={filterSummary}
           />
         }
       />

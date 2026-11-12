@@ -6,6 +6,7 @@ import type { Person } from '../admin/types'
 import { createGuest, validateGuest, type GuestSignUp, type GuestSignUpErrors } from '../lib/publicAccess'
 import { adminUser, currentUser, DEMO_PASSWORD, departmentAdminUser, requesterUser, trainerUser } from '../data/trainings'
 import { localISO } from '../lib/utils'
+import { normalizePhone } from '../admin/requests'
 import type { User } from '../types'
 
 const STORAGE_KEY = 'mpesa-learning:auth:v2'
@@ -30,7 +31,10 @@ const accounts: { role: Role; user: User; personId?: string }[] = [
 
 /** A signed-in or signing-in identity. Temporary users carry their person id from the admin data. */
 type Identity = { role: Role; user: User; personId?: string }
-type PendingOtp = Identity & { phone: string; code: string; expiresAt: number }
+type PendingOtp = Identity & { phone: string; code: string; expiresAt: number; /** When each resend happened (US01: 3 per 10 minutes). */ resends?: number[] }
+
+export const MAX_RESENDS = 3
+const RESEND_WINDOW_MS = 10 * 60_000
 
 type Auth = {
   stage: Stage
@@ -46,7 +50,8 @@ type Auth = {
   loginWithCode: (emailOrPhone: string) => string | null
   /** Creates a guest account (public trainings only) and sends a code to confirm the phone. */
   signUp: (form: GuestSignUp) => GuestSignUpErrors | null
-  resendOtp: () => void
+  /** Sends a new code (the old one stops working); returns a message when the resend limit is reached. */
+  resendOtp: () => string | null
   verifyOtp: (code: string) => string | null
   cancelOtp: () => void
   logout: (message?: string) => void
@@ -154,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ? { role: 'department' as Role, personId: deptPerson.id, user: { name: deptPerson.name, email: deptPerson.email, phone: deptPerson.phone, role: `Department Admin · ${deptPerson.department}` } }
             : undefined)
         if (!account) {
-          const external = loadAdminData().people.some((p) => isTemporary(p) && (p.email.toLowerCase() === id || p.phone === id))
+          const external = loadAdminData().people.some((p) => isTemporary(p) && ((!!p.email && p.email.toLowerCase() === id) || (!!p.phone && normalizePhone(p.phone) === normalizePhone(id))))
           return external
             ? 'Guests and external trainees don’t use a password. Choose “Sign in with a code” instead.'
             : 'No account found for that email or phone number. New here? Create a guest account to join public trainings.'
@@ -163,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // An admin can deactivate an account or give it an end date (validity period).
         const record = loadAdminData().people.find((p) => p.email.toLowerCase() === account.user.email.toLowerCase())
         if (record?.status === 'Inactive') return 'Your account is inactive. Contact the training team.'
+        if (account.role === 'department' && record && loadAdminData().suspendedDepartments?.includes(record.department)) return `Access for ${record.department} is suspended. Contact the training team.`
         if (record?.accessEnd && record.accessEnd < localISO().slice(0, 10)) return 'Your access period has ended. Contact the training team to extend it.'
         setNotice(null)
         const approved = approvedDetails(account.user)
@@ -181,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       loginWithCode: (emailOrPhone) => {
         const id = emailOrPhone.trim().toLowerCase().replace(/[\s-]/g, '')
-        const person = loadAdminData().people.find((p) => isTemporary(p) && (p.email.toLowerCase() === id || p.phone === id))
+        const person = loadAdminData().people.find((p) => isTemporary(p) && ((!!p.email && p.email.toLowerCase() === id) || (!!p.phone && normalizePhone(p.phone) === normalizePhone(id))))
         if (!person) {
           return accounts.some((a) => a.user.email === id || a.user.phone === id)
             ? 'Company staff sign in with their password.'
@@ -203,7 +209,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPending({ ...externalIdentity(created.person), phone: created.person.phone, code: newCode(), expiresAt: Date.now() + OTP_TTL_MS })
         return null
       },
-      resendOtp: () => setPending((p) => p && { ...p, code: newCode(), expiresAt: Date.now() + OTP_TTL_MS }),
+      resendOtp: () => {
+        if (!pending) return 'Your session expired. Please sign in again.'
+        const now = Date.now()
+        const recent = (pending.resends ?? []).filter((t) => now - t < RESEND_WINDOW_MS)
+        if (recent.length >= MAX_RESENDS) {
+          const wait = Math.ceil((RESEND_WINDOW_MS - (now - recent[0])) / 60_000)
+          return `You’ve requested ${MAX_RESENDS} codes in 10 minutes. Try again in ${wait} minute${wait === 1 ? '' : 's'}.`
+        }
+        // A new code replaces the old one; the user stays on the same sign-in attempt.
+        setPending({ ...pending, code: newCode(), expiresAt: now + OTP_TTL_MS, resends: [...recent, now] })
+        return null
+      },
       verifyOtp: (code) => {
         if (!pending) return 'Your session expired. Please sign in again.'
         if (Date.now() > pending.expiresAt) return 'This code has expired. Request a new one.'

@@ -53,12 +53,21 @@ export function isPassed(p?: TrainingProgress) {
 export const modulesDone = (t: Training, p?: TrainingProgress) => t.modules.every((m) => m.skippable || !!p?.completedModules.includes(m.id))
 
 /** A module is open once every required module before it is complete; skippable ones never block. */
-export const moduleOpen = (t: Training, p: TrainingProgress | undefined, i: number) =>
-  t.modules.slice(0, i).every((m) => m.skippable || !!p?.completedModules.includes(m.id))
+export const moduleOpen = (t: Training, p: TrainingProgress | undefined, i: number) => {
+  const m = t.modules[i]
+  if (m?.lockedReason) return false
+  // Modules from a journey that isn't taken in order open straight away.
+  if (m?.unordered) return true
+  return t.modules.slice(0, i).every((x) => x.skippable || x.unordered || !!p?.completedModules.includes(x.id))
+}
 
 /** The required module that keeps module i locked, if any. */
 export const blockingModule = (t: Training, p: TrainingProgress | undefined, i: number) =>
-  t.modules.slice(0, i).find((m) => !m.skippable && !p?.completedModules.includes(m.id))
+  t.modules.slice(0, i).find((m) => !m.skippable && !m.unordered && !p?.completedModules.includes(m.id))
+
+/** Why module i can't be opened yet, in the learner's words. */
+export const lockedReasonOf = (t: Training, p: TrainingProgress | undefined, i: number) =>
+  t.modules[i]?.lockedReason ?? `Finish “${blockingModule(t, p, i)?.title}” first`
 
 /** How many modules the learner has finished (in any order). */
 export const completedCount = (t: Training, p?: TrainingProgress) => t.modules.filter((m) => p?.completedModules.includes(m.id)).length

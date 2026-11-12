@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   CalendarCheck2,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -8,7 +9,8 @@ import {
   Video,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { buildOutline, learnPath } from "./learn/outline";
 import {
   DateTile,
   EventChip,
@@ -20,6 +22,7 @@ import { TrainingScheduleManager } from "../components/TrainingScheduleManager";
 import {
   cn,
   formatDate,
+  formatTime,
   parseDate,
   progressStatus,
   sessionStatus,
@@ -27,6 +30,7 @@ import {
   todayISO,
 } from "../lib/utils";
 import { useStore } from "../store/AppStore";
+import { useFeedback } from "../components/Feedback";
 import type { Training, TrainingProgress } from "../types";
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -237,7 +241,9 @@ export function CalendarSidebar({
   onToday?: () => void;
   className?: string;
 }) {
-  const { progress } = useStore();
+  const { progress, checkIn } = useStore();
+  const { toast } = useFeedback();
+  const navigate = useNavigate();
   const today = todayISO();
   const goToday = onToday ?? (() => undefined);
   const selectedSessions = trainings.filter((t) => t.date === selected);
@@ -278,7 +284,7 @@ export function CalendarSidebar({
                     to={`/trainings/${t.id}`}
                     className={cn(
                       "group block overflow-hidden rounded-xl border transition hover:shadow-sm",
-                      live ? "border-brand-200 ring-1 ring-brand-100 hover:border-brand-300" : "border-zinc-200 hover:border-zinc-300",
+                      live ? "rounded-b-none border-b-0 border-brand-200 hover:border-brand-300" : "border-zinc-200 hover:border-zinc-300",
                     )}
                   >
                     {t.cover && (
@@ -314,23 +320,36 @@ export function CalendarSidebar({
                         )}{" "}
                         {t.teamsJoinUrl ? "Microsoft Teams" : t.venue}
                       </p>
-                      <span
-                        className={cn(
-                          "mt-3 inline-flex items-center gap-1 text-xs font-semibold",
-                          live
-                            ? "w-full justify-center rounded-xl bg-brand-600 px-3 py-2.5 text-sm text-white shadow-sm shadow-brand-600/25 group-hover:bg-brand-700"
-                            : "text-brand-600 group-hover:gap-1.5",
-                        )}
-                      >
-                        {kind === "Active"
-                          ? "Join or check in"
-                          : kind === "Completed"
-                            ? "View training"
-                            : "Open training"}{" "}
-                        <ArrowRight className="size-3.5" />
-                      </span>
+                      {!live && (
+                        <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 group-hover:gap-1.5">
+                          {kind === "Completed" ? "View training" : "Open training"} <ArrowRight className="size-3.5" />
+                        </span>
+                      )}
                     </div>
                   </Link>
+                  {/* Check in from the calendar while the session is live (US05). */}
+                  {live && (
+                    <div className="-mt-px rounded-b-xl border border-t-0 border-brand-200 px-3.5 pb-3.5">
+                      {progress[t.id]?.checkInAt ? (
+                        <p className="flex items-center justify-center gap-1.5 rounded-xl bg-mpesa-500/10 px-3 py-2.5 text-sm font-semibold text-mpesa-700">
+                          <CheckCircle2 className="size-4" /> Attendance recorded · {formatTime(progress[t.id]!.checkInAt!.slice(11, 16))}
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            checkIn(t.id, t.teamsJoinUrl ? "teams" : "manual");
+                            // Then on to the next step: feedback, the assessment or a module (US06).
+                            const next = buildOutline(t, { ...(progress[t.id] ?? { completedModules: [] }), checkInAt: new Date().toISOString(), attended: true }).currentId;
+                            toast("Checked in — attendance recorded", next && next !== "session" ? { action: { label: "Continue", onClick: () => navigate(learnPath(t.id, next)) } } : undefined);
+                          }}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand-600/25 transition hover:bg-brand-700"
+                        >
+                          <CheckCircle2 className="size-4" /> Check in now
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </li>
               );
             })}

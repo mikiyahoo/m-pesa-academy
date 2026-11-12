@@ -1,5 +1,5 @@
 import { LATE_WINDOW_MINUTES } from '../../data/trainings'
-import { blockingModule, certificateChecks, formatDate, formatTime, isPassed, moduleOpen, modulesDone as requiredDone, nextModuleIndex, sessionStatus } from '../../lib/utils'
+import { lockedReasonOf, certificateChecks, formatDate, formatTime, isPassed, moduleOpen, modulesDone as requiredDone, nextModuleIndex, sessionStatus } from '../../lib/utils'
 import type { Training, TrainingProgress } from '../../types'
 
 export type ItemKind = 'session' | 'reading' | 'video' | 'assessment' | 'feedback' | 'certificate'
@@ -59,7 +59,7 @@ export function buildOutline(t: Training, p?: TrainingProgress) {
     title: m.title,
     meta: `${m.skippable ? 'Optional • ' : ''}${m.kind === 'video' ? 'Video' : 'Reading'} • ${m.minutes} min`,
     state: p?.completedModules.includes(m.id) ? 'done' : moduleOpen(t, p, i) ? 'open' : 'locked',
-    lockedReason: moduleOpen(t, p, i) ? undefined : `Finish “${blockingModule(t, p, i)?.title}” first`,
+    lockedReason: moduleOpen(t, p, i) ? undefined : lockedReasonOf(t, p, i),
     moduleIndex: i,
   }))
 

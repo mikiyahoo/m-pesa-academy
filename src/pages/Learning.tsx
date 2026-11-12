@@ -18,7 +18,11 @@ import { SegmentTabs } from "../components/SegmentTabs";
 import { SelectMenu } from "../components/Pickers";
 import { journeys } from "../data/journeys";
 import { TrainingCard, useFavourites } from "../components/TrainingCard";
-import { cn, sessionStatus, todayISO } from "../lib/utils";
+import { cn, progressStatus, sessionStatus, todayISO } from "../lib/utils";
+import { TrainingPreview } from "../components/TrainingPreview";
+
+type SortKey = "newest" | "oldest" | "title" | "status";
+const STATUS_ORDER = ["In Progress", "Not Started", "Completed"];
 import { useStore } from "../store/AppStore";
 import { LearningPathsTracker } from "../components/LearningPathsTracker";
 import type { SessionStatus } from "../types";
@@ -127,6 +131,15 @@ export function Learning() {
     if (tabs.some((x) => x.value === tabParam)) setTab(tabParam as Tab);
   }, [tabParam]);
   const [category, setCategory] = useState("");
+  // US09: newest first by default; other orders kept in the URL.
+  const sort = (params.get("sort") ?? "newest") as SortKey;
+  const setSort = (v: SortKey) => {
+    const next = new URLSearchParams(params);
+    if (v === "newest") next.delete("sort");
+    else next.set("sort", v);
+    setParams(next, { replace: true });
+  };
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [view, setView] = useState<TrainingsView>(() =>
     params.get("view") === "calendar" ? "calendar" : loadView(),
   );
@@ -177,12 +190,17 @@ export function Learning() {
           f.toLowerCase().includes(query),
         ),
     )
-    // Live today first, then most recent first.
-    .sort(
-      (a, b) =>
-        Number(sessionStatus(b) === "Active") - Number(sessionStatus(a) === "Active") ||
-        b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime),
-    );
+    // Live today first, then the chosen order (newest first by default).
+    .sort((a, b) => {
+      const live = Number(sessionStatus(b) === "Active") - Number(sessionStatus(a) === "Active");
+      if (live && (sort === "newest" || sort === "oldest")) return live;
+      const byDate = b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime);
+      if (sort === "oldest") return -byDate;
+      if (sort === "title") return a.title.localeCompare(b.title);
+      if (sort === "status") return STATUS_ORDER.indexOf(progressStatus(a, progress[a.id])) - STATUS_ORDER.indexOf(progressStatus(b, progress[b.id])) || byDate;
+      return byDate;
+    });
+  const previewed = visible.find((t) => t.id === previewId);
 
   return (
     <div className="space-y-6">
@@ -269,6 +287,19 @@ export function Learning() {
               ))}
             </SelectMenu>
           </div>
+          <div className="relative max-sm:min-w-0 max-sm:flex-1 sm:w-40">
+            <SelectMenu
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              aria-label="Sort trainings"
+              className="h-10 w-full text-xs text-zinc-700 sm:text-sm"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="title">Title A–Z</option>
+              <option value="status">Status</option>
+            </SelectMenu>
+          </div>
           <ViewToggle view={view} onChange={setView} calendar />
         </div>
       </div>
@@ -317,6 +348,8 @@ export function Learning() {
                     training={t}
                     progress={progress[t.id]}
                     layout={view}
+                    onPreview={() => setPreviewId(previewId === t.id ? null : t.id)}
+                    previewing={previewId === t.id}
                   />
                 ))}
               </div>
@@ -338,12 +371,16 @@ export function Learning() {
               </div>
             )}
           </div>
-          {/* Today and what's coming up, like the calendar view. */}
+          {/* The previewed training, or today and what's coming up. */}
+          {previewed ? (
+            <TrainingPreview training={previewed} progress={progress[previewed.id]} onClose={() => setPreviewId(null)} />
+          ) : (
           <CalendarSidebar
             trainings={trainings}
             selected={todayISO()}
             className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-1 xl:content-start"
           />
+          )}
         </div>
       )}
       {reading && (

@@ -603,6 +603,30 @@ export function AdminTrainingDetail() {
             ) : (
               <p className="text-sm text-zinc-500">No feedback form attached.</p>
             )}
+            {form && (
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-zinc-50 px-3 py-2.5">
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-zinc-900">Sign-in required</span>
+                  <span className="block text-xs text-zinc-500">{training.feedbackOpenLink ? 'Off: anyone with the link or QR can answer, without a name.' : 'On: participants sign in before giving feedback.'}</span>
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={!training.feedbackOpenLink}
+                  aria-label="Sign-in required for feedback"
+                  onClick={() =>
+                    update((d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, feedbackOpenLink: !training.feedbackOpenLink || undefined } : t)) }), {
+                      action: training.feedbackOpenLink ? 'Required sign-in for feedback' : 'Opened feedback link to everyone',
+                      target: training.name,
+                      changes: [{ field: 'Feedback sign-in', from: training.feedbackOpenLink ? 'Not required' : 'Required', to: training.feedbackOpenLink ? 'Required' : 'Not required' }],
+                    })
+                  }
+                  className={cn('relative h-6 w-11 shrink-0 rounded-full transition', !training.feedbackOpenLink ? 'bg-brand-600' : 'bg-zinc-300')}
+                >
+                  <span className={cn('absolute top-0.5 size-5 rounded-full bg-white shadow transition-all', !training.feedbackOpenLink ? 'left-[22px]' : 'left-0.5')} />
+                </button>
+              </div>
+            )}
           </Card>
 
           <TrainingDiscussionsCard trainingId={training.id} />
@@ -649,10 +673,10 @@ export function AdminTrainingDetail() {
       {(modal === 'PRE' || modal === 'POST') && <AttachAssessmentModal training={training} kind={modal} onClose={() => setModal(null)} />}
       {feedbackQr && form && (
         <BigQr
-          link={`${window.location.origin}/give-feedback/${training.id}`}
+          link={`${window.location.origin}/${training.feedbackOpenLink ? 'feedback' : 'give-feedback'}/${training.id}`}
           title={form.title}
           heading="Scan to give feedback"
-          note={`${training.name} · sign in, then share your feedback`}
+          note={training.feedbackOpenLink ? `${training.name} · no sign-in needed` : `${training.name} · sign in, then share your feedback`}
           onClose={() => setFeedbackQr(false)}
         />
       )}

@@ -14,6 +14,10 @@ export type Module = {
   kind: 'document' | 'video'
   /** Optional module the admin unlocked: it can be skipped and never blocks progress. */
   skippable?: boolean
+  /** From a journey that doesn't need to be taken in order: opens straight away and blocks nothing. */
+  unordered?: boolean
+  /** Set when the module's journey is locked for this learner; the text says why. */
+  lockedReason?: string
   /** Video lesson streamed by the player (sample files under /public/trainings, TE-3.2). */
   video?: string
   /** Source deck offered for download next to the in-app slides (sample file under /public/trainings). */

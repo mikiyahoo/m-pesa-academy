@@ -171,7 +171,11 @@ export function Otp() {
         ) : (
           <button
             onClick={() => {
-              resendOtp()
+              const limited = resendOtp()
+              if (limited) {
+                setError(limited)
+                return
+              }
               setCooldown(RESEND_SECONDS)
               setError(null)
               setResent(true)

@@ -68,6 +68,10 @@ export type Journey = {
   startDate?: string
   endDate?: string
   modules: JourneyModule[]
+  /** Modules must be finished in order (default). Off: learners open them in any order (US12, US19). */
+  sequential?: boolean
+  /** Locked for everyone (no groups) or for the chosen groups, with the reason learners see (US18). */
+  lock?: { groupIds: string[]; reason: string; at: string; by: string }
 }
 
 /** Department Admin: runs training for one department (e.g. EBU, Marketing, Merchant) — like an admin, scoped to it. */
@@ -252,6 +256,8 @@ export type AdminTraining = {
   attendance?: AttendanceSync
   /** Self-service check-ins recorded from the learner portal (TE-5.1). */
   checkins?: Checkin[]
+  /** The feedback link and QR work without signing in (US33). Off by default. */
+  feedbackOpenLink?: boolean
   /** People the trainer marked absent (no check-in is stored for them). */
   absentIds?: string[]
   checkinSession?: CheckinSession
@@ -482,6 +488,8 @@ export type AlertRules = {
 }
 
 export type AdminData = {
+  /** Departments whose access an admin suspended (US44). */
+  suspendedDepartments?: string[]
   materials: Material[]
   journeys: Journey[]
   people: Person[]

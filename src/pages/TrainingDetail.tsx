@@ -5,9 +5,9 @@ import { useFeedback } from '../components/Feedback'
 import { Banner } from '../components/Banner'
 import { PASS_MARK, LATE_WINDOW_MINUTES } from '../data/trainings'
 import { downloadIcs } from '../lib/ics'
-import { blockingModule, cn, certificateChecks, completedCount, durationMinutes, moduleOpen, modulesDone as requiredModulesDone, formatDate, isPassed, nextModuleIndex, progressPercent, progressStatus, sessionStatus, timeRange } from '../lib/utils'
+import { lockedReasonOf, cn, certificateChecks, completedCount, durationMinutes, moduleOpen, modulesDone as requiredModulesDone, formatDate, isPassed, nextModuleIndex, progressPercent, progressStatus, sessionStatus, timeRange } from '../lib/utils'
 import { useStore } from '../store/AppStore'
-import { learnPath } from './learn/outline'
+import { buildOutline, learnPath } from './learn/outline'
 import { UserAvatar } from '../components/UserAvatar'
 import { useDialogFocus } from '../lib/useDialogFocus'
 import { CourseDiscussion } from '../components/CourseDiscussion'
@@ -134,9 +134,11 @@ export function TrainingDetail() {
     else window.open(training.teamsJoinUrl, '_blank', 'noopener')
   }
 
+  // After attendance, go straight on to the next step (US06).
   const doCheckIn = () => {
     checkIn(training.id, 'manual')
-    toast('Checked in — attendance recorded')
+    const next = buildOutline(training, { ...(p ?? { completedModules: [] }), checkInAt: new Date().toISOString(), attended: true }).currentId
+    toast('Checked in — attendance recorded', next && next !== 'session' ? { action: { label: 'Continue', onClick: () => navigate(learnPath(training.id, next)) } } : undefined)
   }
 
   // One clear primary action, chosen by where the learner is in the training.
@@ -501,7 +503,7 @@ export function TrainingDetail() {
                       {locked ? (
                         <span className="flex-1 cursor-not-allowed pl-1 text-left text-[15px] text-zinc-800">
                           {m.title} <span className="text-zinc-500">({m.minutes} min{m.kind === 'video' ? ' · video' : ''})</span>
-                          <span className="block text-xs text-zinc-400">Finish “{blockingModule(training, p, i)?.title}” first</span>
+                          <span className="block text-xs text-zinc-400">{lockedReasonOf(training, p, i)}</span>
                         </span>
                       ) : (
                         <Link to={learnPath(training.id, m.id)} className={cn('flex-1 pl-1 text-left text-[15px] hover:text-brand-600', done ? 'text-zinc-400' : 'text-zinc-800')}>

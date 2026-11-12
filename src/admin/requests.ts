@@ -23,6 +23,13 @@ export const DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 
 /** Permanent access is limited to company domains (URS 2.1); anyone else is a temporary user. */
 export const INTERNAL_DOMAINS = ['safaricom.et', 'mpesa.et']
+
+/** An Ethiopian mobile number in its local form (07… or 09…), or null if it isn't one (US02, US23). */
+export function normalizePhone(value: string): string | null {
+  const v = value.replace(/[\s()-]/g, '')
+  const m = v.match(/^(?:\+?251|0)?([79]\d{8})$/)
+  return m ? `0${m[1]}` : null
+}
 export const isInternalEmail = (email: string) => INTERNAL_DOMAINS.some((d) => email.trim().toLowerCase().endsWith(`@${d}`))
 
 export const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/

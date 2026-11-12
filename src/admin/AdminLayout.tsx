@@ -12,7 +12,7 @@ import { useDiscussionAttention } from './pages/Discussions'
 import { loadProfileRequests, onProfileRequestsChange } from '../lib/profileRequests'
 import { dateTime } from './helpers'
 import { UserAvatar } from '../components/UserAvatar'
-import { Empty } from './ui'
+import { Button, Empty } from './ui'
 
 type NavItem = { label: string; icon: LucideIcon; to?: string; end?: boolean; children?: { label: string; to: string }[] }
 
@@ -56,6 +56,7 @@ const nav: NavItem[] = [
     children: [
       { label: 'All users', to: '/admin/users' },
       { label: 'Temporary access', to: '/admin/temporary-access' },
+      { label: 'Departments', to: '/admin/departments' },
     ],
   },
   { label: 'Groups', icon: UserRoundPlus, to: '/admin/groups' },
@@ -473,7 +474,7 @@ function AlertsBell() {
 }
 
 export function AdminLayout({ variant = 'admin', trainerId, personId }: { variant?: 'admin' | 'trainer' | 'department'; trainerId?: string; personId?: string }) {
-  const { user } = useAuth()
+  const { user, logout: logoutNow } = useAuth()
   const { data } = useAdmin()
   // Training Requests is extra access an admin gives a trainer ("Can manage requests").
   const canManageRequests = !!data.people.find((p) => p.id === trainerId)?.canApprove
@@ -525,6 +526,20 @@ export function AdminLayout({ variant = 'admin', trainerId, personId }: { varian
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [])
+
+  // A suspended department's admins lose access until an admin restores it (US44).
+  if (variant === 'department' && department && data.suspendedDepartments?.includes(department))
+    return (
+      <div className="grid min-h-dvh place-items-center bg-canvas px-4">
+        <div className="max-w-md rounded-3xl border border-zinc-200/80 bg-surface p-8 text-center">
+          <p className="text-lg font-bold text-zinc-900">Access suspended</p>
+          <p className="mt-1 text-sm text-zinc-500">The training team has suspended access for {department}. Contact them to restore it.</p>
+          <Button className="mt-5" onClick={() => logoutNow()}>
+            <LogOut className="size-4" /> Sign out
+          </Button>
+        </div>
+      </div>
+    )
 
   // Sidebar counts follow the same scope as the pages.
   const scoped = (node: ReactNode) =>

@@ -1,4 +1,4 @@
-import { ArrowRight, Award, CalendarDays, Check, Circle, Clock, Heart, MapPin, MessageSquare, Play } from 'lucide-react'
+import { ArrowRight, Award, CalendarDays, Check, Circle, Clock, Eye, Heart, MapPin, MessageSquare, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { UserAvatar } from './UserAvatar'
 import { scopedKey } from '../lib/learner'
@@ -159,7 +159,7 @@ function Meta({ training }: { training: Training }) {
 }
 
 /** `barWidth`: grid-card progress meter width in px (home cards are wider, so they use a longer bar). */
-export function TrainingCard({ training, progress, layout = 'grid', barWidth = 88 }: { training: Training; progress?: TrainingProgress; layout?: 'grid' | 'list'; barWidth?: number }) {
+export function TrainingCard({ training, progress, layout = 'grid', barWidth = 88, onPreview, previewing = false }: { training: Training; progress?: TrainingProgress; layout?: 'grid' | 'list'; barWidth?: number; /** Shows a Preview button that opens the details pane beside the list (US09). */ onPreview?: () => void; previewing?: boolean }) {
   const status = progressStatus(training, progress)
   const live = sessionStatus(training) === 'Active'
   const percent = progressPercent(training, progress)
@@ -181,6 +181,23 @@ export function TrainingCard({ training, progress, layout = 'grid', barWidth = 8
     </div>
   )
 
+  const previewButton = onPreview && (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onPreview()
+      }}
+      aria-pressed={previewing}
+      aria-label={`Preview ${training.title}`}
+      title="Preview details and materials"
+      className={cn('absolute top-2.5 right-12 z-10 grid size-8 place-items-center rounded-full shadow-sm transition hover:scale-105', previewing ? 'bg-brand-600 text-white' : 'bg-white/95 text-zinc-600 hover:text-brand-600')}
+    >
+      <Eye className="size-4" />
+    </button>
+  )
+
   // Bar and percentage on one line; the bar stays short so it reads as a meter, not a divider.
   const progressBar = (
     <div className={cn('flex w-full flex-1 items-center gap-2.5', layout === 'grid' ? 'min-w-[60px]' : 'max-w-[190px] md:self-end')} style={layout === 'grid' ? { maxWidth: barWidth } : undefined} role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`${training.title}: ${percent}% complete`}>
@@ -200,11 +217,12 @@ export function TrainingCard({ training, progress, layout = 'grid', barWidth = 8
 
   if (layout === 'list') {
     return (
-      <article className="group relative flex flex-col gap-5 rounded-3xl border border-zinc-200/80 bg-white p-3 transition focus-within:ring-2 focus-within:ring-brand-500 hover:shadow-xl md:flex-row md:items-stretch">
+      <article className={cn("group relative flex flex-col gap-5 rounded-3xl border bg-white p-3", previewing ? "border-brand-300 ring-2 ring-brand-100" : "border-zinc-200/80", " transition focus-within:ring-2 focus-within:ring-brand-500 hover:shadow-xl md:flex-row md:items-stretch")}>
         {/* The photo fills the card's height so the gap above, below and left of it is the same. */}
         <div className="relative aspect-[5/2] shrink-0 overflow-hidden rounded-2xl bg-zinc-100 md:aspect-auto md:min-h-36 md:w-64">
           <Banner training={training} className="size-full" />
           {badges}
+          {previewButton}
           <FavouriteButton id={training.id} title={training.title} />
         </div>
         <div className="min-w-0 flex-1 px-2 md:self-center md:px-0 md:py-1">
@@ -223,10 +241,11 @@ export function TrainingCard({ training, progress, layout = 'grid', barWidth = 8
   }
 
   return (
-    <article className="group relative flex flex-col rounded-3xl border border-zinc-200/80 bg-white p-3 transition focus-within:ring-2 focus-within:ring-brand-500 hover:-translate-y-0.5 hover:shadow-xl">
+    <article className={cn("group relative flex flex-col rounded-3xl border bg-white p-3", previewing ? "border-brand-300 ring-2 ring-brand-100" : "border-zinc-200/80", " transition focus-within:ring-2 focus-within:ring-brand-500 hover:-translate-y-0.5 hover:shadow-xl")}>
       <div className="relative aspect-[16/7] overflow-hidden rounded-2xl bg-zinc-100">
         <Banner training={training} className="size-full transition duration-300 group-hover:scale-[1.03]" />
         {badges}
+        {previewButton}
         <FavouriteButton id={training.id} title={training.title} />
         {/* Trainer sits on the photo so the title has room to breathe. */}
         <span className="absolute right-2.5 bottom-2.5 flex max-w-[calc(100%-1.25rem)] items-center gap-1.5 rounded-full bg-black/25 py-0.5 pr-2.5 pl-0.5 text-[11px] font-medium text-white ring-1 ring-white/25 backdrop-blur-md">

@@ -9,6 +9,13 @@ export const trainingJourneys = (data: Pick<AdminData, 'journeys'>, t: Pick<Admi
     .map((id) => data.journeys.find((j) => j.id === id))
     .filter((j): j is Journey => !!j)
 
+/** The lock reason when a journey is locked for everyone, or for one of these groups. */
+export function journeyLockFor(j: Pick<Journey, 'lock'>, groupIds: string[] = []): string | undefined {
+  if (!j.lock) return undefined
+  if (j.lock.groupIds.length && !j.lock.groupIds.some((g) => groupIds.includes(g))) return undefined
+  return j.lock.reason || 'This journey is locked by the training team.'
+}
+
 /**
  * All of a training's journeys as one journey: names joined with arrows and modules back to back,
  * so screens built for a single journey show every module in order.

@@ -113,6 +113,7 @@ export function AdminDashboard() {
   const [metric, setMetric] = useState<Metric>('learners')
   const [monthsBack, setMonthsBack] = useState(6)
   const [activityFilter, setActivityFilter] = useState('ALL')
+  const [trainingTab, setTrainingTab] = useState<'upcoming' | 'recent'>('upcoming')
   const today = todayISO()
 
   const trainings = data.trainings.filter((t) => t.status !== 'CANCELLED')
@@ -151,6 +152,9 @@ export function AdminDashboard() {
     .filter((t) => t.date >= today && (t.status === 'SCHEDULED' || t.status === 'ONGOING'))
     .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
     .slice(0, 4)
+  // Recent trainings (US40): the latest sessions this person may see, newest first.
+  const recent = [...filtered].sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime)).slice(0, 4)
+  const listed = trainingTab === 'recent' ? recent : upcoming
 
   // Bars: the last N months up to this one.
   const base = new Date(`${today}T00:00:00`)
@@ -361,15 +365,22 @@ export function AdminDashboard() {
               <span className="grid size-9 place-items-center rounded-xl bg-brand-50 text-brand-600">
                 <CalendarDays className="size-4" />
               </span>
-              Upcoming trainings
+              {trainingTab === 'recent' ? 'Recent trainings' : 'Upcoming trainings'}
             </h2>
+            <div className="ml-auto flex rounded-full border border-zinc-200 p-0.5" role="tablist" aria-label="Trainings list">
+              {(['upcoming', 'recent'] as const).map((k) => (
+                <button key={k} type="button" role="tab" aria-selected={trainingTab === k} onClick={() => setTrainingTab(k)} className={cn('rounded-full px-3 py-1 text-xs font-semibold capitalize transition', trainingTab === k ? 'bg-brand-600 text-white shadow-sm' : 'text-zinc-600 hover:text-zinc-900')}>
+                  {k}
+                </button>
+              ))}
+            </div>
             <Link to="/admin/trainings" className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:underline">
               View all <ArrowRight className="size-4" />
             </Link>
           </div>
-          {upcoming.length ? (
+          {listed.length ? (
             <ul className="mt-3 divide-y divide-zinc-100">
-              {upcoming.map((t) => (
+              {listed.map((t) => (
                 <li key={t.id}>
                   <Link to={`/admin/trainings/${t.id}`} className="flex items-center gap-4 py-3 hover:opacity-80">
                     <span className="flex w-12 shrink-0 flex-col items-center rounded-xl bg-brand-50 py-1.5">
@@ -404,7 +415,7 @@ export function AdminDashboard() {
                 </span>
               </span>
               <span className="max-w-md">
-                <span className="block text-lg font-bold text-zinc-900">No upcoming trainings</span>
+                <span className="block text-lg font-bold text-zinc-900">{trainingTab === "recent" ? "No trainings yet" : "No upcoming trainings"}</span>
                 <span className="mt-1 block text-sm text-zinc-500">Your training calendar is currently empty. Schedule your next training session to get started.</span>
                 <Button variant="primary" className="mt-4" onClick={() => setCreating(true)}>
                   <Plus className="size-4" /> Create training

@@ -1,15 +1,16 @@
 import { OrganizationInput } from '../OrganizationInput'
-import { Ban, CalendarPlus, ChevronLeft, ChevronRight, Copy, Download, Eye, Globe2, GraduationCap, Mail, MoreHorizontal, Pencil, RotateCcw, Upload, UserPlus, Users } from 'lucide-react'
+import { Ban, CalendarPlus, Trash2, ChevronLeft, ChevronRight, Copy, Eye, Globe2, GraduationCap, Mail, MoreHorizontal, Pencil, RotateCcw, Upload, UserPlus, Users } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
 import { cn, localISO, todayISO } from '../../lib/utils'
 import { dateTime, shortDate } from '../helpers'
-import { EMAIL_RE, isInternalEmail, mergeParticipants, parseParticipants } from '../requests'
+import { EMAIL_RE, isInternalEmail, mergeParticipants, normalizePhone, parseParticipants } from '../requests'
 import { uid, useAdmin } from '../store'
 import { acceptLink, accessLabel, accessState, addDays, DEFAULT_GRACE_DAYS, daysLeft, isTemporary, makeInviteToken, trainingsFor, type AccessState } from '../temporary'
 import type { Person, RequestParticipant } from '../types'
-import { Avatar, Badge, Button, Card, downloadCsv, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, TabBar, Tabs } from '../ui'
+import { ExportMenu } from '../reports/ReportParts'
+import { Avatar, Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, TabBar, Tabs } from '../ui'
 import { FullPageDialog } from '../Wizard'
 import { useAuth } from '../../store/Auth'
 import { isGuest, publicAccessSettings } from '../../lib/publicAccess'
@@ -47,30 +48,41 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
   const [sendEmail, setSendEmail] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const existing = (e: string) => data.people.find((p) => p.email.toLowerCase() === e.toLowerCase())
-  const rows = list.map((r) => ({ ...r, known: existing(r.email), internal: isInternalEmail(r.email) }))
+  // A contact is an email or a 07 / 09 phone number; either is enough to invite someone.
+  const existing = (c: string) => data.people.find((p) => (p.email && p.email.toLowerCase() === c.toLowerCase()) || (!!p.phone && normalizePhone(p.phone) === normalizePhone(c)))
+  const rows = list.map((r) => ({ ...r, known: existing(r.email), internal: !normalizePhone(r.email) && isInternalEmail(r.email) }))
   const toInvite = rows.filter((r) => !r.known && !r.internal)
   const upcoming = data.trainings.filter((t) => t.date >= today && t.status !== 'CANCELLED').sort((a, b) => a.date.localeCompare(b.date))
 
   const problems = [
-    !toInvite.length && 'Add at least one new external email.',
+    !toInvite.length && 'Add at least one new email or phone number.',
     start < today && 'Access can’t start in the past.',
     end < start && 'Access must end after it starts.',
     toInvite.some((r) => !r.name.trim()) && 'Every temporary user needs a name.',
   ].filter(Boolean) as string[]
 
   const addOne = () => {
-    const e = email.trim().toLowerCase()
-    if (!EMAIL_RE.test(e)) return setErrors([`“${email}” isn’t a valid email`])
+    const e = normalizePhone(email) ?? email.trim().toLowerCase()
+    if (!EMAIL_RE.test(e) && !normalizePhone(e)) return setErrors([`“${email}” isn’t a valid email or 07 / 09 phone number`])
     setList(mergeParticipants(list, [{ email: e, name: name.trim() }]))
     setEmail('')
     setName('')
     setErrors([])
   }
   const importText = (text: string) => {
-    const { rows: parsed, errors: errs } = parseParticipants(text)
-    setList(mergeParticipants(list, parsed))
-    setErrors(errs)
+    // Lines with a phone number and no email: "Name, 0912345678" or just the number.
+    const phoneRows: RequestParticipant[] = []
+    const rest = text.split(/\r?\n/).filter((line) => {
+      if (line.includes('@')) return true
+      const cells = line.split(/[,;\t]/).map((c) => c.trim())
+      const phone = cells.map((c) => normalizePhone(c)).find(Boolean)
+      if (!phone) return true
+      phoneRows.push({ email: phone, name: cells.find((c) => c && !normalizePhone(c)) ?? '' })
+      return false
+    })
+    const { rows: parsed, errors: errs } = parseParticipants(rest.join('\n'))
+    setList(mergeParticipants(list, [...parsed, ...phoneRows]))
+    setErrors(rest.some((l) => l.trim()) ? errs : [])
   }
 
   const invite = () => {
@@ -79,8 +91,9 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
     const created: Person[] = toInvite.map((r) => ({
       id: uid('u'),
       name: r.name.trim(),
-      email: r.email,
-      phone: toInvite.length === 1 ? phone.trim() : '',
+      // Phone-only invitees get their link and codes by SMS and sign in with the number.
+      email: normalizePhone(r.email) ? '' : r.email,
+      phone: normalizePhone(r.email) ?? (toInvite.length === 1 ? (normalizePhone(phone) ?? phone.trim()) : ''),
       role: 'Participant',
       status: 'Active',
       department: '',
@@ -105,7 +118,8 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
       }),
       { action: `Invited ${created.length} temporary user${created.length === 1 ? '' : 's'}`, target: groupName.trim() || created[0]?.name || '', silent: true },
     )
-    toast(sendEmail ? `Invited ${created.length} · invite emails with sign-in links queued` : `Created ${created.length} invite${created.length === 1 ? '' : 's'} — copy the links from Temporary access`)
+    const bySms = created.filter((p) => !p.email).length
+    toast(sendEmail ? `Invited ${created.length} · sign-in links queued${bySms ? ` (${bySms} by SMS)` : ''}` : `Created ${created.length} invite${created.length === 1 ? '' : 's'} — copy the links from Temporary access`)
     onClose()
   }
 
@@ -134,20 +148,20 @@ export function InviteTemporaryModal({ onClose, trainingId }: { onClose: () => v
           </h3>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1.2fr_auto]">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" aria-label="Name" />
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addOne())} placeholder="name@company.com" aria-label="Email" />
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addOne())} placeholder="Email or phone (07… / 09…)" aria-label="Email or phone number" />
             <Button onClick={addOne} disabled={!email.trim()}>
               <UserPlus className="size-4" /> Add
             </Button>
           </div>
           <details className="rounded-xl border border-zinc-200 p-3">
-            <summary className="cursor-pointer text-sm font-medium text-zinc-800">Bulk: paste a list or upload a CSV (name, email)</summary>
+            <summary className="cursor-pointer text-sm font-medium text-zinc-800">Bulk: paste a list or upload a CSV (name, email or phone)</summary>
             <div className="mt-3 space-y-2">
               <textarea
                 value={paste}
                 onChange={(e) => setPaste(e.target.value)}
                 rows={4}
                 aria-label="Paste list"
-                placeholder={'name,email\nLiya Bekele,liya.bekele@gmail.com'}
+                placeholder={'name,email or phone\nLiya Bekele,liya.bekele@gmail.com\nAbebe Kebede,0912345678'}
                 className="w-full rounded-xl border border-zinc-200 bg-surface px-3 py-2 font-mono text-xs text-zinc-900 outline-none focus:border-brand-500"
               />
               <div className="flex gap-2">
@@ -507,6 +521,15 @@ export function AdminTemporaryAccess() {
   const [extending, setExtending] = useState<Person | null>(null)
   const [editingPerson, setEditingPerson] = useState<Person | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
+  const [invitingTo, setInvitingTo] = useState<Person | null>(null)
+  // A guest account can be removed outright; their sign-in stops working (US47).
+  const deleteGuest = async (p: Person) => {
+    if (!(await confirm({ title: `Delete ${p.name}'s guest account?`, message: 'They can no longer sign in. Feedback they gave stays in the reports without their name.', confirmLabel: 'Delete account', danger: true }))) return
+    update(
+      (d) => ({ ...d, people: d.people.filter((x) => x.id !== p.id), trainings: d.trainings.map((t) => (t.participantIds.includes(p.id) ? { ...t, participantIds: t.participantIds.filter((id) => id !== p.id) } : t)) }),
+      { action: 'Deleted guest account', target: p.name },
+    )
+  }
   const [viewing, setViewing] = useState<Person | null>(null)
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
@@ -561,17 +584,19 @@ export function AdminTemporaryAccess() {
             <Button onClick={() => setGuestSettings(true)}>
               <Globe2 className="size-4" /> Guest sign-up
             </Button>
-            <Button
-              onClick={() =>
-                downloadCsv(
-                  'temporary-users.csv',
-                  ['Name', 'Email', 'Organisation', 'Access starts', 'Access ends', 'Status', 'Last sign-in'],
-                  rows.map(({ p, state }) => [p.name, p.email, p.organization ?? '', p.accessStart ?? '', p.accessEnd ?? '', accessLabel[state], p.lastSignInAt ?? '']),
-                )
-              }
-            >
-              <Download className="size-4" /> Export
-            </Button>
+            <ExportMenu
+              label="Export"
+              filename={filter === 'guests' ? 'guests' : 'temporary-users'}
+              title={filter === 'guests' ? 'M-PESA Academy — guest accounts' : 'M-PESA Academy — temporary users'}
+              filters={[filter !== 'all' ? `Showing: ${filter}` : '', q ? `Search: “${q}”` : ''].filter(Boolean).join(' · ')}
+              sheets={() => [
+                {
+                  name: filter === 'guests' ? 'Guests' : 'Temporary users',
+                  header: ['Name', 'Email', 'Phone', 'Organisation', 'Role', 'Region', 'Type', 'Signed up / invited', 'Access ends', 'Status', 'Last sign-in'],
+                  rows: rows.map(({ p, state }) => [p.name, p.email, p.phone, p.organization ?? '', p.designation ?? '', p.region ?? '', isGuest(p) ? 'Guest' : 'Invited', (p.invitedAt ?? p.createdAt ?? '').slice(0, 10), p.accessEnd ?? '', accessLabel[state], p.lastSignInAt ?? '']),
+                },
+              ]}
+            />
             <Button variant="primary" onClick={() => setInviting(true)}>
               <UserPlus className="size-4" /> Invite
             </Button>
@@ -634,7 +659,7 @@ export function AdminTemporaryAccess() {
                     <Button size="sm" variant="ghost" onClick={() => setEditingPerson(p)}>Edit invite</Button>
                     <Button size="sm" variant="ghost" onClick={() => setExtending(p)}>Extend access</Button>
                     <Button size="sm" variant="ghost" onClick={() => copy(p)}>Copy sign-in link</Button>
-                    <Button size="sm" variant="ghost" onClick={() => { update((d) => d, { action: 'Resent invite email', target: p.name, silent: true }); toast(`Invite email resent to ${p.email}`) }}>Resend invite</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { update((d) => d, { action: 'Resent invite email', target: p.name, silent: true }); toast(p.email ? `Invite email resent to ${p.email}` : `Invite SMS resent to ${p.phone}`) }}>Resend invite</Button>
                     {state === 'revoked' ? (
                       <Button size="sm" variant="ghost" onClick={() => setRevoked(p, false)}>Restore access</Button>
                     ) : (
@@ -700,7 +725,11 @@ export function AdminTemporaryAccess() {
                               <button onClick={() => (setEditingPerson(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><Pencil className="size-4" /> Edit invite</button>
                               <button onClick={() => (setExtending(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><CalendarPlus className="size-4" /> Extend access</button>
                               <button onClick={() => copy(p)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><Copy className="size-4" /> Copy sign-in link</button>
-                              <button onClick={() => { setMenu(null); update((d) => d, { action: 'Resent invite email', target: p.name, silent: true }); toast(`Invite email resent to ${p.email}`) }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><Mail className="size-4" /> Resend invite</button>
+                              <button onClick={() => { setMenu(null); update((d) => d, { action: 'Resent invite email', target: p.name, silent: true }); toast(p.email ? `Invite email resent to ${p.email}` : `Invite SMS resent to ${p.phone}`) }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><Mail className="size-4" /> Resend invite</button>
+                              <button onClick={() => (setInvitingTo(p), setMenu(null))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><GraduationCap className="size-4" /> Invite to a training</button>
+                              {isGuest(p) && (
+                                <button onClick={() => (setMenu(null), void deleteGuest(p))} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-brand-700 hover:bg-brand-50"><Trash2 className="size-4" /> Delete account</button>
+                              )}
                               {state === 'revoked' ? (
                                 <button onClick={() => setRevoked(p, false)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100"><RotateCcw className="size-4" /> Restore access</button>
                               ) : (
@@ -740,6 +769,7 @@ export function AdminTemporaryAccess() {
       {inviting && <InviteTemporaryModal onClose={() => setInviting(false)} />}
       {guestSettings && <GuestSignupModal onClose={() => setGuestSettings(false)} />}
       {extending && <ExtendModal person={extending} onClose={() => setExtending(null)} />}
+      {invitingTo && <InviteToTrainingModal person={invitingTo} onClose={() => setInvitingTo(null)} />}
       {editingPerson && <EditInvitedUserModal person={editingPerson} onClose={() => setEditingPerson(null)} />}
       {viewing && (
         <Modal open onClose={() => setViewing(null)} title={viewing.name} description={viewing.email}>
@@ -782,5 +812,54 @@ export function AdminTemporaryAccess() {
         </Modal>
       )}
     </>
+  )
+}
+
+/** Adds an existing guest or invited trainee to a training; they get its content like any participant (US47). */
+function InviteToTrainingModal({ person, onClose }: { person: Person; onClose: () => void }) {
+  const { data, update } = useAdmin()
+  const { toast } = useFeedback()
+  const open = data.trainings
+    .filter((t) => t.status !== 'CANCELLED' && t.status !== 'COMPLETED' && !t.participantIds.includes(person.id))
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const [trainingId, setTrainingId] = useState(open[0]?.id ?? '')
+  const training = data.trainings.find((t) => t.id === trainingId)
+  const save = () => {
+    if (!training) return
+    update((d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, participantIds: [...t.participantIds, person.id] } : t)) }), {
+      action: 'Invited to training',
+      target: `${person.name} → ${training.name}`,
+    })
+    toast(`${person.name} can now open “${training.name}”`)
+    onClose()
+  }
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Invite ${person.name} to a training`}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" disabled={!training} onClick={save}>
+            <GraduationCap className="size-4" /> Invite
+          </Button>
+        </>
+      }
+    >
+      {open.length ? (
+        <Field label="Training">
+          <Select value={trainingId} onChange={(e) => setTrainingId(e.target.value)}>
+            {open.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} · {shortDate(t.date)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : (
+        <p className="text-sm text-zinc-500">There are no upcoming trainings to invite them to.</p>
+      )}
+    </Modal>
   )
 }

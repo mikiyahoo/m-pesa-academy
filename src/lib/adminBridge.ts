@@ -2,7 +2,7 @@ import type { AdminData, AdminTraining, Material } from '../admin/types'
 import type { BannerTheme, Module, QuizQuestion, Training } from '../types'
 import { TEAMS_DEMO } from '../data/trainings'
 import { trainerIdsOf } from '../admin/scheduling'
-import { combinedJourney } from '../admin/journeys'
+import { combinedJourney, journeyLockFor, trainingJourneys } from '../admin/journeys'
 
 /**
  * Turns trainings scheduled in the admin portal into learner trainings, so a session an admin
@@ -46,7 +46,10 @@ export function adminToLearnerTraining(data: AdminData, t: AdminTraining, person
   const trainer = trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ') || 'Training team'
   const type = data.trainingTypes.find((x) => x.id === t.typeId)
   const material = (id?: string) => data.materials.find((m) => m.id === id)
-  const journeyModules = (journey?.modules ?? []).map((jm, i) => ({ ...toModule(`${t.id}-${jm.id}`, jm.title, material(jm.materialIds[0]), i), skippable: jm.skippable || undefined }))
+  const person = personId ? data.people.find((p) => p.id === personId) : undefined
+  const journeyModules = trainingJourneys(data, t)
+    .flatMap((j) => j.modules.map((jm) => ({ jm, unordered: j.sequential === false || undefined, lockedReason: journeyLockFor(j, person?.groupIds) })))
+    .map(({ jm, unordered, lockedReason }, i) => ({ ...toModule(`${t.id}-${jm.id}`, jm.title, material(jm.materialIds[0]), i), skippable: jm.skippable || undefined, unordered, lockedReason }))
   // Additional materials picked for this training come after the journey modules.
   const extras = (t.extraMaterialIds ?? [])
     .map((id) => material(id))

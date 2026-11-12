@@ -1,10 +1,10 @@
-import { BarChart3, ChevronDown, Download, FileSpreadsheet, FileText, Printer, X } from 'lucide-react'
+import { BarChart3, ChevronDown, Download, FileDown, FileSpreadsheet, FileText, Printer, X } from 'lucide-react'
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '../../lib/utils'
 import { useAdmin } from '../store'
 import { REGIONS } from '../temporary'
 import { Button, Card, Select, StatCard, type StatCardTrend } from '../ui'
-import { exportCsv, exportXlsx, printReport, type Sheet } from './export'
+import { exportCsv, exportPdf, exportXlsx, printReport, reportInfoSheet, type Sheet } from './export'
 import type { ReportFilters } from './filters'
 import { EmptyState } from '../../components/EmptyState'
 import { DateRangePicker } from '../../components/DateRangePicker'
@@ -105,7 +105,7 @@ export function FilterBar({
 }
 
 /** CSV / Excel / PDF export with an anonymise toggle for trainee-level data (D03). */
-export function ExportMenu({ filename, title, sheets, personal = false }: { filename: string; title: string; sheets: (anonymise: boolean) => Sheet[]; personal?: boolean }) {
+export function ExportMenu({ filename, title, sheets, personal = false, filters = '', label = 'Export report' }: { filename: string; title: string; sheets: (anonymise: boolean) => Sheet[]; personal?: boolean; label?: string; /** Plain-language summary of the active filters, written into every export. */ filters?: string }) {
   const [open, setOpen] = useState(false)
   const [anon, setAnon] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -119,16 +119,19 @@ export function ExportMenu({ filename, title, sheets, personal = false }: { file
   const item = 'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100'
   return (
     <div ref={ref} className="relative print:hidden">
-      <Button variant="primary" onClick={() => setOpen((o) => !o)}>
-        <Download className="size-4" /> Export <ChevronDown className="size-3.5" />
+      <Button variant={label === 'Export report' ? 'primary' : 'outline'} onClick={() => setOpen((o) => !o)} title="Download this list with the filters shown on screen">
+        <Download className="size-4" /> {label} <ChevronDown className="size-3.5" />
       </Button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1.5 w-60 rounded-xl border border-zinc-200 bg-surface p-1.5 shadow-lg">
+        <div className="absolute right-0 z-30 mt-1.5 w-64 rounded-xl border border-zinc-200 bg-surface p-1.5 shadow-lg">
+          <p className="px-3 pt-1.5 pb-2 text-[11px] leading-snug text-zinc-500">
+            The detailed data behind this page, with its filters and the date it was made.
+          </p>
           <button
             className={item}
             onClick={() => {
               const s = sheets(anon)
-              exportXlsx(filename, s)
+              exportXlsx(filename, [reportInfoSheet(title, filters), ...s])
               setOpen(false)
             }}
           >
@@ -147,15 +150,24 @@ export function ExportMenu({ filename, title, sheets, personal = false }: { file
             className={item}
             onClick={() => {
               setOpen(false)
+              void exportPdf(filename, title, filters, sheets(anon))
+            }}
+          >
+            <FileDown className="size-4 text-brand-600" /> PDF
+          </button>
+          <button
+            className={item}
+            onClick={() => {
+              setOpen(false)
               setTimeout(() => printReport(title), 50)
             }}
           >
-            <Printer className="size-4 text-brand-600" /> PDF (print)
+            <Printer className="size-4 text-zinc-500" /> Print
           </button>
           {personal && (
             <label className="mt-1 flex items-center gap-2 border-t border-zinc-100 px-3 pt-2.5 pb-1.5 text-xs text-zinc-600">
               <input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} className="size-3.5 accent-brand-600" />
-              Anonymise trainees in Excel / CSV
+              Anonymise trainees in Excel, CSV and PDF
             </label>
           )}
         </div>

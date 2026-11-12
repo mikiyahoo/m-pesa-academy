@@ -1,4 +1,4 @@
-import { Award, Bell, BookOpenCheck, CalendarClock, CheckCheck, MessageSquare, type LucideIcon } from 'lucide-react'
+import { Award, Bell, BookOpenCheck, CalendarClock, CheckCheck, FileText, MessageSquare, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LATE_WINDOW_MINUTES } from '../data/trainings'
@@ -9,6 +9,9 @@ import { scopedKey } from '../lib/learner'
 import { useStore } from '../store/AppStore'
 import { useAuth } from '../store/Auth'
 import { loadThreads, onThreadsChange } from '../lib/discussions'
+import { loadAdminData } from '../admin/storage'
+import { ADMIN_TRAINING_PREFIX } from '../lib/adminBridge'
+import { trainingJourneys } from '../admin/journeys'
 
 const READ_KEY = 'mpesa-learning:notifications-read'
 const RAISED_KEY = 'mpesa-learning:notifications-raised'
@@ -106,6 +109,24 @@ export function NotificationBell() {
         to: '/learning?tab=Assigned',
         at: m.assignedAt?.slice(0, 10) ?? today,
       })
+    }
+    // Session time changes and replaced materials on my trainings (US37). Title-only edits don't notify.
+    const admin = loadAdminData()
+    const recent = (iso: string) => daysBetween(iso.slice(0, 10), today) <= 60
+    for (const t of trainings) {
+      if (!t.id.startsWith(ADMIN_TRAINING_PREFIX)) continue
+      const at = admin.trainings.find((x) => x.id === t.id.slice(ADMIN_TRAINING_PREFIX.length))
+      if (!at) continue
+      for (const ev of at.history ?? [])
+        if (ev.action === 'Rescheduled' && recent(ev.at))
+          list.push({ id: `resched-${at.id}-${ev.at}`, icon: CalendarClock, tone: 'bg-amber-500/10 text-amber-600', title: 'Session time changed', text: `${t.title}${ev.detail ? ` · ${ev.detail}` : ''}`, to: `/trainings/${t.id}`, at: ev.at.slice(0, 10) })
+      const materialIds = new Set([...trainingJourneys(admin, at).flatMap((j) => j.modules.flatMap((m) => m.materialIds)), ...(at.extraMaterialIds ?? [])])
+      for (const id of materialIds) {
+        const m = admin.materials.find((x) => x.id === id)
+        for (const h of m?.history ?? [])
+          if (/^Replaced file/.test(h.change) && recent(h.at))
+            list.push({ id: `material-${id}-${h.at}`, icon: FileText, tone: 'bg-brand-50 text-brand-600', title: 'Material updated', text: `${m!.title} · ${t.title}`, to: `/trainings/${t.id}`, at: h.at.slice(0, 10) })
+      }
     }
     // Replies from others to questions I asked.
     const titles = new Map(trainings.map((t) => [t.id, t.title]))

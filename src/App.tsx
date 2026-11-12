@@ -12,6 +12,7 @@ import { AdminJourneyDetail, AdminJourneys, AdminMaterials } from './admin/pages
 import { AdminDashboard } from './admin/pages/Dashboard'
 import { AdminAssessments, AdminFeedbackForms, AdminFeedbackResponses, AdminSubmissions } from './admin/pages/Evaluation'
 import { AdminDiscussions } from './admin/pages/Discussions'
+import { AdminDepartments } from './admin/pages/Departments'
 import { AdminGroups, AdminUserView, AdminUsers } from './admin/pages/People'
 import { AdminReports } from './admin/pages/Reports'
 import { AdminRequests } from './admin/pages/Requests'
@@ -55,6 +56,8 @@ function RequestsAccess({ trainerId }: { trainerId: string }) {
   return allowed ? <AdminRequests /> : <Navigate to="/admin" replace />
 }
 
+import { OpenFeedback } from './pages/OpenFeedback'
+
 const RETURN_KEY = 'mpesa-learning:return-to'
 
 export default function App() {
@@ -73,6 +76,10 @@ export default function App() {
     if (to !== pathname) navigate(to, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage])
+
+  // A feedback link the trainer opened to everyone works without signing in (US33).
+  const openFeedback = pathname.match(/^\/feedback\/([^/]+)/)?.[1]
+  if (openFeedback) return <OpenFeedback id={decodeURIComponent(openFeedback)} />
 
   // The certificate QR code opens a public verification page, signed in or not.
   const verify = pathname.match(/^\/verify\/([^/]+)/)?.[1]
@@ -106,6 +113,7 @@ export default function App() {
             <Route path="feedback/forms" element={<AdminFeedbackForms />} />
             <Route path="feedback/responses" element={<AdminFeedbackResponses />} />
             <Route path="discussions" element={<AdminDiscussions />} />
+            <Route path="departments" element={<AdminDepartments />} />
             <Route path="assessments" element={<Navigate to="/admin/assessments/pre" replace />} />
             <Route path="assessments/:kind" element={<AdminAssessments />} />
             <Route path="submissions" element={<AdminSubmissions />} />

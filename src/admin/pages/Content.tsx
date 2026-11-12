@@ -246,6 +246,7 @@ export function AdminJourneyDetail() {
   const { data, update } = useAdmin()
   const journey = data.journeys.find((j) => j.id === id)
   const [newModule, setNewModule] = useState('')
+  const [locking, setLocking] = useState(false)
   // Arriving from "Create journey": the module title box is ready to type into.
   const justCreated = new URLSearchParams(window.location.search).has('new')
   const [preview, setPreview] = useState<Material | null>(null)
@@ -277,6 +278,13 @@ export function AdminJourneyDetail() {
     save([...journey.modules, { id: uid('m'), title, materialIds: [] }], `Added module ${title}`)
     setNewModule('')
   }
+  const describeLock = (l?: Journey['lock']) => (l ? `${l.groupIds.length ? l.groupIds.map((g) => data.groups.find((x) => x.id === g)?.name ?? g).join(', ') : 'Everyone'} — ${l.reason}` : 'Unlocked')
+  const unlockJourney = () =>
+    update((d) => ({ ...d, journeys: d.journeys.map((j) => (j.id === journey.id ? { ...j, lock: undefined } : j)) }), {
+      action: 'Unlocked journey',
+      target: journey.name,
+      changes: [{ field: 'Lock', from: describeLock(journey.lock), to: 'Unlocked' }],
+    })
   const toggleCollapsed = (mid: string) =>
     setCollapsed((c) => {
       const next = new Set(c)
@@ -324,6 +332,52 @@ export function AdminJourneyDetail() {
           </button>
         </div>
       </form>
+
+      {/* Order and access rules (US12, US18, US19) */}
+      <div className="mb-6 grid gap-3 md:grid-cols-2">
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200/80 bg-surface px-5 py-4">
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-zinc-900">Complete modules in order</span>
+            <span className="block text-xs text-zinc-500">{journey.sequential === false ? 'Off: learners open modules in any order.' : 'On: each module opens after the one before it.'}</span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={journey.sequential !== false}
+            aria-label="Complete modules in order"
+            onClick={() => {
+              const on = journey.sequential === false
+              update((d) => ({ ...d, journeys: d.journeys.map((j) => (j.id === journey.id ? { ...j, sequential: on ? undefined : false } : j)) }), {
+                action: on ? 'Set journey to complete in order' : 'Let learners take journey modules in any order',
+                target: journey.name,
+                changes: [{ field: 'Complete in order', from: on ? 'Off' : 'On', to: on ? 'On' : 'Off' }],
+              })
+            }}
+            className={cn('relative h-6 w-11 shrink-0 rounded-full transition', journey.sequential !== false ? 'bg-brand-600' : 'bg-zinc-300')}
+          >
+            <span className={cn('absolute top-0.5 size-5 rounded-full bg-white shadow transition-all', journey.sequential !== false ? 'left-[22px]' : 'left-0.5')} />
+          </button>
+        </div>
+        <div className={cn('flex items-center justify-between gap-4 rounded-2xl border px-5 py-4', journey.lock ? 'border-amber-500/30 bg-amber-500/5' : 'border-zinc-200/80 bg-surface')}>
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5 text-sm font-bold text-zinc-900">
+              {journey.lock ? <Lock className="size-4 text-amber-700" /> : <LockOpen className="size-4 text-zinc-500" />}
+              {journey.lock ? `Locked ${journey.lock.groupIds.length ? `for ${journey.lock.groupIds.length} group${journey.lock.groupIds.length === 1 ? '' : 's'}` : 'for everyone'}` : 'Unlocked'}
+            </span>
+            <span className="block truncate text-xs text-zinc-500">{journey.lock ? `Learners see: “${journey.lock.reason}”` : 'Everyone on a training with this journey can open it.'}</span>
+          </span>
+          <span className="flex shrink-0 gap-2">
+            {journey.lock && (
+              <Button size="sm" onClick={() => unlockJourney()}>
+                Unlock
+              </Button>
+            )}
+            <Button size="sm" variant={journey.lock ? 'outline' : 'primary'} onClick={() => setLocking(true)}>
+              {journey.lock ? 'Edit lock' : 'Lock journey'}
+            </Button>
+          </span>
+        </div>
+      </div>
 
       <div className="mb-3">
         <h2 className="text-lg font-bold text-zinc-900">Journey modules</h2>
@@ -505,7 +559,64 @@ export function AdminJourneyDetail() {
         })}
       </div>
       <MaterialPreview material={preview} onClose={() => setPreview(null)} />
+      {locking && (
+        <JourneyLockModal
+          journey={journey}
+          onClose={() => setLocking(false)}
+          onSave={(lock) => {
+            update((d) => ({ ...d, journeys: d.journeys.map((j) => (j.id === journey.id ? { ...j, lock } : j)) }), {
+              action: journey.lock ? 'Changed journey lock' : 'Locked journey',
+              target: journey.name,
+              changes: [{ field: 'Lock', from: describeLock(journey.lock), to: describeLock(lock) }],
+            })
+            setLocking(false)
+          }}
+        />
+      )}
     </>
+  )
+}
+
+/** Lock a journey for everyone or chosen groups, with the reason learners see. */
+function JourneyLockModal({ journey, onClose, onSave }: { journey: Journey; onClose: () => void; onSave: (lock: NonNullable<Journey['lock']>) => void }) {
+  const { data } = useAdmin()
+  const [groupIds, setGroupIds] = useState<string[]>(journey.lock?.groupIds ?? [])
+  const [reason, setReason] = useState(journey.lock?.reason ?? '')
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={journey.lock ? 'Edit journey lock' : 'Lock journey'}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" disabled={!reason.trim()} onClick={() => onSave({ groupIds, reason: reason.trim(), at: localISO(), by: CURRENT_ADMIN })}>
+            <Lock className="size-4" /> {journey.lock ? 'Save lock' : 'Lock journey'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <p className="mb-1.5 text-sm font-medium text-zinc-700">Who it's locked for</p>
+          <label className="mb-2 flex items-center gap-2.5 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
+            <input type="checkbox" checked={!groupIds.length} onChange={() => setGroupIds([])} className="size-4 accent-brand-600" />
+            <span className="font-medium text-zinc-900">Everyone</span>
+          </label>
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {data.groups.map((g) => (
+              <label key={g.id} className="flex items-center gap-2.5 rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50">
+                <input type="checkbox" checked={groupIds.includes(g.id)} onChange={(e) => setGroupIds(e.target.checked ? [...groupIds, g.id] : groupIds.filter((x) => x !== g.id))} className="size-4 accent-brand-600" />
+                <span className="truncate">{g.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <Field label="Reason learners see">
+          <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Opens after the product launch on Nov 20" autoFocus />
+        </Field>
+      </div>
+    </Modal>
   )
 }
 
