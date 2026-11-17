@@ -20,6 +20,8 @@ export type Module = {
   lockedReason?: string
   /** Video lesson streamed by the player (sample files under /public/trainings, TE-3.2). */
   video?: string
+  /** YouTube / Vimeo / Stream link played inside the portal with the provider's own player. */
+  embed?: { src: string; label: string }
   /** Source deck offered for download next to the in-app slides (sample file under /public/trainings). */
   deck?: string
   /** Presentation pages shown by the lesson viewer for document modules. */

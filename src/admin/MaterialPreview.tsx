@@ -38,7 +38,7 @@ export function MaterialPreview({ material, onClose }: { material: Material | nu
           <span>· No download groups selected</span>
         )}
       </div>
-      {material.type === 'VIDEO' && video.kind !== 'none' ? (
+      {(material.type === 'VIDEO' || material.type === 'LINK') && video.kind !== 'none' ? (
         <div className="relative aspect-video overflow-hidden rounded-xl bg-black" onContextMenu={(e) => e.preventDefault()}>
           {video.kind === 'file' ? (
             <video src={video.src} controls controlsList="nodownload noplaybackrate" disablePictureInPicture playsInline preload="metadata" className="size-full" />

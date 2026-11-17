@@ -864,6 +864,10 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
                 <Field label={form.type === 'VIDEO' ? 'Stream URL' : 'External URL'} hint={form.type === 'VIDEO' ? 'YouTube, Vimeo or SharePoint / Stream link — videos always stream, never download (D4)' : undefined}>
                   <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder={form.type === 'VIDEO' ? 'https://www.youtube.com/watch?v=…' : 'https://…'} />
                 </Field>
+                {form.type === 'LINK' && (() => {
+                  const v = videoSource(form.url)
+                  return v.kind !== 'none' && v.kind !== 'file' ? <p className="mt-1.5 text-xs text-mpesa-700">{v.label} link: plays inside the portal instead of opening a new tab.</p> : null
+                })()}
                 {form.type === 'VIDEO' && form.url.trim() && (
                   <p className={'mt-1.5 text-xs ' + (videoSource(form.url).kind === 'none' ? 'text-brand-600' : 'text-mpesa-700')}>
                     {(() => {

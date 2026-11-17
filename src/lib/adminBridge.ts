@@ -3,6 +3,7 @@ import type { BannerTheme, Module, QuizQuestion, Training } from '../types'
 import { TEAMS_DEMO } from '../data/trainings'
 import { trainerIdsOf } from '../admin/scheduling'
 import { combinedJourney, journeyLockFor, trainingJourneys } from '../admin/journeys'
+import { videoSource } from '../admin/embeds'
 
 /**
  * Turns trainings scheduled in the admin portal into learner trainings, so a session an admin
@@ -17,6 +18,11 @@ const SAMPLE_VIDEOS = ['/trainings/Module (1).mp4', '/trainings/Module (2).mp4',
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0)
 
 function toModule(id: string, title: string, m: Material | undefined, i: number): Module {
+  // YouTube, Vimeo and Stream links (video or external-link materials) play inside the portal.
+  const source = m && (m.type === 'VIDEO' || m.type === 'LINK') ? videoSource(m.url) : undefined
+  if (m && source && source.kind !== 'none' && source.kind !== 'file') {
+    return { id, title, minutes: m.minutes || 10, kind: 'video', embed: { src: source.src, label: source.label } }
+  }
   if (m?.type === 'VIDEO') {
     const direct = m.url && /\.(mp4|webm)(\?|$)/i.test(m.url) ? m.url : undefined
     return { id, title, minutes: m.minutes || 10, kind: 'video', video: direct ?? SAMPLE_VIDEOS[i % SAMPLE_VIDEOS.length] }

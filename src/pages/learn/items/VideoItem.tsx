@@ -34,13 +34,30 @@ export function VideoItem({ module: m, index, total, done, canUndo, watermark, o
 
   const play = () => {
     setStarted(true)
+    // Embedded players can't report progress, so they can be marked complete once started.
+    if (m.embed) setWatched(true)
     void video.current?.play()
   }
+  const embedSrc = m.embed ? `${m.embed.src}${m.embed.src.includes('?') ? '&' : '?'}autoplay=1` : ''
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-10">
       <div className="relative overflow-hidden rounded-2xl bg-zinc-950 shadow-[0_12px_40px_rgba(0,0,0,0.18)] ring-1 ring-black/5">
-        {m.video ? (
+        {m.embed ? (
+          started ? (
+            <iframe
+              key={m.embed.src}
+              src={embedSrc}
+              title={m.title}
+              className="aspect-video w-full bg-black"
+              allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          ) : (
+            <div className="aspect-video w-full bg-gradient-to-br from-zinc-900 via-zinc-950 to-black" />
+          )
+        ) : m.video ? (
           <video
             ref={video}
             key={m.video}
@@ -66,13 +83,13 @@ export function VideoItem({ module: m, index, total, done, canUndo, watermark, o
           <div className="grid aspect-video place-items-center text-sm text-zinc-400">The trainer hasn't attached the video yet.</div>
         )}
         <Watermark text={watermark} dark />
-        {m.video && !started && (
+        {(m.video || m.embed) && !started && (
           <button onClick={play} aria-label={`Play ${m.title}`} className="group absolute inset-0 grid place-items-center bg-gradient-to-t from-black/50 via-black/10 to-transparent">
             <span className="grid size-20 place-items-center rounded-full bg-black/55 text-white ring-1 ring-white/20 backdrop-blur transition group-hover:scale-105 group-hover:bg-brand-600 sm:size-24">
               <Play className="ml-1 size-9 fill-current sm:size-10" />
             </span>
             <span className="absolute bottom-4 left-5 text-left text-white">
-              <span className="block text-xs font-medium text-white/70">Module {index + 1} of {total} • {m.minutes} min</span>
+              <span className="block text-xs font-medium text-white/70">Module {index + 1} of {total} • {m.minutes} min{m.embed ? ` • ${m.embed.label}` : ''}</span>
               <span className="block text-base font-semibold sm:text-lg">{m.title}</span>
             </span>
           </button>
@@ -115,7 +132,9 @@ export function VideoItem({ module: m, index, total, done, canUndo, watermark, o
           )}
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600">
-          Watch to the end and this lesson completes on its own{watched && !done ? ' — or mark it complete now' : ''}. Videos stream inside the portal and can't be downloaded.
+          {m.embed
+            ? `Plays here from ${m.embed.label}. Mark it complete when you’ve finished watching.`
+            : `Watch to the end and this lesson completes on its own${watched && !done ? ' — or mark it complete now' : ''}. Videos stream inside the portal and can't be downloaded.`}
         </p>
 
         <div className="mt-6 flex gap-4 rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-4 sm:p-5">
