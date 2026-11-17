@@ -16,6 +16,8 @@ export type Module = {
   skippable?: boolean
   /** From a journey that doesn't need to be taken in order: opens straight away and blocks nothing. */
   unordered?: boolean
+  /** Additional material picked for this training (outside the journey): optional and open any time. */
+  extra?: boolean
   /** Set when the module's journey is locked for this learner; the text says why. */
   lockedReason?: string
   /** Video lesson streamed by the player (sample files under /public/trainings, TE-3.2). */

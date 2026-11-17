@@ -56,15 +56,17 @@ export function buildOutline(t: Training, p?: TrainingProgress) {
     state: p?.checkInAt ? 'done' : 'open',
   }
 
-  const moduleItems: OutlineItem[] = t.modules.map((m, i) => ({
+  const allModuleItems: OutlineItem[] = t.modules.map((m, i) => ({
     id: m.id,
     kind: m.kind === 'video' ? 'video' : 'reading',
     title: m.title,
-    meta: `${m.skippable ? 'Optional • ' : ''}${m.kind === 'video' ? 'Video' : 'Reading'} • ${m.minutes} min`,
+    meta: `${m.skippable && !m.extra ? 'Optional • ' : ''}${m.kind === 'video' ? 'Video' : 'Reading'} • ${m.minutes} min`,
     state: p?.completedModules.includes(m.id) ? 'done' : moduleOpen(t, p, i) ? 'open' : 'locked',
     lockedReason: moduleOpen(t, p, i) ? undefined : lockedReasonOf(t, p, i),
     moduleIndex: i,
   }))
+  const moduleItems = allModuleItems.filter((_, i) => !t.modules[i].extra)
+  const extraItems = allModuleItems.filter((_, i) => t.modules[i].extra)
 
   const assessmentItem: OutlineItem = {
     id: 'assessment',
@@ -95,11 +97,12 @@ export function buildOutline(t: Training, p?: TrainingProgress) {
   }
 
   const sections: OutlineSection[] = [
-    { id: 's-session', label: 'Section 1', title: inPerson ? 'In-person session' : 'Live session', items: [sessionItem], locked: false },
-    { id: 's-learn', label: 'Section 2', title: 'Learn', items: moduleItems, locked: false },
-    { id: 's-assess', label: 'Section 3', title: 'Assessment', items: [assessmentItem], locked: assessmentItem.state === 'locked' },
-    { id: 's-wrap', label: 'Section 4', title: 'Wrap up', items: [feedbackItem, certificateItem], locked: feedbackItem.state === 'locked' },
-  ]
+    { id: 's-session', label: '', title: inPerson ? 'In-person session' : 'Live session', items: [sessionItem], locked: false },
+    { id: 's-learn', label: '', title: 'Learn', items: moduleItems, locked: false },
+    ...(extraItems.length ? [{ id: 's-extra', label: '', title: 'Additional materials · optional', items: extraItems, locked: false }] : []),
+    { id: 's-assess', label: '', title: 'Assessment', items: [assessmentItem], locked: assessmentItem.state === 'locked' },
+    { id: 's-wrap', label: '', title: 'Wrap up', items: [feedbackItem, certificateItem], locked: feedbackItem.state === 'locked' },
+  ].map((s, i) => ({ ...s, label: `Section ${i + 1}` }))
   const items = sections.flatMap((s) => s.items)
 
   // Where "Continue" lands: an open live session first, then the next unfinished step.

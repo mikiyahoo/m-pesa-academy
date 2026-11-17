@@ -60,7 +60,7 @@ export function adminToLearnerTraining(data: AdminData, t: AdminTraining, person
   const extras = (t.extraMaterialIds ?? [])
     .map((id) => material(id))
     .filter((m): m is Material => !!m)
-    .map((m, i) => toModule(`${t.id}-extra-${m.id}`, m.title, m, journeyModules.length + i))
+    .map((m, i) => ({ ...toModule(`${t.id}-extra-${m.id}`, m.title, m, journeyModules.length + i), extra: true, skippable: true, unordered: true }))
   const modules = [...journeyModules, ...extras]
   const post = data.assessments.find((a) => a.id === t.postAssessmentId)
   const mcq = (post?.questions ?? []).filter((q) => q.type === 'mcq' && q.options?.length && typeof q.answer === 'number')

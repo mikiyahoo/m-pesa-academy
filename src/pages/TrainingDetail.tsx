@@ -121,6 +121,8 @@ export function TrainingDetail() {
   const nextIdx = nextModuleIndex(training, p)
   const modulesDone = requiredModulesDone(training, p)
   const doneCount = completedCount(training, p)
+  const coreModules = training.modules.filter((m) => !m.extra)
+  const extraModules = training.modules.filter((m) => m.extra)
   const { checks: certChecks, eligible, mark } = certificateChecks(training, p, LATE_WINDOW_MINUTES)
   const isTeams = !!training.teamsJoinUrl
   const isOnlineOnly = training.venue === 'ONLINE'
@@ -479,14 +481,15 @@ export function TrainingDetail() {
                 </div>
               </div>
               <span className="text-sm text-zinc-500">
-                {doneCount} of {training.modules.length} completed
+                {coreModules.filter((m) => p?.completedModules.includes(m.id)).length} of {coreModules.length} completed
               </span>
             </div>
             <ol className="mt-5">
               {training.modules.map((m, i) => {
+                if (m.extra) return null
                 const done = !!p?.completedModules.includes(m.id)
                 const locked = !done && !moduleOpen(training, p, i)
-                const last = i === training.modules.length - 1
+                const last = i === coreModules.length - 1
                 return (
                   <li key={m.id} className="relative">
                     {!last && <span className="absolute top-10 bottom-[-6px] left-[19px] border-l-2 border-dotted border-brand-200" aria-hidden />}
@@ -530,6 +533,36 @@ export function TrainingDetail() {
                 )
               })}
             </ol>
+
+            {extraModules.length > 0 && (
+              <div className="mt-6">
+                <h3 className="flex items-center gap-2 text-base font-bold text-zinc-900">
+                  Additional materials <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">Optional</span>
+                </h3>
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {extraModules.map((m) => {
+                    const done = !!p?.completedModules.includes(m.id)
+                    const Icon = m.kind === 'video' ? PlayCircle : FileText
+                    return (
+                      <li key={m.id}>
+                        <Link to={learnPath(training.id, m.id)} className="flex items-center gap-3 rounded-xl border border-zinc-200/80 px-3 py-2.5 transition hover:border-brand-200 hover:bg-brand-50/40">
+                          <span className={cn('grid size-9 shrink-0 place-items-center rounded-lg', done ? 'bg-mpesa-500/10 text-mpesa-700' : 'bg-brand-50 text-brand-600')}>
+                            {done ? <CheckCircle2 className="size-4" /> : <Icon className="size-4" />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-zinc-900">{m.title}</span>
+                            <span className="block text-xs text-zinc-500">
+                              {m.kind === 'video' ? 'Video' : 'Reading'} · {m.minutes} min{done ? ' · Viewed' : ''}
+                            </span>
+                          </span>
+                          <ChevronRight className="size-4 shrink-0 text-zinc-400" />
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
 
             <div className="mt-5 flex gap-3 rounded-xl bg-zinc-50 p-4">
               <Star className="mt-0.5 size-5 shrink-0 text-brand-600" />

@@ -65,6 +65,14 @@ const q = (prefix: string, items: [string, string[], number][]): QuizQuestion[] 
 /** Placeholder join link; the UI recognises "DEMO" links and doesn't open them. */
 export const TEAMS_DEMO = 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_DEMO%40thread.v2/0'
 
+/** Additional materials (outside the main modules): optional, open any time, never block the course. */
+const extras = (prefix: string, items: [string, number, 'video' | 'document'][]): Module[] =>
+  items.map(([title, minutes, kind], i) => {
+    const id = `${prefix}-x${i + 1}`
+    const base = { id, title, minutes, kind, extra: true, skippable: true, unordered: true }
+    return kind === 'video' ? { ...base, video: SAMPLE_VIDEOS[(i + 2) % SAMPLE_VIDEOS.length] } : { ...base, deck: SAMPLE_DECK_FILE, slides: SAMPLE_DECK }
+  })
+
 export const trainings: Training[] = [
   {
     id: 'test-training-3',
@@ -86,7 +94,12 @@ export const trainings: Training[] = [
       ['Customer registration & KYC basics', 30],
       ['Send money, withdraw & buy airtime', 35],
       ['Handling common customer queries', 25],
-    ]),
+    ]).concat(
+      extras('t3', [
+        ['M-PESA glossary & quick reference', 8, 'document'],
+        ['Customer journey walkthrough', 12, 'video'],
+      ]),
+    ),
     quiz: q('t3', [
       ['Which document is required to register a new M-PESA customer?', ['A utility bill', 'A valid government-issued ID', 'A bank statement', 'A SIM card receipt'], 1],
       ['What should a customer never share with anyone?', ['Their phone number', 'Their M-PESA PIN', 'Their name', 'Their till number'], 1],
@@ -113,7 +126,7 @@ export const trainings: Training[] = [
       ['M-PESA product portfolio', 30],
       ['Tariffs & transaction limits', 40],
       ['Lipa na M-PESA overview', 30],
-    ]),
+    ]).concat(extras('tt', [['2026 tariff sheet', 5, 'document']])),
     quiz: q('tt', [
       ['What is "Lipa na M-PESA" used for?', ['Paying merchants', 'Opening a bank account', 'Buying a SIM', 'Resetting a PIN'], 0],
       ['Transaction limits exist mainly to…', ['Slow down customers', 'Comply with regulation and reduce risk', 'Increase fees', 'Limit agents'], 1],

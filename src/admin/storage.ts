@@ -14,6 +14,16 @@ const ASSIGNMENT_SAMPLE_MIGRATION_KEY = 'mpesa-learning:assignment-samples:v1'
 /** The learner portal's demo account as an admin person (group ISON), so admins can invite and assign them. */
 /** Demo department admin (Enterprise) so the role can be tried without setting it up first. */
 export const DEMO_DEPARTMENT_ADMIN_ID = 'dept-admin-demo'
+/** Demo: when no training has additional materials yet, a few of the demo learner's trainings get some. */
+function withSampleExtraMaterials(data: AdminData): AdminData {
+  if (data.trainings.some((t) => t.extraMaterialIds?.length)) return data
+  const picks = [['mat6', 'mat8'], ['mat5'], ['mat4', 'mat1']]
+  const targets = data.trainings.filter((t) => t.participantIds?.includes(DEMO_LEARNER_ID) && t.id !== 'qr-demo-today').slice(0, picks.length)
+  if (!targets.length) return data
+  const ids = new Map(targets.map((t, i) => [t.id, picks[i].filter((m) => data.materials.some((x) => x.id === m))]))
+  return { ...data, trainings: data.trainings.map((t) => (ids.get(t.id)?.length ? { ...t, extraMaterialIds: ids.get(t.id) } : t)) }
+}
+
 const QR_DEMO_ID = 'qr-demo-today'
 
 /**
@@ -183,11 +193,11 @@ function withSampleAssignments(data: AdminData): AdminData {
 export function loadAdminData(): AdminData {
   try {
     const raw = localStorage.getItem(ADMIN_STORAGE_KEY)
-    if (raw) return withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(JSON.parse(raw))))))
+    if (raw) return withSampleExtraMaterials(withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(JSON.parse(raw)))))))
   } catch {
     // Fall through to seed data.
   }
-  return withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(seedAdminData())))))
+  return withSampleExtraMaterials(withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(seedAdminData()))))))
 }
 
 /** Fired after admin data is saved, so the learner portal can pick up newly scheduled trainings. */
