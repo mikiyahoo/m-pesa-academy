@@ -135,6 +135,7 @@ export function TrainingDetail() {
   }
 
   // After attendance, go straight on to the next step (US06).
+  // Signed in already, so checking in needs no QR: it records attendance straight away.
   const doCheckIn = () => {
     checkIn(training.id, 'manual')
     const next = buildOutline(training, { ...(p ?? { completedModules: [] }), checkInAt: new Date().toISOString(), attended: true }).currentId

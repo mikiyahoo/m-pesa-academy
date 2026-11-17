@@ -5,7 +5,7 @@ import { StatStrip } from '../components/CalendarParts'
 import { SegmentTabs } from '../components/SegmentTabs'
 import { JourneyTimeline } from '../components/JourneyTimeline'
 import { UserAvatar } from '../components/UserAvatar'
-import { AccountActions, AccountRequestStatus } from '../components/ProfileSettings'
+import { AccountActions } from '../components/ProfileSettings'
 import { LATE_WINDOW_MINUTES } from '../data/trainings'
 import { loadNotificationPrefs, saveNotificationPrefs, type NotificationPrefs } from '../lib/notificationPrefs'
 import { computeMetrics } from '../lib/stats'
@@ -86,7 +86,6 @@ export function Profile() {
         </div>
       </section>
 
-      <AccountRequestStatus />
 
       <StatStrip
         items={[

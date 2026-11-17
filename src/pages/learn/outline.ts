@@ -45,11 +45,14 @@ export function buildOutline(t: Training, p?: TrainingProgress) {
   const { eligible, checks } = certificateChecks(t, p, LATE_WINDOW_MINUTES)
   const session = sessionStatus(t)
 
+  // In-person sessions say where; online ones say Teams.
+  const inPerson = t.venue !== 'ONLINE'
+  const sessionLabel = inPerson ? 'In-person session' : 'Live session on Teams'
   const sessionItem: OutlineItem = {
     id: 'session',
     kind: 'session',
-    title: session === 'Completed' ? 'Live session (held)' : 'Live session',
-    meta: `${formatDate(t.date, { weekday: 'short', month: 'short', day: 'numeric' })} • ${formatTime(t.startTime)}`,
+    title: session === 'Completed' ? `${sessionLabel} (held)` : sessionLabel,
+    meta: `${formatDate(t.date, { weekday: 'short', month: 'short', day: 'numeric' })} • ${formatTime(t.startTime)}${inPerson && t.venue ? ` • ${t.venue}` : ''}`,
     state: p?.checkInAt ? 'done' : 'open',
   }
 
@@ -92,7 +95,7 @@ export function buildOutline(t: Training, p?: TrainingProgress) {
   }
 
   const sections: OutlineSection[] = [
-    { id: 's-session', label: 'Section 1', title: 'Live session', items: [sessionItem], locked: false },
+    { id: 's-session', label: 'Section 1', title: inPerson ? 'In-person session' : 'Live session', items: [sessionItem], locked: false },
     { id: 's-learn', label: 'Section 2', title: 'Learn', items: moduleItems, locked: false },
     { id: 's-assess', label: 'Section 3', title: 'Assessment', items: [assessmentItem], locked: assessmentItem.state === 'locked' },
     { id: 's-wrap', label: 'Section 4', title: 'Wrap up', items: [feedbackItem, certificateItem], locked: feedbackItem.state === 'locked' },

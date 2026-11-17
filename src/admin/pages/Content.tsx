@@ -1,5 +1,5 @@
-import { ArrowDown, ArrowUp, BookOpen, Calendar, Check, ChevronLeft, ChevronRight, ChevronUp, Clock3, Copy, Download, ExternalLink, Eye, FileText, Layers, Lock, LockOpen, Pencil, Plus, RefreshCw, Route, Trash2, Upload, UserPlus, UserRound, Users, X } from 'lucide-react'
-import { RowMenu } from '../../components/RowMenu'
+import { ArrowDown, ArrowUp, BookOpen, Calendar, Check, ChevronLeft, ChevronRight, ChevronUp, Clock3, Copy, Download, ExternalLink, Eye, FileText, Layers, LayoutGrid, List, Lock, LockOpen, Pencil, Plus, RefreshCw, Route, Trash2, Upload, UserPlus, UserRound, Users, X } from 'lucide-react'
+import { RowMenu, type RowMenuItem } from '../../components/RowMenu'
 import { canDownloadFile, countDownload, deleteMaterialFile, downloadMaterial, formatBytes, getMaterialFile, materialFileName, saveMaterialFile } from '../materialFiles'
 import { assignedPeople } from '../../lib/assignments'
 import { useEffect, useRef, useState } from 'react'
@@ -147,14 +147,17 @@ function NewJourneyModal({ onClose, journey }: { onClose: () => void; journey?: 
         <Field label="Description">
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Start date">
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </Field>
-          <Field label="End date">
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </Field>
-        </div>
+        {/* A new journey starts with just a name; dates can be set later on its page. */}
+        {journey && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Start date">
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </Field>
+            <Field label="End date">
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </Field>
+          </div>
+        )}
       </div>
     </Modal>
   )
@@ -258,9 +261,19 @@ export function AdminJourneyDetail() {
   const save = (modules: Journey['modules'], action: string) =>
     update((d) => ({ ...d, journeys: d.journeys.map((j) => (j.id === journey.id ? { ...j, modules } : j)) }), { action, target: journey.name })
 
-  const patch = (changes: Partial<Journey>, action: string) =>
-    update((d) => ({ ...d, journeys: d.journeys.map((j) => (j.id === journey.id ? { ...j, ...changes } : j)) }), { action, target: journey.name })
 
+  // Reorder a material inside one module (by its place among the module's materials).
+  const moveMaterial = (moduleId: string, materialId: string, to: number) => {
+    const mod = journey.modules.find((x) => x.id === moduleId)
+    if (!mod) return
+    const ids = mod.materialIds.filter((id) => data.materials.some((x) => x.id === id))
+    const from = ids.indexOf(materialId)
+    const target = Math.min(Math.max(to, 0), ids.length - 1)
+    if (from < 0 || target === from) return
+    ids.splice(from, 1)
+    ids.splice(target, 0, materialId)
+    save(journey.modules.map((x) => (x.id === moduleId ? { ...x, materialIds: ids } : x)), `Reordered materials in ${mod.title}`)
+  }
   const move = (i: number, dir: -1 | 1) => moveTo(i, i + dir)
   // Typing a position moves the module straight there.
   const moveTo = (from: number, to: number) => {
@@ -309,14 +322,6 @@ export function AdminJourneyDetail() {
         }}
         className="mb-6 flex flex-col gap-4 rounded-2xl border border-zinc-200/80 bg-surface p-5 lg:flex-row lg:items-end"
       >
-        <div className="grid shrink-0 grid-cols-2 gap-3">
-          <Field label="Start date">
-            <Input type="date" value={journey.startDate ?? ''} max={journey.endDate} onChange={(e) => patch({ startDate: e.target.value || undefined }, 'Set journey start date')} className="sm:w-44" />
-          </Field>
-          <Field label="End date">
-            <Input type="date" value={journey.endDate ?? ''} min={journey.startDate} onChange={(e) => patch({ endDate: e.target.value || undefined }, 'Set journey end date')} className="sm:w-44" />
-          </Field>
-        </div>
         <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-end">
           <div className="min-w-0 flex-1">
             <Field label="New module">
@@ -485,7 +490,7 @@ export function AdminJourneyDetail() {
 
               {!isCollapsed && (
                 <div className="mt-4 space-y-2">
-                  {materials.map((mat) => {
+                  {materials.map((mat, mi) => {
                     const Icon = materialIcon[mat.type]
                     return (
                       <div key={mat.id} className="flex items-center gap-3 rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-100/60">
@@ -498,6 +503,33 @@ export function AdminJourneyDetail() {
                             {mat.type} • {mat.minutes} min{mat.level ? ` • ${mat.level}` : ''}
                           </span>
                         </span>
+                        {/* Order of materials inside the module, like the modules themselves. */}
+                        {materials.length > 1 && (
+                          <div className="flex shrink-0 items-center gap-1" role="group" aria-label={`Position of ${mat.title}`}>
+                            <button type="button" disabled={mi === 0} onClick={() => moveMaterial(m.id, mat.id, mi - 1)} aria-label="Move material up" className="grid size-7 place-items-center rounded-full border border-zinc-200 bg-surface text-zinc-700 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-40 disabled:hover:border-zinc-200 disabled:hover:text-zinc-700">
+                              <ArrowUp className="size-3.5" />
+                            </button>
+                            <input
+                              key={`${mat.id}-${mi}`}
+                              type="number"
+                              min={1}
+                              max={materials.length}
+                              defaultValue={mi + 1}
+                              aria-label={`Move ${mat.title} to position`}
+                              title="Type a position and press Enter"
+                              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), (e.target as HTMLInputElement).blur())}
+                              onBlur={(e) => {
+                                const n = Number(e.target.value)
+                                if (Number.isFinite(n) && n >= 1) moveMaterial(m.id, mat.id, Math.round(n) - 1)
+                                else e.target.value = String(mi + 1)
+                              }}
+                              className="h-7 w-8 rounded-lg border border-zinc-200 bg-surface text-center text-xs font-bold text-zinc-900 outline-none [appearance:textfield] focus:border-brand-500 focus:ring-2 focus:ring-brand-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            />
+                            <button type="button" disabled={mi === materials.length - 1} onClick={() => moveMaterial(m.id, mat.id, mi + 1)} aria-label="Move material down" className="grid size-7 place-items-center rounded-full border border-zinc-200 bg-surface text-zinc-700 transition hover:border-brand-300 hover:text-brand-600 disabled:opacity-40 disabled:hover:border-zinc-200 disabled:hover:text-zinc-700">
+                              <ArrowDown className="size-3.5" />
+                            </button>
+                          </div>
+                        )}
                         <button type="button" onClick={() => setPreview(mat)} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-surface hover:text-brand-600">
                           <Eye className="size-4" /> Preview
                         </button>
@@ -1234,6 +1266,8 @@ export function AssignMaterialModal({ material, onClose }: { material: Material;
   )
 }
 
+const MATERIALS_VIEW_KEY = 'mpesa-learning:materials-view'
+
 export function AdminMaterials() {
   const { data, update } = useAdmin()
   const { toast, confirm } = useFeedback()
@@ -1253,6 +1287,21 @@ export function AdminMaterials() {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [view, setViewState] = useState<'list' | 'grid'>(() => {
+    try {
+      return localStorage.getItem(MATERIALS_VIEW_KEY) === 'grid' ? 'grid' : 'list'
+    } catch {
+      return 'list'
+    }
+  })
+  const setView = (v: 'list' | 'grid') => {
+    setViewState(v)
+    try {
+      localStorage.setItem(MATERIALS_VIEW_KEY, v)
+    } catch {
+      // A remembered view is a convenience only.
+    }
+  }
 
   const allSkills = [...new Set(data.materials.flatMap((m) => m.skills))].sort()
   const inJourneys = new Set(data.journeys.flatMap((j) => j.modules.flatMap((m) => m.materialIds)))
@@ -1286,6 +1335,19 @@ export function AdminMaterials() {
       toast(`Downloaded ${materialFileName(m)}`)
     }
   }
+
+  const menuItems = (m: Material): RowMenuItem[] => [
+    { label: 'Preview', icon: Eye, onClick: () => setPreview(m) },
+    ...(canDownloadFile(m) || m.url ? [{ label: canDownloadFile(m) ? 'Download file' : 'Open source', icon: canDownloadFile(m) ? Download : ExternalLink, onClick: () => void download(m) }] : []),
+    ...(canEdit(m)
+      ? [
+          ...(canDownloadFile(m) ? [{ label: 'Assign material', icon: UserPlus, onClick: () => setAssigning(m) }] : []),
+          { label: 'Edit details', icon: Pencil, onClick: () => setEditing(m) },
+          ...(canDownloadFile(m) ? [{ label: 'Replace file', icon: RefreshCw, onClick: () => setReplacing(m) }] : []),
+          ...(!scope.trainerId ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => void remove(m) }] : []),
+        ]
+      : []),
+  ]
 
   const remove = async (m: Material) => {
     if (!(await confirm({ title: `Delete ${m.title}?`, message: 'It is removed from every journey that uses it. This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return
@@ -1342,8 +1404,80 @@ export function AdminMaterials() {
               <option value="ALL">All skills</option>
               {allSkills.map((s) => <option key={s}>{s}</option>)}
             </Select>
+            <div className="flex rounded-xl border border-zinc-200 p-0.5" role="group" aria-label="Layout">
+              {([['list', List], ['grid', LayoutGrid]] as const).map(([v, Icon]) => (
+                <button key={v} type="button" onClick={() => setView(v)} aria-pressed={view === v} aria-label={v === 'list' ? 'List view' : 'Grid view'} title={v === 'list' ? 'List view' : 'Grid view'} className={cn('grid size-8 place-items-center rounded-lg transition', view === v ? 'bg-brand-600 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900')}>
+                  <Icon className="size-4" />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+        {view === 'grid' ? (
+          <div className="p-3 sm:p-4">
+            {visibleRows.length ? (
+              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {visibleRows.map((m) => {
+                  const TypeIcon = materialIcon[m.type]
+                  const journeys = usage(m.id)
+                  const trainingsUsed = trainingUsage(m.id)
+                  const assigned = (m.assignedGroupIds?.length ?? 0) + (m.assignedPersonIds?.length ?? 0)
+                  return (
+                    <li key={m.id} className="group relative flex flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-surface transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg">
+                      {/* Type panel: soft tint in the type's colour with its icon. */}
+                      <button type="button" onClick={() => setPreview(m)} aria-label={`Preview ${m.title}`} className={cn('relative grid h-28 place-items-center', compactTone[m.type])}>
+                        <TypeIcon className="size-10 opacity-80 transition group-hover:scale-110" />
+                        <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold shadow-sm">
+                          {m.type === 'DOCUMENT' ? 'DOC' : m.type[0] + m.type.slice(1).toLowerCase()}
+                          <span className="text-zinc-400">·</span> v{m.version}
+                        </span>
+                      </button>
+                      <div className="absolute top-2.5 right-2.5 rounded-full bg-white/90 shadow-sm">
+                        <RowMenu label={`Actions for ${m.title}`} items={menuItems(m)} />
+                      </div>
+                      <div className="flex flex-1 flex-col p-4">
+                        <button type="button" onClick={() => setPreview(m)} className="text-left">
+                          <span className="line-clamp-2 text-sm leading-snug font-bold text-zinc-900 group-hover:text-brand-600">{m.title}</span>
+                          <span className="mt-0.5 block truncate text-xs text-zinc-500" title={materialFileName(m) || m.description}>
+                            {canDownloadFile(m) ? `${materialFileName(m)}${m.fileSize ? ` · ${formatBytes(m.fileSize)}` : ''}` : m.description || m.url}
+                          </span>
+                        </button>
+                        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                          {m.level && <Badge tone="blue" className="normal-case tracking-normal">{m.level}</Badge>}
+                          {m.skills.slice(0, 2).map((tag) => (
+                            <span key={tag} title={tag} className="max-w-32 truncate rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-medium text-zinc-700">
+                              {tag}
+                            </span>
+                          ))}
+                          {m.skills.length > 2 && <span title={m.skills.slice(2).join(', ')} className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600">+{m.skills.length - 2}</span>}
+                          {!canEdit(m) && <Badge>View only</Badge>}
+                        </div>
+                        <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-zinc-100 pt-3 text-xs text-zinc-500" style={{ marginTop: 'auto' }}>
+                          <span className="inline-flex items-center gap-1">
+                            <Clock3 className="size-3.5" /> {m.minutes} mins
+                          </span>
+                          {(journeys > 0 || trainingsUsed > 0) && (
+                            <span className="inline-flex items-center gap-1 font-medium text-brand-700" title={`${journeys} journeys · ${trainingsUsed} trainings`}>
+                              <Route className="size-3.5" /> {journeys + trainingsUsed}
+                            </span>
+                          )}
+                          {assigned > 0 && (
+                            <span className="inline-flex items-center gap-1 font-medium text-mpesa-700" title="Assigned to groups or people">
+                              <Users className="size-3.5" /> {assigned}
+                            </span>
+                          )}
+                          <span className="ml-auto">{updatedLabel(m.updatedAt)}</span>
+                        </div>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <Empty icon={FileText} compact title={data.materials.length ? 'No materials match these filters' : 'No materials yet'} text={data.materials.length ? 'Try another type, level, skill or search.' : 'Add documents, videos and presentations to use in journeys.'} />
+            )}
+          </div>
+        ) : (
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full min-w-[1116px] text-left text-sm">
             <thead className="border-b border-zinc-200/80 bg-zinc-50/75 text-xs font-semibold text-zinc-600">
@@ -1423,21 +1557,7 @@ export function AdminMaterials() {
                     <td className="px-3 py-1.5">
                       <div className="flex items-center justify-end gap-1.5">
                         {!canEdit(m) && <Badge>View only</Badge>}
-                        <RowMenu
-                          label={`Actions for ${m.title}`}
-                          items={[
-                            { label: 'Preview', icon: Eye, onClick: () => setPreview(m) },
-                            ...(canDownloadFile(m) || m.url ? [{ label: canDownloadFile(m) ? 'Download file' : 'Open source', icon: canDownloadFile(m) ? Download : ExternalLink, onClick: () => void download(m) }] : []),
-                            ...(canEdit(m)
-                              ? [
-                                  ...(canDownloadFile(m) ? [{ label: 'Assign material', icon: UserPlus, onClick: () => setAssigning(m) }] : []),
-                                  { label: 'Edit details', icon: Pencil, onClick: () => setEditing(m) },
-                                  ...(canDownloadFile(m) ? [{ label: 'Replace file', icon: RefreshCw, onClick: () => setReplacing(m) }] : []),
-                                  ...(!scope.trainerId ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => void remove(m) }] : []),
-                                ]
-                              : []),
-                          ]}
-                        />
+                        <RowMenu label={`Actions for ${m.title}`} items={menuItems(m)} />
                       </div>
                     </td>
                   </tr>
@@ -1447,6 +1567,7 @@ export function AdminMaterials() {
             </tbody>
           </table>
         </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 px-4 py-3 text-xs text-zinc-500 sm:px-5">
           <div className="flex flex-wrap items-center gap-2">
             <span>{rows.length ? `Showing ${currentPage * pageSize + 1}–${Math.min((currentPage + 1) * pageSize, rows.length)} of ${rows.length} materials` : 'No materials to show'}</span>
@@ -1454,7 +1575,7 @@ export function AdminMaterials() {
           <div className="ml-auto flex flex-wrap items-center gap-2.5">
             <label className="flex items-center gap-2 whitespace-nowrap">Rows per page
               <Select value={String(pageSize)} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0) }} aria-label="Rows per page" className="h-9 w-[4.5rem] py-0 text-xs">
-                {[10, 20, 50].map((size) => <option key={size} value={size}>{size}</option>)}
+                {[10, 12, 20, 50].map((size) => <option key={size} value={size}>{size}</option>)}
               </Select>
             </label>
             <span className="whitespace-nowrap">Page {currentPage + 1} of {pageCount}</span>

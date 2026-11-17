@@ -57,6 +57,7 @@ export const trainingsFor = (personId: string, trainings: AdminTraining[]) => tr
 
 /** Profile fields TE-1.1 marks mandatory, plus email from sign-in. */
 export const PROFILE_FIELDS = [
+  { key: 'phone', label: 'Mobile number' },
   { key: 'designation', label: 'Role / designation' },
   { key: 'organization', label: 'Organisation / team' },
   { key: 'department', label: 'Department' },

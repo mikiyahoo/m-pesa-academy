@@ -12,7 +12,7 @@ import type { Person, RequestStatus, TrainingRequest } from '../types'
 import { Avatar, Button, Card, Empty, Field, Modal, PageHeader, Select, TabBar, Tabs, Textarea } from '../ui'
 import { NewTrainingModal, type TrainingPreset } from './Trainings'
 
-type Filter = 'ALL' | Exclude<RequestStatus, 'DRAFT'>
+type Filter = 'ALL' | 'SCHEDULED' | Exclude<RequestStatus, 'DRAFT'>
 const now = () => localISO()
 
 /** A new training prefilled from a request (used after approving). */
@@ -217,8 +217,12 @@ export function AdminRequests() {
 
   // Drafts belong to the requester until submitted.
   const submitted = data.requests.filter((r) => r.status !== 'DRAFT').sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''))
-  const rows = submitted.filter((r) => filter === 'ALL' || r.status === filter)
-  const count = (s: Filter) => (s === 'ALL' ? submitted.length : submitted.filter((r) => r.status === s).length)
+  // Scheduled: approved and its training has been created. Approved: still waiting to be scheduled.
+  const isScheduled = (r: TrainingRequest) => r.status === 'APPROVED' && !!r.trainingId && data.trainings.some((t) => t.id === r.trainingId)
+  const matches = (r: TrainingRequest, f: Filter) =>
+    f === 'ALL' ? true : f === 'SCHEDULED' ? isScheduled(r) : f === 'APPROVED' ? r.status === 'APPROVED' && !isScheduled(r) : r.status === f
+  const rows = submitted.filter((r) => matches(r, filter))
+  const count = (s: Filter) => submitted.filter((r) => matches(r, s)).length
   const viewed = data.requests.find((r) => r.id === viewing)
   const acting = data.requests.find((r) => r.id === modal?.id)
 
@@ -231,7 +235,7 @@ export function AdminRequests() {
         <Tabs<Filter>
           value={filter}
           onChange={setFilter}
-          items={(['PENDING', 'APPROVED', 'REJECTED', 'ALL'] as Filter[]).map((v) => ({ value: v, label: v === 'ALL' ? 'All' : v[0] + v.slice(1).toLowerCase(), count: count(v) }))}
+          items={(['PENDING', 'APPROVED', 'SCHEDULED', 'REJECTED', 'ALL'] as Filter[]).map((v) => ({ value: v, label: v === 'ALL' ? 'All' : v[0] + v.slice(1).toLowerCase(), count: count(v) }))}
         />
       </TabBar>
 
@@ -251,7 +255,7 @@ export function AdminRequests() {
                       {type?.name} · {r.categories.join(', ')}
                     </p>
                   </div>
-                  <RequestStatusPill status={r.status} />
+                  {isScheduled(r) ? <span className="inline-flex items-center rounded-full bg-mpesa-500/10 px-2.5 py-0.5 text-xs font-semibold text-mpesa-700 ring-1 ring-mpesa-500/25 ring-inset">Scheduled</span> : <RequestStatusPill status={r.status} />}
                 </div>
 
                 <dl className="grid grid-cols-3 gap-3 text-xs">

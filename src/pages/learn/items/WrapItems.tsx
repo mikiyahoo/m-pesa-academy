@@ -1,4 +1,5 @@
-import { ArrowRight, Award, CalendarDays, CalendarPlus, CheckCircle2, Circle, Clock, Lock, MapPin, MessageSquare, Video } from 'lucide-react'
+import { ArrowRight, Award, CalendarDays, CalendarPlus, CheckCircle2, Circle, Clock, Lock, MapPin, MessageSquare, QrCode, Video } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useFeedback } from '../../../components/Feedback'
 import { FeedbackSurvey } from '../../../components/FeedbackForm'
@@ -19,7 +20,15 @@ export function SessionItem({ training: t, progress: p, onCheckIn }: { training:
   const { toast } = useFeedback()
   const session = sessionStatus(t)
   const { mark } = certificateChecks(t, p, LATE_WINDOW_MINUTES)
-  const isTeams = !!t.teamsJoinUrl
+  const inPerson = t.venue !== 'ONLINE'
+  const isTeams = !inPerson && !!t.teamsJoinUrl
+  // The trainer opened check-in (QR on screen): offer it straight away to a signed-in trainee.
+  const [dismissed, setDismissed] = useState(false)
+  const checkInPrompt = !!t.checkInOpen && !p?.checkInAt && !dismissed
+  const checkInNow = () => {
+    onCheckIn('qr')
+    toast('Checked in — attendance recorded')
+  }
 
   const join = () => {
     onCheckIn('teams')
@@ -32,7 +41,7 @@ export function SessionItem({ training: t, progress: p, onCheckIn }: { training:
       <ItemTitle
         eyebrow={
           <>
-            {isTeams ? <Video className="size-4 text-brand-600" /> : <MapPin className="size-4 text-brand-600" />} Live session
+            {inPerson ? <MapPin className="size-4 text-brand-600" /> : <Video className="size-4 text-brand-600" />} {inPerson ? 'In-person session' : 'Live session on Teams'}
           </>
         }
         title={t.title}
@@ -43,7 +52,7 @@ export function SessionItem({ training: t, progress: p, onCheckIn }: { training:
         {[
           { icon: CalendarDays, label: 'Date', value: formatDate(t.date, { weekday: 'short', month: 'short', day: 'numeric' }) },
           { icon: Clock, label: 'Time', value: timeRange(t) },
-          { icon: isTeams ? Video : MapPin, label: isTeams ? 'Where' : 'Venue', value: isTeams ? (t.venue === 'ONLINE' ? 'Microsoft Teams' : `Teams or ${t.venue}`) : t.venue },
+          { icon: inPerson ? MapPin : Video, label: inPerson ? 'Venue' : 'Where', value: inPerson ? t.venue : 'Microsoft Teams' },
         ].map((d) => (
           <div key={d.label} className="rounded-2xl border border-zinc-200 p-4">
             <d.icon className="size-5 text-brand-600" />
@@ -62,6 +71,15 @@ export function SessionItem({ training: t, progress: p, onCheckIn }: { training:
               {p.checkInMethod === 'teams' ? ' via Microsoft Teams' : ''} — marked <b>{mark}</b>. Check-ins more than {LATE_WINDOW_MINUTES} minutes after the start count as Late.
             </span>
           </p>
+        ) : t.checkInOpen ? (
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="flex items-center gap-2 text-sm font-medium text-zinc-800">
+              <span className="size-2 animate-pulse rounded-full bg-brand-600" /> Check-in is open — your trainer is showing the QR code.
+            </p>
+            <button onClick={checkInNow} className={btnPrimary}>
+              <QrCode className="size-4" /> Check in now
+            </button>
+          </div>
         ) : session === 'Active' ? (
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="text-sm text-zinc-700">
@@ -100,6 +118,30 @@ export function SessionItem({ training: t, progress: p, onCheckIn }: { training:
           <p className="text-sm text-zinc-700">This session has passed and no check-in was recorded, so you're marked Absent. Contact your trainer if this is wrong — attendance is needed for the certificate.</p>
         )}
       </div>
+
+      {checkInPrompt && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal aria-labelledby="checkin-open-title">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-brand-50 text-brand-600">
+              <QrCode className="size-7" />
+            </span>
+            <h2 id="checkin-open-title" className="mt-4 text-lg font-bold text-zinc-900">
+              Check-in is open
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              {t.trainer} started check-in for “{t.title}”. Record your attendance now.
+            </p>
+            <div className="mt-6 grid gap-2">
+              <button onClick={checkInNow} className={cn(btnPrimary, 'w-full')} autoFocus>
+                <CheckCircle2 className="size-4" /> Check in now
+              </button>
+              <button onClick={() => setDismissed(true)} className="rounded-xl px-4 py-2 text-sm font-semibold text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800">
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

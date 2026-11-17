@@ -68,6 +68,7 @@ export function adminToLearnerTraining(data: AdminData, t: AdminTraining, person
     venue: t.location,
     // The invite link is a portal link, not a meeting; without a real Teams meeting use the demo meeting.
     teamsJoinUrl: t.teamsMeeting?.joinUrl ?? (t.delivery === 'Online' ? TEAMS_DEMO : undefined),
+    checkInOpen: !!t.checkinSession && !t.checkinSession.closedAt,
     category: type?.name ?? 'Training',
     banner: THEMES[hash(t.id) % THEMES.length],
     cover: t.coverId ? data.trainingCovers?.[t.coverId] : undefined,

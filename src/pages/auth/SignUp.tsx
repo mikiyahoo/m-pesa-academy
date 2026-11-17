@@ -2,8 +2,6 @@ import { Globe2, Loader2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { loadAdminData } from '../../admin/storage'
-import { REGIONS } from '../../admin/temporary'
-import { SelectMenu } from '../../components/Pickers'
 import { publicAccessSettings, validateGuest, type GuestSignUp, type GuestSignUpErrors } from '../../lib/publicAccess'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../store/Auth'
@@ -12,9 +10,6 @@ import { AuthShell } from './AuthShell'
 const FIELDS: { key: Exclude<keyof GuestSignUp, 'region'>; label: string; placeholder: string; type?: string; autoComplete?: string; half?: boolean }[] = [
   { key: 'name', label: 'Full name', placeholder: 'e.g. Liya Bekele', autoComplete: 'name' },
   { key: 'email', label: 'Email', placeholder: 'name@company.com', type: 'email', autoComplete: 'email' },
-  { key: 'phone', label: 'Mobile number', placeholder: '09XXXXXXXX', type: 'tel', autoComplete: 'tel', half: true },
-  { key: 'organization', label: 'Organisation', placeholder: 'Company, agent shop or “Individual”', autoComplete: 'organization', half: true },
-  { key: 'designation', label: 'Your role', placeholder: 'e.g. Agent, merchant, student', half: true },
 ]
 
 /** Self sign-up for people outside the company: a guest account limited to public trainings. */
@@ -45,8 +40,8 @@ export function SignUp() {
   if (!settings.enabled) {
     return (
       <AuthShell>
-        <h2 className="text-2xl font-bold tracking-tight">Guest sign-up is closed</h2>
-        <p className="mt-2 text-sm text-zinc-500">The training team isn’t accepting new guest accounts right now. If you were invited, use the link in your invite email.</p>
+        <h2 className="text-2xl font-bold tracking-tight">Sign-up is closed</h2>
+        <p className="mt-2 text-sm text-zinc-500">The training team isn’t accepting new accounts right now. If you were invited, use the link in your invite email.</p>
         <Link to="/" className="mt-6 inline-flex rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
           Back to sign in
         </Link>
@@ -56,20 +51,24 @@ export function SignUp() {
 
   return (
     <AuthShell>
-      <h2 className="text-2xl font-bold tracking-tight">Create a guest account</h2>
-      <p className="mt-1 text-sm text-zinc-500">Join M-PESA Academy’s public trainings. No password — we’ll text you a sign-in code.</p>
+      <h2 className="text-2xl font-bold tracking-tight">Create an account</h2>
 
       <p className="mt-5 flex gap-3 rounded-xl bg-brand-50/70 px-3.5 py-3 text-xs leading-relaxed text-brand-800">
         <Globe2 className="mt-0.5 size-4 shrink-0 text-brand-600" />
         <span>
-          Guest accounts see <b>public trainings</b> only, plus any training the team invites you to. Access lasts <b>{settings.accessDays} days</b> and can be extended by the training team.
+          Your account sees <b>public trainings</b>, plus any training the team invites you to. Access lasts <b>{settings.accessDays} days</b> and can be extended by the training team. You’ll add your mobile number, organisation, role and region after you sign in.
         </span>
       </p>
 
       <form onSubmit={submit} className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2" noValidate>
+        <p className="-mb-1 text-xs text-zinc-500 sm:col-span-2">
+          <span className="text-brand-600">*</span> Required
+        </p>
         {FIELDS.map((f) => (
           <label key={f.key} className={cn('block', !f.half && 'sm:col-span-2')}>
-            <span className="text-sm font-medium text-zinc-700">{f.label}</span>
+            <span className="text-sm font-medium text-zinc-700">
+              {f.label} <span className="text-brand-600" aria-hidden>*</span>
+            </span>
             <input
               type={f.type ?? 'text'}
               autoComplete={f.autoComplete}
@@ -83,20 +82,12 @@ export function SignUp() {
             {errors[f.key] && <span className="mt-1 block text-xs text-brand-600">{errors[f.key]}</span>}
           </label>
         ))}
-        <div>
-          <label htmlFor="guest-region" className="text-sm font-medium text-zinc-700">Region</label>
-          <SelectMenu id="guest-region" value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} aria-invalid={!!errors.region} className={cn(input(errors.region), 'bg-surface')}>
-              <option value="">Choose your region…</option>
-              {REGIONS.map((r) => (
-                <option key={r}>{r}</option>
-              ))}
-          </SelectMenu>
-          {errors.region && <span className="mt-1 block text-xs text-brand-600">{errors.region}</span>}
-        </div>
 
-        <label className="flex items-start gap-2 text-sm text-zinc-600 sm:col-span-2">
-          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-brand-600" />
-          <span>I agree to the M-PESA Academy terms of use and to my details being used to manage my training.</span>
+        <label className={cn('flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm text-zinc-600 sm:col-span-2', errors.agreed ? 'border-brand-300 bg-brand-50/50' : 'border-transparent')}>
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required className="mt-0.5 size-4 shrink-0 accent-brand-600" />
+          <span>
+            I agree to the M-PESA Academy terms of use and to my details being used to manage my training. <span className="text-brand-600" aria-hidden>*</span>
+          </span>
         </label>
         {errors.agreed && <p className="-mt-2 text-xs text-brand-600 sm:col-span-2">{errors.agreed}</p>}
 
@@ -109,7 +100,7 @@ export function SignUp() {
       </form>
 
       <p className="mt-6 text-center text-sm text-zinc-500">
-        Already have a guest account?{' '}
+        Already have an account?{' '}
         <Link to="/?mode=code" className="font-semibold text-brand-600 hover:underline">
           Sign in with a code
         </Link>

@@ -639,11 +639,11 @@ function OutlinePanel({
                             </span>
                             <span className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-500">
                               {i.kind === "session" && i.state !== "done" ? (
-                                <MapPin className="size-3" />
+                                i.title.includes("Teams") ? <Video className="size-3 shrink-0" /> : <MapPin className="size-3 shrink-0" />
                               ) : (
                                 <Icon className="size-3" />
                               )}
-                              {i.meta}
+                              <span className="min-w-0 truncate" title={i.meta}>{i.meta}</span>
                             </span>
                           </span>
                         </button>

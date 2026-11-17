@@ -161,8 +161,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!account) {
           const external = loadAdminData().people.some((p) => isTemporary(p) && ((!!p.email && p.email.toLowerCase() === id) || (!!p.phone && normalizePhone(p.phone) === normalizePhone(id))))
           return external
-            ? 'Guests and external trainees don’t use a password. Choose “Sign in with a code” instead.'
-            : 'No account found for that email or phone number. New here? Create a guest account to join public trainings.'
+            ? 'This account doesn’t use a password. Choose “Sign in with a code” instead.'
+            : 'No account found for that email or phone number. New here? Create an account to join public trainings.'
         }
         if (password !== (customPassword(account.user.email) ?? DEMO_PASSWORD)) return 'Incorrect password. Please try again.'
         // An admin can deactivate an account or give it an end date (validity period).
@@ -191,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!person) {
           return accounts.some((a) => a.user.email === id || a.user.phone === id)
             ? 'Company staff sign in with their password.'
-            : 'No guest account found for that email or phone. Create a guest account first.'
+            : 'No account found for that email or phone. Create an account first.'
         }
         const blocked = accessBlock(person)
         if (blocked) return blocked

@@ -1,4 +1,4 @@
-import { ArrowLeft, Loader2, ClipboardPaste, MessageSquareText, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Loader2, ClipboardPaste, Mail, MessageSquareText, ShieldCheck } from 'lucide-react'
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../store/Auth'
@@ -8,6 +8,11 @@ const LENGTH = 6
 const RESEND_SECONDS = 30
 
 const maskPhone = (p: string) => `${p.slice(0, 2)}******${p.slice(-2)}`
+/** fa***@safaricom.et: enough to recognise the inbox without showing the full address. */
+const maskEmail = (e: string) => {
+  const [user, domain] = e.split('@')
+  return domain ? `${user.slice(0, 2)}***@${domain}` : e
+}
 
 export function Otp() {
   const { pending, verifyOtp, resendOtp, cancelOtp } = useAuth()
@@ -16,6 +21,8 @@ export function Otp() {
   const [loading, setLoading] = useState(false)
   const [cooldown, setCooldown] = useState(RESEND_SECONDS)
   const [showSms, setShowSms] = useState(true)
+  // Codes go by email; only people with no email on file get them by SMS.
+  const byEmail = !!pending?.user.email
   const [resent, setResent] = useState(false)
   const inputs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -79,17 +86,17 @@ export function Otp() {
         <div className="fixed top-4 right-4 left-4 z-50 mx-auto max-w-sm animate-[slidein_.35s_ease-out] rounded-2xl bg-zinc-900/95 p-4 text-white shadow-2xl sm:left-auto">
           <div className="flex items-start gap-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-mpesa-500">
-              <MessageSquareText className="size-4" />
+              {byEmail ? <Mail className="size-4" /> : <MessageSquareText className="size-4" />}
             </span>
             <div className="min-w-0 flex-1">
               <p className="flex justify-between text-xs text-white/60">
-                <span className="font-medium text-white">M-PESA</span> now
+                <span className="font-medium text-white">{byEmail ? 'M-PESA Academy · Your sign-in code' : 'M-PESA'}</span> now
               </p>
               <p className="mt-0.5 text-sm">
                 Your M-PESA Academy verification code is <b className="tracking-widest">{pending.code}</b>. It expires in 5 minutes.
               </p>
               <div className="mt-3 flex items-center justify-between gap-3">
-                <p className="text-[11px] text-white/50">Demo only — no real SMS is sent.</p>
+                <p className="text-[11px] text-white/50">Demo only — no real {byEmail ? 'email' : 'SMS'} is sent.</p>
                 {/* Like a phone's "fill code from Messages": drops the code into the boxes and signs in. */}
                 <button
                   type="button"
@@ -122,7 +129,8 @@ export function Otp() {
       </span>
       <h2 className="mt-5 text-2xl font-bold tracking-tight">Verify it’s you</h2>
       <p className="mt-1 text-sm text-zinc-500">
-        We sent a 6-digit code to <span className="font-medium text-zinc-800">{maskPhone(pending?.phone ?? '')}</span>. Enter it below to continue.
+        We sent a 6-digit code to <span className="font-medium text-zinc-800">{byEmail ? maskEmail(pending?.user.email ?? '') : maskPhone(pending?.phone ?? '')}</span>
+        {byEmail ? ' by email' : ''}. Enter it below to continue.
       </p>
 
       <div className="mt-8 flex justify-between gap-2" onPaste={onPaste}>

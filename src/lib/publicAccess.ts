@@ -39,16 +39,15 @@ const PHONE_RE = /^(\+?251|0)?[79]\d{8}$/
 
 export function validateGuest(form: GuestSignUp, data: AdminData): GuestSignUpErrors {
   const errors: GuestSignUpErrors = {}
-  if (!publicAccessSettings(data).enabled) errors.form = 'Guest sign-up is currently closed. Ask the training team for an invite.'
+  if (!publicAccessSettings(data).enabled) errors.form = 'Sign-up is currently closed. Ask the training team for an invite.'
   if (form.name.trim().split(/\s+/).length < 2) errors.name = 'Enter your first and last name.'
   const email = form.email.trim().toLowerCase()
   if (!EMAIL_RE.test(email)) errors.email = 'Enter a valid email address.'
   else if (!isTemporary({ email })) errors.email = 'Company staff sign in with their work account instead.'
   else if (data.people.some((p) => p.email.toLowerCase() === email)) errors.email = 'An account already exists for this email. Sign in with a code instead.'
-  if (!PHONE_RE.test(form.phone.replace(/[\s-]/g, ''))) errors.phone = 'Enter an Ethiopian mobile number, e.g. 0912345678.'
-  if (!form.organization.trim()) errors.organization = 'Enter your organisation, or "Individual".'
-  if (!form.designation.trim()) errors.designation = 'Enter your role.'
-  if (!form.region) errors.region = 'Choose your region.'
+  // The mobile number is added on first sign-in (profile setup); check it only if given here.
+  if (form.phone.trim() && !PHONE_RE.test(form.phone.replace(/[\s-]/g, ''))) errors.phone = 'Enter the 9 digits after +251, starting with 9 or 7 (e.g. 912345678).'
+  // Organisation, role and region are asked for on first sign-in (profile setup), not here.
   return errors
 }
 
@@ -62,15 +61,16 @@ export function createGuest(data: AdminData, form: GuestSignUp): { data: AdminDa
     id: `g-${Math.random().toString(36).slice(2, 10)}`,
     name,
     email: form.email.trim().toLowerCase(),
-    phone: form.phone.replace(/[\s-]/g, ''),
+    // Stored in the local 0… form so sign-in matches it however the number is typed.
+    phone: form.phone.trim() ? `0${form.phone.replace(/[\s-]/g, '').replace(/^(\+?251|0)/, '')}` : '',
     role: 'Participant',
     status: 'Active',
     department: 'External',
     groupIds: [],
     createdAt: today,
-    designation: form.designation.trim(),
-    organization: form.organization.trim(),
-    region: form.region,
+    designation: form.designation.trim() || undefined,
+    organization: form.organization.trim() || undefined,
+    region: form.region || undefined,
     createdBy: 'Self sign-up',
     source: 'self-signup',
     accessStart: today,

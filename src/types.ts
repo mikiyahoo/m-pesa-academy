@@ -52,6 +52,8 @@ export type Training = {
   venue: string
   /** Microsoft Teams join link for live sessions. */
   teamsJoinUrl?: string
+  /** The trainer has opened check-in (QR on screen) for this session. */
+  checkInOpen?: boolean
   /** Recording of a held session, streamed in the portal when the trainer shares it. */
   recording?: string
   category: string

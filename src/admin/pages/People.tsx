@@ -6,11 +6,11 @@ import { cn, localISO, todayISO } from '../../lib/utils'
 import { DateRangePicker } from '../../components/DateRangePicker'
 import { shortDate } from '../helpers'
 import { isInternalEmail } from '../requests'
+import { useFeedback } from '../../components/Feedback'
 import { uid, useAdmin } from '../store'
 import type { AdminUserRole, AdminUserStatus, Group, Person } from '../types'
 import { useScope } from '../scope'
 import { OrganizationInput } from '../OrganizationInput'
-import { ProfileRequestsPanel } from '../ProfileRequests'
 import { ALL_BADGES } from '../types'
 import { deriveGamification } from '../gamification'
 import { makeInviteToken } from '../temporary'
@@ -93,8 +93,10 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
   const { data, update } = useAdmin()
   const { user } = useAuth()
   const scope = useScope()
-  // User roles stay with main admins; a department admin adds people to their own department.
+  // Full role control stays with main admins. A department admin manages their own department:
+  // they can give or remove trainer access, but not make admins.
   const canSetRoles = scope.role !== 'department'
+  const canSetTrainer = canSetRoles || !person || person.role === 'Participant' || person.role === 'Trainer'
   const [form, setForm] = useState({
     name: person?.name ?? '',
     email: person?.email ?? '',
@@ -210,13 +212,13 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
           <h3 className="text-base font-bold text-zinc-900">Access control</h3>
         </div>
         <Field label="Role">
-          <Select value={form.role} disabled={!canSetRoles} onChange={(e) => setForm({ ...form, role: e.target.value as AdminUserRole })}>
+          <Select value={form.role} disabled={!canSetTrainer} onChange={(e) => setForm({ ...form, role: e.target.value as AdminUserRole })}>
             <option>Participant</option>
             <option>Trainer</option>
-            <option>Department Admin</option>
-            <option>Admin</option>
+            {(canSetRoles || form.role === 'Department Admin') && <option>Department Admin</option>}
+            {(canSetRoles || form.role === 'Admin') && <option>Admin</option>}
           </Select>
-          {!canSetRoles && <span className="mt-1 block text-xs text-zinc-500">Only main admins change roles.</span>}
+          {!canSetRoles && <span className="mt-1 block text-xs text-zinc-500">{canSetTrainer ? 'You can give trainer access to people in your department.' : 'Only main admins change this role.'}</span>}
         </Field>
         <Field label="Status">
           <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as AdminUserStatus })}>
@@ -289,7 +291,8 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [department, setDepartment] = useState('')
+  // Department admins always invite into their own department.
+  const [department, setDepartment] = useState(scope.department ?? '')
   const [designation, setDesignation] = useState('')
   const [organization, setOrganization] = useState('')
   const [role, setRole] = useState<AdminUserRole>('Participant')
@@ -363,7 +366,7 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
         phone: mode === 'manual' ? phone.trim() : '',
         role,
         status: 'Active',
-        department: invitee.department,
+        department: scope.department ?? invitee.department,
         designation: invitee.designation || undefined,
         organization: profileOrganization || undefined,
         groupIds: groupId ? [groupId] : [],
@@ -442,7 +445,7 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
               <Input value={organization} onChange={(event) => setOrganization(event.target.value)} placeholder="Organization name" />
             </Field>
             <Field label="Department (optional)">
-              <Input value={department} onChange={(event) => setDepartment(event.target.value)} />
+              <Input value={department} readOnly={!!scope.department} onChange={(event) => setDepartment(event.target.value)} className={cn(scope.department && 'bg-zinc-50 text-zinc-500')} />
             </Field>
             <Field label="Designation (optional)">
               <Input value={designation} onChange={(event) => setDesignation(event.target.value)} />
@@ -909,6 +912,7 @@ export function AdminUserView() {
 export function AdminUsers() {
   const { data, update } = useAdmin()
   const scope = useScope()
+  const { toast } = useFeedback()
   const navigate = useNavigate()
   const [q, setQ] = useState('')
   const [userTypes, setUserTypes] = useState<Set<string>>(new Set())
@@ -1000,6 +1004,18 @@ export function AdminUsers() {
   }
 
   // URS 2.3: admins can let trainers approve training requests.
+  // Main and department admins can give or take away trainer access.
+  const toggleTrainer = (p: Person) => {
+    const role: AdminUserRole = p.role === 'Trainer' ? 'Participant' : 'Trainer'
+    update((d) => ({ ...d, people: d.people.map((x) => (x.id === p.id ? { ...x, role, canApprove: role === 'Trainer' ? x.canApprove : undefined } : x)) }), {
+      action: role === 'Trainer' ? 'Gave trainer access' : 'Removed trainer access',
+      target: p.name,
+      changes: [{ field: 'Role', from: p.role, to: role }],
+    })
+    toast(role === 'Trainer' ? `${p.name} can now deliver trainings` : `${p.name} is a participant again`)
+    setMenu(null)
+  }
+
   const toggleApprover = (p: Person) => {
     const on = !p.canApprove
     update((d) => ({ ...d, people: d.people.map((x) => (x.id === p.id ? { ...x, canApprove: on } : x)) }), {
@@ -1038,7 +1054,6 @@ export function AdminUsers() {
           </>
         }
       />
-      {scope.role === 'admin' && <ProfileRequestsPanel />}
       <div ref={filtersRef} className="mb-4 flex flex-wrap items-center gap-2.5 rounded-2xl border border-zinc-200/80 bg-surface p-2.5">
         <UserFilterMenu label="User Type" options={['Internal', 'External']} selected={userTypes} onChange={(value) => { setUserTypes(value); resetPage() }} />
         <UserFilterMenu label="Group" options={data.groups.map((group) => group.name)} selected={groups} onChange={(value) => { setGroups(value); resetPage() }} />
@@ -1172,7 +1187,12 @@ export function AdminUsers() {
                               {p.isRequester ? 'Remove requester rights' : 'Make requester'}
                             </button>
                           </div>
-                          {p.role === 'Trainer' && (
+                          {(p.role === 'Participant' || p.role === 'Trainer') && (
+                            <button onClick={() => toggleTrainer(p)} className="w-full rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">
+                              {p.role === 'Trainer' ? 'Remove trainer access' : 'Give trainer access'}
+                            </button>
+                          )}
+                          {p.role === 'Trainer' && scope.role !== 'department' && (
                             <button onClick={() => toggleApprover(p)} className="w-full rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100">
                               {p.canApprove ? 'Remove request management' : 'Allow managing requests'}
                             </button>

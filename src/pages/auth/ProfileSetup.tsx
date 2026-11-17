@@ -13,6 +13,8 @@ type Key = (typeof PROFILE_FIELDS)[number]['key']
 export function ProfileSetup({ person, onDone }: { person: Person; onDone: () => void }) {
   const { user, updateUser, logout } = useAuth()
   const [form, setForm] = useState<Record<Key, string>>({
+    // Typed as the 9 digits after +251.
+    phone: (person.phone ?? '').replace(/\D/g, '').replace(/^(251|0)/, ''),
     designation: person.designation ?? '',
     organization: person.organization ?? '',
     department: person.department ?? '',
@@ -20,7 +22,8 @@ export function ProfileSetup({ person, onDone }: { person: Person; onDone: () =>
   })
   const [tried, setTried] = useState(false)
   const [saving, setSaving] = useState(false)
-  const missing = PROFILE_FIELDS.filter((f) => !form[f.key].trim())
+  const phoneOk = /^[79]\d{8}$/.test(form.phone)
+  const missing = PROFILE_FIELDS.filter((f) => (f.key === 'phone' ? !phoneOk : !form[f.key].trim()))
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -29,6 +32,7 @@ export function ProfileSetup({ person, onDone }: { person: Person; onDone: () =>
     setSaving(true)
     const data = loadAdminData()
     const clean = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v.trim()])) as Record<Key, string>
+    clean.phone = `0${form.phone}`
     saveAdminData({ ...data, people: data.people.map((p) => (p.id === person.id ? { ...p, ...clean } : p)) })
     updateUser({ ...user, role: `${clean.designation} · ${clean.organization}` })
     setTimeout(onDone, 300)
@@ -54,13 +58,30 @@ export function ProfileSetup({ person, onDone }: { person: Person; onDone: () =>
           <p className="mt-1 rounded-xl bg-zinc-50 px-3 py-2.5 text-sm text-zinc-700">{person.email}</p>
         </div>
         {PROFILE_FIELDS.map((f) => {
-          const bad = tried && !form[f.key].trim()
+          const bad = tried && (f.key === 'phone' ? !phoneOk : !form[f.key].trim())
           return (
             <div key={f.key}>
               <label htmlFor={`profile-${f.key}`} className="text-sm font-medium text-zinc-700">
                 {f.label} <span className="text-brand-600">*</span>
               </label>
-              {f.key === 'region' ? (
+              {f.key === 'phone' ? (
+                // Ethiopian mobiles only: +251 is fixed, the person types the 9 digits after it.
+                <span className="relative mt-1.5 block">
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center border-r border-zinc-200 pr-2.5 pl-3 text-sm font-semibold text-zinc-700">+251</span>
+                  <input
+                    id="profile-phone"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                    maxLength={9}
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 9) })}
+                    placeholder="9XX XXX XXX"
+                    aria-invalid={bad}
+                    className={`${input} pl-[4.25rem] tracking-wide ${bad ? 'border-brand-500' : 'border-zinc-200'}`}
+                  />
+                </span>
+              ) : f.key === 'region' ? (
                 <div className="mt-1.5">
                   <SelectMenu id={`profile-${f.key}`} value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} aria-invalid={bad} className={`${input} bg-surface ${bad ? 'border-brand-500' : 'border-zinc-200'}`}>
                     <option value="">Choose your region…</option>
@@ -74,7 +95,7 @@ export function ProfileSetup({ person, onDone }: { person: Person; onDone: () =>
               )}
               {bad && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-brand-700">
-                  <AlertCircle className="size-3.5" /> Required
+                  <AlertCircle className="size-3.5" /> {f.key === 'phone' && form.phone ? 'Enter the 9 digits after +251, starting with 9 or 7.' : 'Required'}
                 </span>
               )}
             </div>

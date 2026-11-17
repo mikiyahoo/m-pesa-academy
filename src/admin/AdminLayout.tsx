@@ -1,15 +1,14 @@
 import { ArrowRight, Award, BadgeCheck, BarChart3, Bell, BellOff, Briefcase, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileClock, FileQuestion, GraduationCap, LayoutDashboard, LogOut, type LucideIcon, MapPin, Menu, KeyRound, MessageSquare, MessagesSquare, Moon, RotateCcw, Search, Settings2, Sun, Trophy, UserRoundPlus, UserPen, Users, X } from 'lucide-react'
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '../lib/utils'
 import { useFeedback } from '../components/Feedback'
 import { useAuth } from '../store/Auth'
 import { CommandPalette } from './CommandPalette'
-import { ChangePasswordDialog, EditProfileDialog, useMyProfileRequest } from '../components/ProfileSettings'
+import { ChangePasswordDialog, EditProfileDialog } from '../components/ProfileSettings'
 import { DepartmentScope, TrainerScope, useAdmin } from './store'
-import { ScopeContext, useScope } from './scope'
+import { ScopeContext } from './scope'
 import { useDiscussionAttention } from './pages/Discussions'
-import { loadProfileRequests, onProfileRequestsChange } from '../lib/profileRequests'
 import { dateTime } from './helpers'
 import { UserAvatar } from '../components/UserAvatar'
 import { Button, Empty } from './ui'
@@ -122,15 +121,10 @@ const trainerNav: NavItem[] = [
 /** Things waiting on this person, per page: shown as a count beside the page in the sidebar. */
 function useNavCounts(): Record<string, number> {
   const { data } = useAdmin()
-  const scope = useScope()
   const discussions = useDiscussionAttention()
-  const [profileTick, setProfileTick] = useState(0)
-  useEffect(() => onProfileRequestsChange(() => setProfileTick((n) => n + 1)), [])
-  const profileRequests = useMemo(() => (scope.role === 'admin' ? loadProfileRequests().filter((r) => r.status === 'pending').length : 0), [scope.role, profileTick])
   return {
     '/admin/requests': data.requests.filter((r) => r.status === 'PENDING').length,
     '/admin/discussions': discussions,
-    '/admin/users': profileRequests,
   }
 }
 
@@ -198,7 +192,6 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
   const { confirm, toast } = useFeedback()
   const [open, setOpen] = useState(false)
   const [dialog, setDialog] = useState<'edit' | 'password' | null>(null)
-  const request = useMyProfileRequest()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -239,10 +232,9 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
                 setOpen(false)
                 setDialog('edit')
               }}
-              disabled={request?.status === 'pending'}
               className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100 disabled:opacity-50"
             >
-              <UserPen className="size-4" /> {request?.status === 'pending' ? 'Profile change pending' : 'Edit profile'}
+              <UserPen className="size-4" /> Edit profile
             </button>
             <button
               onClick={() => {
