@@ -1,6 +1,6 @@
 import { AlertTriangle, CalendarPlus, Check, Eye, FileQuestion, MapPin, Plus, Users, Video, X } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { localISO } from '../../lib/utils'
 import { useFeedback } from '../../components/Feedback'
@@ -170,6 +170,20 @@ export function ApproveModal({ request, onClose, onApproved }: { request: Traini
         </>
       }
     >
+      <div className="mb-4 rounded-xl bg-zinc-50 px-4 py-3 text-sm">
+        <p className="font-semibold text-zinc-900">{request.topic}</p>
+        <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-600">
+          <span>{request.preferredDate ? `${shortDate(request.preferredDate)}${request.preferredTime ? ` · ${time12(request.preferredTime)}` : ''}` : 'No preferred date'}</span>
+          <span className="inline-flex items-center gap-1">
+            {request.delivery === 'Online' ? <Video className="size-3.5" /> : <MapPin className="size-3.5" />}
+            {request.delivery === 'Online' ? 'Online' : request.location || 'In person'}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Users className="size-3.5" /> {request.participants.length} participant{request.participants.length === 1 ? '' : 's'}
+          </span>
+          <span>{request.team}</span>
+        </p>
+      </div>
       <Field label="Trainers">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {assignedTrainers.map((trainer) => (
@@ -208,10 +222,39 @@ export function ApproveModal({ request, onClose, onApproved }: { request: Traini
   )
 }
 
+/** Who asked for the training and how to reach them. */
+function RequesterCard({ person, team, submittedAt }: { person?: Person; team: string; submittedAt?: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-200/80 p-4">
+      <Avatar name={person?.name ?? '?'} />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-zinc-500">Requested by</p>
+        <p className="truncate text-sm font-semibold text-zinc-900">{person?.name ?? 'Unknown requester'}</p>
+        <p className="truncate text-xs text-zinc-500">{[person?.designation, team].filter(Boolean).join(' · ')}</p>
+      </div>
+      <div className="min-w-0 text-xs text-zinc-600 sm:text-right">
+        {person?.email && (
+          <a href={`mailto:${person.email}`} className="block truncate text-brand-600 hover:underline">
+            {person.email}
+          </a>
+        )}
+        {person?.phone && <span className="block">{person.phone}</span>}
+        {submittedAt && <span className="block text-zinc-400">Sent {dateTime(submittedAt)}</span>}
+      </div>
+    </div>
+  )
+}
+
 export function AdminRequests() {
   const { data } = useAdmin()
   const [filter, setFilter] = useState<Filter>('PENDING')
-  const [viewing, setViewing] = useState<string | null>(null)
+  // ?review=<id> (from the dashboard) opens that request's full details straight away.
+  const [params, setParams] = useSearchParams()
+  const [viewing, setViewingState] = useState<string | null>(() => params.get('review'))
+  const setViewing = (id: string | null) => {
+    setViewingState(id)
+    if (!id && params.has('review')) setParams((p) => (p.delete('review'), p), { replace: true })
+  }
   const [modal, setModal] = useState<null | { kind: 'approve' | 'reject'; id: string }>(null)
   const [scheduling, setScheduling] = useState<TrainingPreset | null>(null)
 
@@ -319,16 +362,18 @@ export function AdminRequests() {
                     </span>
                   </span>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => setViewing(r.id)}>
-                      <Eye className="size-3.5" /> Details
-                    </Button>
+                    {r.status !== 'PENDING' && (
+                      <Button size="sm" variant="ghost" onClick={() => setViewing(r.id)}>
+                        <Eye className="size-3.5" /> Details
+                      </Button>
+                    )}
                     {r.status === 'PENDING' && (
                       <>
                         <Button size="sm" variant="danger" onClick={() => setModal({ kind: 'reject', id: r.id })}>
                           <X className="size-3.5" /> Reject
                         </Button>
-                        <Button size="sm" variant="primary" onClick={() => setModal({ kind: 'approve', id: r.id })}>
-                          <Check className="size-3.5" /> Approve
+                        <Button size="sm" variant="primary" onClick={() => setViewing(r.id)}>
+                          <Eye className="size-3.5" /> Review &amp; approve
                         </Button>
                       </>
                     )}
@@ -350,8 +395,28 @@ export function AdminRequests() {
       )}
 
       {viewed && (
-        <Modal open wide onClose={() => setViewing(null)} title={viewed.topic} description={`${viewed.team} · requested by ${data.people.find((p) => p.id === viewed.requesterId)?.name ?? 'unknown'}`}>
+        <Modal
+          open
+          wide
+          onClose={() => setViewing(null)}
+          title={viewed.topic}
+          description={viewed.status === 'PENDING' ? 'Check every detail before you decide.' : viewed.team}
+          footer={
+            viewed.status === 'PENDING' ? (
+              <>
+                <Button onClick={() => setViewing(null)}>Close</Button>
+                <Button variant="danger" onClick={() => (setViewing(null), setModal({ kind: 'reject', id: viewed.id }))}>
+                  <X className="size-4" /> Reject
+                </Button>
+                <Button variant="primary" onClick={() => (setViewing(null), setModal({ kind: 'approve', id: viewed.id }))}>
+                  <Check className="size-4" /> Approve
+                </Button>
+              </>
+            ) : undefined
+          }
+        >
           <div className="space-y-6">
+            <RequesterCard person={data.people.find((p) => p.id === viewed.requesterId)} team={viewed.team} submittedAt={viewed.submittedAt} />
             <RequestTimeline request={viewed} />
             {viewed.status === 'PENDING' && <DuplicateWarning duplicates={findDuplicates(viewed, data.requests)} data={data} />}
             {viewed.joinLink && <JoinLink link={viewed.joinLink} />}

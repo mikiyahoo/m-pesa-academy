@@ -336,15 +336,16 @@ export function AdminDashboard() {
             <ul className="mt-3 divide-y divide-zinc-100">
               {pending.slice(0, 4).map((r) => (
                 <li key={r.id} className="flex items-center gap-3 py-3 first:pt-1 last:pb-0">
-                  <Link to="/admin/requests" className="min-w-0 flex-1 hover:opacity-80">
+                  <Link to={`/admin/requests?review=${r.id}`} className="min-w-0 flex-1 hover:opacity-80">
                     <span className="block truncate text-sm font-semibold text-zinc-900">{r.topic}</span>
                     <span className="block truncate text-xs text-zinc-500">
                       {r.team} · {r.participants.length} participant{r.participants.length === 1 ? '' : 's'} · {shortDate((r.submittedAt ?? r.createdAt).slice(0, 10))}
                     </span>
                   </Link>
-                  <button type="button" onClick={() => setActing({ kind: 'approve', request: r })} aria-label={`Approve ${r.topic}`} title="Approve" className="grid size-8 shrink-0 place-items-center rounded-full border border-mpesa-500/40 text-mpesa-700 transition hover:bg-mpesa-500/10">
+                  {/* Approving always goes through the full request review first. */}
+                  <Link to={`/admin/requests?review=${r.id}`} aria-label={`Review and approve ${r.topic}`} title="Review & approve" className="grid size-8 shrink-0 place-items-center rounded-full border border-mpesa-500/40 text-mpesa-700 transition hover:bg-mpesa-500/10">
                     <Check className="size-4" strokeWidth={2.5} />
-                  </button>
+                  </Link>
                   <button type="button" onClick={() => setActing({ kind: 'reject', request: r })} aria-label={`Reject ${r.topic}`} title="Reject" className="grid size-8 shrink-0 place-items-center rounded-full border border-brand-200 text-brand-700 transition hover:bg-brand-50">
                     <X className="size-4" strokeWidth={2.5} />
                   </button>
