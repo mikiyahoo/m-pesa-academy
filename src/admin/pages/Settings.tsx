@@ -373,11 +373,13 @@ function TypeModal({ type, onClose }: { type?: TrainingType; onClose: () => void
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus />
           </Field>
         </div>
-        <Field label="Category">
+        <Field label="Audience" hint="Who this kind of training is for. The topic is set by the training's category.">
           <Select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as TrainingType['category'] })}>
-            <option>Internal</option>
-            <option>Partner</option>
-            <option>Customer</option>
+            {(Object.keys(AUDIENCE_LABEL) as TrainingType['category'][]).map((a) => (
+              <option key={a} value={a}>
+                {AUDIENCE_LABEL[a]}
+              </option>
+            ))}
           </Select>
         </Field>
         <Field label="Level">
@@ -398,6 +400,8 @@ function TypeModal({ type, onClose }: { type?: TrainingType; onClose: () => void
 }
 
 const levelTone = { Beginner: 'green', Intermediate: 'amber', Advanced: 'red' } as const
+/** A training type's audience (stored as `category`): who the program is for, not its topic. */
+export const AUDIENCE_LABEL: Record<TrainingType['category'], string> = { Internal: 'Internal staff', Partner: 'Partners', Customer: 'Customers' }
 
 export function AdminTrainingTypes({ byCategory = false }: { byCategory?: boolean }) {
   const { data } = useAdmin()
@@ -413,7 +417,7 @@ export function AdminTrainingTypes({ byCategory = false }: { byCategory?: boolea
       <p className="mt-1 flex-1 text-sm text-zinc-500">{t.description || 'No description.'}</p>
       <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
         <span>
-          {t.category} · {usage(t.id)} trainings
+          For {AUDIENCE_LABEL[t.category].toLowerCase()} · {usage(t.id)} training{usage(t.id) === 1 ? '' : 's'}
         </span>
         <Button size="sm" variant="ghost" onClick={() => setEditing(t)}>
           Edit
@@ -425,8 +429,8 @@ export function AdminTrainingTypes({ byCategory = false }: { byCategory?: boolea
   return (
     <>
       <PageHeader
-        title={byCategory ? 'Training Types by Category' : 'Training Types'}
-        description="Classify trainings by audience and difficulty."
+        title={byCategory ? 'Training Types by Audience' : 'Training Types'}
+        description="The kind of program, who it is for and its level. What a training is about is set by its category."
         actions={
           <Button variant="primary" onClick={() => setEditing('new')}>
             <Plus className="size-4" /> New type
@@ -440,9 +444,9 @@ export function AdminTrainingTypes({ byCategory = false }: { byCategory?: boolea
             return (
               <section key={c}>
                 <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-900">
-                  {c} <span className="font-normal text-zinc-500">{items.length}</span>
+                  {AUDIENCE_LABEL[c]} <span className="font-normal text-zinc-500">{items.length}</span>
                 </h2>
-                {items.length ? <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{items.map(card)}</div> : <p className="text-sm text-zinc-500">No types in this category.</p>}
+                {items.length ? <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{items.map(card)}</div> : <p className="text-sm text-zinc-500">No types for this audience yet.</p>}
               </section>
             )
           })}

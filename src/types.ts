@@ -37,6 +37,8 @@ export type QuizQuestion = {
   question: string
   options: string[]
   answer: number
+  /** Show this question's options in a different order each attempt, whatever the quiz setting. */
+  shuffleOptions?: boolean
 }
 
 /** Learner quiz rules (Q07): time limit, attempt cap and option shuffling. */

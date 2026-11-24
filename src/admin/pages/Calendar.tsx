@@ -187,7 +187,8 @@ export function AdminCalendar({ embedded = false, trainings }: { embedded?: bool
         }))}
       />}
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      {/* Inside Trainings the page-level filters and List / Calendar switch replace this row. */}
+      {!embedded && <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Select aria-label="Trainer" value={trainer} onChange={(e) => setTrainer(e.target.value)} className="w-auto! py-1.5 text-xs">
             <option value="">All trainers</option>
@@ -211,6 +212,8 @@ export function AdminCalendar({ embedded = false, trainings }: { embedded?: bool
               </option>
             ))}
           </Select>
+          {/* Inside Trainings the page's List / Calendar switch already covers this, so no second view toggle there. */}
+          {!embedded && (
           <div className="flex rounded-xl border border-zinc-200 p-0.5">
             {(
               [
@@ -223,8 +226,9 @@ export function AdminCalendar({ embedded = false, trainings }: { embedded?: bool
               </button>
             ))}
           </div>
+          )}
         </div>
-      </div>
+      </div>}
 
       {view === 'month' ? (
         <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">

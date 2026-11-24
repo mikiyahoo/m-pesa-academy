@@ -389,6 +389,7 @@ export function InviteModal({ training, onClose, onInviteNew }: { training: Admi
 
 const actionTone: Record<TrainingEvent['action'], string> = {
   Created: 'bg-zinc-400',
+  Edited: 'bg-zinc-500',
   Rescheduled: 'bg-amber-500',
   Cancelled: 'bg-brand-600',
   'Trainer changed': 'bg-zinc-700',

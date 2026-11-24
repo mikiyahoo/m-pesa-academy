@@ -132,8 +132,8 @@ export function AdminCategories() {
   return (
     <>
       <PageHeader
-        title="Categories"
-        description="Classify trainings, requests and materials. Sub-categories are optional."
+        title="Training Categories"
+        description="What a training is about, such as Consumer or Enterprise. Sub-categories are optional. Who it is for is set by the training type."
         actions={
           <Button variant="primary" onClick={() => setEditing('new')}>
             <Plus className="size-4" /> New category

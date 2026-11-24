@@ -14,6 +14,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   PlayCircle,
+  Pencil,
   Plus,
   QrCode,
   RefreshCw,
@@ -32,7 +33,7 @@ import { describeRecurrence, findConflicts, trainerIdsOf } from '../scheduling'
 import { InviteTemporaryModal } from './TemporaryAccess'
 import { MaterialPreview } from '../MaterialPreview'
 import { AssessmentResults } from '../AssessmentResults'
-import { prepareTrainingCover } from '../TrainingForm'
+import { NewTrainingModal, prepareTrainingCover } from '../TrainingForm'
 import { BigQr } from '../checkin/CheckInPanel'
 import { AttendancePanel } from '../teams/AttendancePanel'
 import { CheckInPanel } from '../checkin/CheckInPanel'
@@ -42,6 +43,7 @@ import { classProgress, participantProgress, uid, useAdmin } from '../store'
 import type { AdminTraining, AssessmentKind, Material, TrainingStatus } from '../types'
 import { TrainingDiscussionsCard } from './Discussions'
 import { Avatar, Badge, Button, Card, CardTitle, Empty, Field, Modal, ProgressBar, Select, trainingStatusTone } from '../ui'
+import { useScope } from '../scope'
 import { combinedJourney, trainingJourneys } from '../journeys'
 
 const scheduledDuration = (startTime: string, endTime: string) => {
@@ -318,6 +320,7 @@ export function AdminTrainingDetail() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { data, update } = useAdmin()
+  const scope = useScope()
   const training = data.trainings.find((t) => t.id === id)
   const [openModules, setOpenModules] = useState<string[]>([])
   // Deep link from list menus: /admin/trainings/:id#attendance scrolls to check-in and attendance.
@@ -327,7 +330,7 @@ export function AdminTrainingDetail() {
     return () => window.clearTimeout(t)
   }, [id])
   const [preview, setPreview] = useState<Material | null>(null)
-  const [modal, setModal] = useState<null | 'reschedule' | 'invite' | 'invite-new' | 'cancel' | 'trainer' | 'PRE' | 'POST'>(null)
+  const [modal, setModal] = useState<null | 'edit' | 'reschedule' | 'invite' | 'invite-new' | 'cancel' | 'trainer' | 'PRE' | 'POST'>(null)
   const { toast } = useFeedback()
 
   const journey = combinedJourney(data, training)
@@ -406,6 +409,11 @@ export function AdminTrainingDetail() {
               }}
             >
               <Link2 className="size-4" /> Copy invite link
+            </Button>
+          )}
+          {!scope.trainerId && (
+            <Button onClick={() => setModal('edit')} disabled={!editable}>
+              <Pencil className="size-4" /> Edit
             </Button>
           )}
           <Button onClick={() => setModal('reschedule')} disabled={!editable}>
@@ -665,6 +673,7 @@ export function AdminTrainingDetail() {
       </div>
 
       <MaterialPreview material={preview} onClose={() => setPreview(null)} />
+      {modal === 'edit' && <NewTrainingModal open editing={training} onClose={() => setModal(null)} />}
       {modal === 'reschedule' && <RescheduleModal training={training} onClose={() => setModal(null)} />}
       {modal === 'cancel' && <CancelModal training={training} onClose={() => setModal(null)} />}
       {modal === 'trainer' && <ChangeTrainerModal training={training} onClose={() => setModal(null)} />}

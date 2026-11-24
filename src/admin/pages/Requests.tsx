@@ -87,19 +87,11 @@ export function ApproveModal({ request, onClose, onApproved }: { request: Traini
   const { confirm } = useFeedback()
   const trainers = data.people.filter((p) => p.role === 'Trainer' && p.status === 'Active')
   const [trainerIds, setTrainerIds] = useState(() => {
+    // Requesters can't pick trainers, so nobody is pre-assigned: the admin chooses.
     const existing = (request.trainerIds?.length ? request.trainerIds : [request.trainerId ?? '']).filter((id) => trainers.some((trainer) => trainer.id === id))
-    const selected = [...new Set(existing)]
-    if (!selected.length) {
-      const defaultTrainer = trainers.find((trainer) => trainer.canApprove) ?? trainers[0]
-      if (defaultTrainer) selected.push(defaultTrainer.id)
-    }
-    if (selected.length < 2) {
-      const secondTrainer = trainers.find((trainer) => !selected.includes(trainer.id))
-      if (secondTrainer) selected.push(secondTrainer.id)
-    }
-    return selected
+    return [...new Set(existing)]
   })
-  const [addingTrainer, setAddingTrainer] = useState(false)
+  const [addingTrainer, setAddingTrainer] = useState(() => trainerIds.length === 0)
   const [candidateTrainerId, setCandidateTrainerId] = useState('')
   const assignedTrainers = trainerIds.map((id) => trainers.find((trainer) => trainer.id === id)).filter((trainer): trainer is (typeof trainers)[number] => !!trainer)
   const availableTrainers = trainers.filter((trainer) => !trainerIds.includes(trainer.id))
@@ -201,7 +193,7 @@ export function ApproveModal({ request, onClose, onApproved }: { request: Traini
           {addingTrainer ? (
             <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
               <Select className="min-w-0 flex-1" value={candidateTrainerId} onChange={(event) => setCandidateTrainerId(event.target.value)} autoFocus>
-                <option value="">Choose another trainer…</option>
+                <option value="">{assignedTrainers.length ? 'Choose another trainer…' : 'Choose a trainer…'}</option>
                 {availableTrainers.map((item) => (
                   <option key={item.id} value={item.id}>{item.name} — {item.department}</option>
                 ))}
@@ -209,7 +201,7 @@ export function ApproveModal({ request, onClose, onApproved }: { request: Traini
               <Button size="sm" variant="primary" disabled={!candidateTrainerId} onClick={() => void addTrainer()}>
                 <Plus className="size-3.5" /> Add
               </Button>
-              <Button size="sm" onClick={() => setAddingTrainer(false)}>Cancel</Button>
+              {assignedTrainers.length > 0 && <Button size="sm" onClick={() => setAddingTrainer(false)}>Cancel</Button>}
             </div>
           ) : (
             <Button size="sm" disabled={!availableTrainers.length} onClick={() => { setCandidateTrainerId(availableTrainers[0]?.id ?? ''); setAddingTrainer(true) }}>

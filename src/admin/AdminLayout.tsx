@@ -26,7 +26,7 @@ const nav: NavItem[] = [
       { label: 'Journeys', to: '/admin/journeys' },
       { label: 'Materials', to: '/admin/materials' },
       { label: 'Assignments', to: '/admin/assignments' },
-      { label: 'Categories', to: '/admin/categories' },
+      { label: 'Training Categories', to: '/admin/categories' },
     ],
   },
   {
@@ -60,11 +60,11 @@ const nav: NavItem[] = [
   },
   { label: 'Groups', icon: UserRoundPlus, to: '/admin/groups' },
   {
-    label: 'Training Type',
+    label: 'Training Types',
     icon: Settings2,
     children: [
       { label: 'All Types', to: '/admin/training-types' },
-      { label: 'By Category', to: '/admin/training-types/categories' },
+      { label: 'By Audience', to: '/admin/training-types/audience' },
     ],
   },
   { label: 'Venues', icon: MapPin, to: '/admin/venues' },
@@ -108,11 +108,11 @@ const trainerNav: NavItem[] = [
   { label: 'Users', icon: Users, to: '/admin/users' },
   { label: 'Groups', icon: UserRoundPlus, to: '/admin/groups' },
   {
-    label: 'Training Type',
+    label: 'Training Types',
     icon: Settings2,
     children: [
       { label: 'All Types', to: '/admin/training-types' },
-      { label: 'By Category', to: '/admin/training-types/categories' },
+      { label: 'By Audience', to: '/admin/training-types/audience' },
     ],
   },
   { label: 'Reports', icon: BarChart3, to: '/admin/reports' },
@@ -350,8 +350,9 @@ const crumbLabels: Record<string, string> = {
   users: 'Users',
   'temporary-access': 'Temporary access',
   groups: 'Groups',
-  'training-types': 'Training Type',
-  categories: 'By Category',
+  'training-types': 'Training Types',
+  audience: 'By Audience',
+  categories: 'Training Categories',
   'audit-logs': 'Audit Logs',
   certificates: 'Certificates',
   reports: 'Reports',
@@ -365,8 +366,7 @@ function Breadcrumbs() {
   parts.forEach((p, i) => {
     const to = `/admin/${parts.slice(0, i + 1).join('/')}`
     const named = data.trainings.find((t) => t.id === p)?.name ?? data.journeys.find((j) => j.id === p)?.name
-    // /admin/categories is its own page; /admin/training-types/categories is "By Category".
-    const label = p === 'categories' && i === 0 ? 'Categories' : crumbLabels[p]
+    const label = crumbLabels[p]
     crumbs.push({ label: label ?? named ?? p, to })
   })
 

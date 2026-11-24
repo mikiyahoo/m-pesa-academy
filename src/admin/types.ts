@@ -200,7 +200,7 @@ export type Recurrence = {
 export type TrainingEvent = {
   at: string
   by: string
-  action: 'Created' | 'Rescheduled' | 'Cancelled' | 'Trainer changed' | 'Invited'
+  action: 'Created' | 'Edited' | 'Rescheduled' | 'Cancelled' | 'Trainer changed' | 'Invited'
   reason?: string
   detail?: string
 }
@@ -339,6 +339,11 @@ export type AssessmentQuestion = {
   answer?: number | string
   /** Share of the total score (Q04). */
   weight: number
+  /** Training category (and optional sub-category) the question belongs to, by name. */
+  category?: string
+  subcategory?: string
+  /** Single choice: show the options in a different order each time. */
+  shuffleOptions?: boolean
 }
 
 export type Assessment = {
@@ -374,6 +379,8 @@ export type QuestionBankItem = {
   options?: string[]
   answer?: number | string
   weight: number
+  subcategory?: string
+  shuffleOptions?: boolean
 }
 
 /** One participant's attempt at an assessment (Q03, Q08). */

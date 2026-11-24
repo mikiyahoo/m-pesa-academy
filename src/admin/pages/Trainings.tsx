@@ -1,4 +1,4 @@
-import { AlertTriangle, BadgeCheck, CalendarDays, Eye, GraduationCap, MapPin, Plus, QrCode, Repeat, Users } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, CalendarDays, Eye, GraduationCap, MapPin, Pencil, Plus, QrCode, Repeat, Users } from 'lucide-react'
 import { RowMenu, type RowMenuItem } from '../../components/RowMenu'
 import { ViewToggle } from '../../pages/Learning'
 import { useEffect, useMemo, useState } from 'react'
@@ -10,7 +10,7 @@ import { conflictIndex, trainerIdsOf } from '../scheduling'
 import { useScope } from '../scope'
 import { useAdmin } from '../store'
 import type { AdminTraining, TrainingStatus } from '../types'
-import { Avatar, Badge, Button, Empty, PageHeader, SearchInput, Table, TabBar, Tabs, trainingStatusTone } from '../ui'
+import { Avatar, Badge, Button, Empty, PageHeader, SearchInput, Select, Table, TabBar, Tabs, trainingStatusTone } from '../ui'
 import { combinedJourney } from '../journeys'
 
 type Filter = 'ALL' | TrainingStatus
@@ -24,7 +24,12 @@ export function AdminTrainings() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('ALL')
+  // Shared by the List and Calendar views.
+  const [trainer, setTrainer] = useState('')
+  const [team, setTeam] = useState('')
+  const [type, setType] = useState('')
   const [creating, setCreating] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [view, setView] = useState<TrainingsAdminView>(() => searchParams.get('view') === 'calendar' ? 'calendar' : 'list')
   useEffect(() => {
     setView(searchParams.get('view') === 'calendar' ? 'calendar' : 'list')
@@ -44,8 +49,17 @@ export function AdminTrainings() {
     return c
   }, [data.trainings])
 
+  const teams = useMemo(() => [...new Set([...data.groups.map((g) => g.name), ...data.requests.map((r) => r.team)])].sort(), [data.groups, data.requests])
+  const inTeam = (t: AdminTraining) => {
+    if (!team) return true
+    const group = data.groups.find((g) => g.name === team)
+    const fromRequest = data.requests.some((r) => r.trainingId === t.id && r.team === team)
+    return fromRequest || (!!group && t.participantIds.some((pid) => data.people.find((p) => p.id === pid)?.groupIds.includes(group.id)))
+  }
+
   const rows = data.trainings
     .filter((t) => filter === 'ALL' || t.status === filter)
+    .filter((t) => (!trainer || trainerIdsOf(t).includes(trainer)) && (!type || t.typeId === type) && inTeam(t))
     .filter((t) => !q || `${t.name} ${t.location}`.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => b.date.localeCompare(a.date))
 
@@ -74,12 +88,36 @@ export function AdminTrainings() {
           <ViewToggle view={view} onChange={changeView} calendar grid={false} remember={false} />
         </div>
       </TabBar>
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+        <Select aria-label="Trainer" value={trainer} onChange={(e) => setTrainer(e.target.value)} className="w-auto! py-1.5 text-xs">
+          <option value="">All trainers</option>
+          {data.people.filter((p) => p.role === 'Trainer').map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </Select>
+        <Select aria-label="Team" value={team} onChange={(e) => setTeam(e.target.value)} className="w-auto! py-1.5 text-xs">
+          <option value="">All teams</option>
+          {teams.map((t) => (
+            <option key={t}>{t}</option>
+          ))}
+        </Select>
+        <Select aria-label="Training type" value={type} onChange={(e) => setType(e.target.value)} className="w-auto! py-1.5 text-xs">
+          <option value="">All types</option>
+          {data.trainingTypes.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </Select>
+      </div>
       {view === 'calendar' ? <AdminCalendar embedded trainings={rows} /> : rows.length ? (
         <>
           {/* Keep the list compact on desktop and readable on phones. */}
           <div className="grid grid-cols-1 gap-4 md:hidden">
             {rows.map((t) => (
-              <TrainingTile key={t.id} t={t} conflict={conflicts.has(t.id)} />
+              <TrainingTile key={t.id} t={t} conflict={conflicts.has(t.id)} onEdit={() => setEditingId(t.id)} />
             ))}
           </div>
           {/* Data table for the list view on desktop. */}
@@ -130,7 +168,7 @@ export function AdminTrainings() {
                     <Badge tone={trainingStatusTone[t.status]}>{statusLabel(t.status)}</Badge>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <RowMenu label={`Actions for ${t.name}`} items={trainingMenu(t.id, !!scope.trainerId)} />
+                    <RowMenu label={`Actions for ${t.name}`} items={trainingMenu(t, !!scope.trainerId, () => setEditingId(t.id))} />
                   </td>
                 </tr>
               ))}
@@ -143,21 +181,23 @@ export function AdminTrainings() {
         </div>
       )}
       {creating && <NewTrainingModal open onClose={() => setCreating(false)} />}
+      {editingId && data.trainings.find((t) => t.id === editingId) && <NewTrainingModal open editing={data.trainings.find((t) => t.id === editingId)} onClose={() => setEditingId(null)} />}
     </>
   )
 }
 
 const statusLabel = (s: TrainingStatus) => s[0] + s.slice(1).toLowerCase()
 
-const trainingMenu = (id: string, trainer: boolean): RowMenuItem[] => [
-  { label: 'Open training', icon: Eye, to: `/admin/trainings/${id}`, primary: true },
-  { label: 'Attendance & check-in', icon: QrCode, to: `/admin/trainings/${id}#attendance` },
+const trainingMenu = (t: AdminTraining, trainer: boolean, onEdit: () => void): RowMenuItem[] => [
+  { label: 'Open training', icon: Eye, to: `/admin/trainings/${t.id}`, primary: true },
+  { label: 'Attendance & check-in', icon: QrCode, to: `/admin/trainings/${t.id}#attendance` },
   { label: 'Certificates', icon: BadgeCheck, to: '/admin/certificates' },
-      ...(trainer ? [] : [{ label: 'Calendar', icon: CalendarDays, to: '/admin/trainings?view=calendar' }]),
+  // Admins change a training's journey, materials, tests and details here (not for finished ones).
+  ...(trainer || t.status === 'COMPLETED' || t.status === 'CANCELLED' ? [] : [{ label: 'Edit', icon: Pencil, onClick: onEdit }]),
 ]
 
 /** Training as a learner-style card: banner with status and trainer, title, journey, when/where, participants. */
-function TrainingTile({ t, conflict }: { t: AdminTraining; conflict: boolean }) {
+function TrainingTile({ t, conflict, onEdit }: { t: AdminTraining; conflict: boolean; onEdit: () => void }) {
   const { data } = useAdmin()
   const trainers = trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)).filter((person): person is NonNullable<typeof person> => !!person)
   const journey = combinedJourney(data, t)
@@ -225,7 +265,7 @@ function TrainingTile({ t, conflict }: { t: AdminTraining; conflict: boolean }) 
             <Users className="size-3.5" /> {t.participantIds.length} enrolled
           </span>
           <span className="relative z-10">
-            <RowMenu label={`Actions for ${t.name}`} items={trainingMenu(t.id, false)} />
+            <RowMenu label={`Actions for ${t.name}`} items={trainingMenu(t, false, onEdit)} />
           </span>
         </div>
       </div>

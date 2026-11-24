@@ -1,5 +1,5 @@
-import { Award, BellRing, BookOpen, Briefcase, Check, Flame, Lock, LogOut, Mail, Phone, Sparkles, Star, Trophy, Users } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Award, BellRing, BookOpen, Briefcase, Camera, Check, Flame, Lock, LogOut, Mail, Phone, Sparkles, Star, Trophy, Users } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { StatStrip } from '../components/CalendarParts'
 import { SegmentTabs } from '../components/SegmentTabs'
@@ -11,6 +11,8 @@ import { loadNotificationPrefs, saveNotificationPrefs, type NotificationPrefs } 
 import { computeMetrics } from '../lib/stats'
 import { certificateChecks, cn } from '../lib/utils'
 import { useAuth } from '../store/Auth'
+import { removePhoto, savePhoto, usePhoto } from '../lib/profilePhoto'
+import { useFeedback } from '../components/Feedback'
 import { useStore } from '../store/AppStore'
 import { loadAdminData } from '../admin/storage'
 import { deriveGamification } from '../admin/gamification'
@@ -25,6 +27,20 @@ export function Profile() {
   const { user, logout } = useAuth()
   const { trainings, progress } = useStore()
   const [prefs, setPrefs] = useState<NotificationPrefs>(loadNotificationPrefs)
+  const { toast } = useFeedback()
+  const photoInput = useRef<HTMLInputElement>(null)
+  const hasPhoto = !!usePhoto(user.name)
+  const choosePhoto = async (file?: File) => {
+    if (!file) return
+    try {
+      await savePhoto(user.name, file)
+      toast('Profile photo updated')
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'The photo could not be saved.', { tone: 'error' })
+    } finally {
+      if (photoInput.current) photoInput.current.value = ''
+    }
+  }
   // Account opens first; ?tab=journeys opens Learning journeys.
   const [params, setParams] = useSearchParams()
   const tabParam = params.get('tab')
@@ -70,7 +86,18 @@ export function Profile() {
       <h1 className="text-2xl leading-tight font-bold tracking-tight text-zinc-900">Profile</h1>
 
       <section className="flex flex-wrap items-center gap-5 rounded-2xl border border-zinc-200/80 bg-white p-5 sm:p-6">
-        <UserAvatar name={user.name} className="size-20 ring-4 ring-brand-50" />
+        <div className="flex flex-col items-center gap-2">
+          <UserAvatar name={user.name} className="size-20 ring-4 ring-brand-50" />
+          <input ref={photoInput} type="file" accept="image/*" hidden onChange={(e) => void choosePhoto(e.target.files?.[0])} />
+          <button type="button" onClick={() => photoInput.current?.click()} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50">
+            <Camera className="size-3.5" /> {hasPhoto ? 'Change photo' : 'Add photo'}
+          </button>
+          {hasPhoto && (
+            <button type="button" onClick={() => (removePhoto(user.name), toast('Profile photo removed'))} className="-mt-1 text-[11px] font-medium text-zinc-500 hover:text-zinc-800">
+              Remove
+            </button>
+          )}
+        </div>
         <div className="min-w-0 flex-1">
           <p className="text-xl font-bold text-zinc-900">{user.name}</p>
           <p className="mt-0.5 text-sm text-zinc-500">{user.role}</p>

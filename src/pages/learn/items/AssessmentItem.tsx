@@ -49,7 +49,7 @@ export function AssessmentItem({ training, progress: p, onSubmit, onFocusChange,
     void run
     return training.quiz.map((q) => {
       const idx = q.options.map((_, i) => i)
-      if (!settings.shuffle) return idx
+      if (!settings.shuffle && !q.shuffleOptions) return idx
       for (let i = idx.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1))
         ;[idx[i], idx[j]] = [idx[j], idx[i]]

@@ -12,7 +12,7 @@ const pages: [string, string][] = [
   ['Trainings', '/admin/trainings'],
   ['Training Requests', '/admin/requests'],
   ['Calendar', '/admin/trainings?view=calendar'],
-  ['Categories', '/admin/categories'],
+  ['Training Categories', '/admin/categories'],
   ['Journeys', '/admin/journeys'],
   ['Materials', '/admin/materials'],
   ['Feedback Forms', '/admin/feedback/forms'],

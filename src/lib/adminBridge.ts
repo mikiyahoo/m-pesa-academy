@@ -81,7 +81,7 @@ export function adminToLearnerTraining(data: AdminData, t: AdminTraining, person
     bannerTitle: t.name,
     description: t.description || journey?.description || `${t.name} — scheduled by the training team.`,
     modules: modules.length ? modules : [toModule(`${t.id}-intro`, 'Session overview', undefined, 0)],
-    quiz: mcq.length ? mcq.map((q) => ({ id: q.id, question: q.question, options: q.options!, answer: q.answer as number })) : fallbackQuiz(t.name),
+    quiz: mcq.length ? mcq.map((q) => ({ id: q.id, question: q.question, options: q.options!, answer: q.answer as number, shuffleOptions: q.shuffleOptions })) : fallbackQuiz(t.name),
     quizSettings: post ? { timeLimitMinutes: post.timeLimitMinutes, maxAttempts: post.maxAttempts, shuffle: post.shuffle } : undefined,
     isPublic: t.isPublic,
     attemptsResetAt: personId ? t.attemptResets?.filter((r) => r.personId === personId && r.assessmentId === t.postAssessmentId).at(-1)?.at : undefined,

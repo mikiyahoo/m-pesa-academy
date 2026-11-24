@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Copy, FileQuestion, FileText, FileUp, Library, ListChecks, MessageSquare, Plus, Settings2, Sparkles, Star, Trash2, Wand2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Copy, FileQuestion, FileSpreadsheet, FileText, FileUp, Library, ListChecks, MessageSquare, Pencil, Plus, Settings2, Sparkles, Star, Trash2, Wand2 } from 'lucide-react'
 import { Wizard, WizardCard } from '../Wizard'
 import { useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
@@ -6,9 +6,11 @@ import { useFeedback } from '../../components/Feedback'
 import { cn } from '../../lib/utils'
 import { uid, useAdmin } from '../store'
 import { feedbackAverage, responseAverage } from '../insights'
-import type { Assessment, AssessmentKind, AssessmentQuestion, AssessmentSubmission, FeedbackForm, FeedbackQuestionType, QuestionBankItem, QuestionType } from '../types'
+import type { Assessment, AssessmentKind, AssessmentQuestion, AssessmentSubmission, FeedbackForm, FeedbackQuestionType, QuestionBankItem } from '../types'
 import { Avatar, Badge, Button, Card, CardTitle, downloadCsv, Empty, Field, Input, Modal, PageHeader, Select, StatCard, Table, TabBar, Tabs, Textarea } from '../ui'
 import { ImportQuestionsModal } from '../ImportQuestionsModal'
+import { BulkQuestionsModal } from '../BulkQuestionsModal'
+import { QUESTION_TYPE_OPTIONS, QuestionModal } from '../QuestionModal'
 import { ImportFeedbackModal } from '../ImportFeedbackModal'
 import type { ParsedFeedbackQuestion } from '../ImportFeedbackModal'
 import { autoGradeSubmission, scoreDescriptiveAnswer } from '../../lib/aiGrading'
@@ -531,11 +533,10 @@ export function AdminFeedbackResponses() {
 
 /* --------------------------------- Assessments -------------------------------- */
 
-const QUESTION_TYPES: { value: QuestionType; label: string }[] = [
-  { value: 'mcq', label: 'Multiple choice' },
-  { value: 'descriptive', label: 'Descriptive' },
-  { value: 'upload', label: 'File upload' },
-]
+const QUESTION_TYPES = QUESTION_TYPE_OPTIONS
+
+/** "Category › Sub-category" for a question, or nothing. */
+const categoryLabel = (q: { category?: string; subcategory?: string }) => (q.category ? `${q.category}${q.subcategory ? ` › ${q.subcategory}` : ''}` : '')
 
 function BankPicker({ onAdd, onClose }: { onAdd: (q: AssessmentQuestion) => void; onClose: () => void }) {
   const { data } = useAdmin()
@@ -557,7 +558,7 @@ function BankPicker({ onAdd, onClose }: { onAdd: (q: AssessmentQuestion) => void
             <div className="min-w-0 flex-1">
               <p className="text-sm text-zinc-900">{q.question}</p>
               <p className="mt-0.5 text-xs text-zinc-500">
-                <Badge tone="blue">{q.category}</Badge> {QUESTION_TYPES.find((t) => t.value === q.type)?.label} · weight {q.weight}
+                <Badge tone="blue">{categoryLabel(q)}</Badge> {QUESTION_TYPES.find((t) => t.value === q.type)?.label} · weight {q.weight}
               </p>
             </div>
             <Button size="sm" variant="ghost" onClick={() => onAdd({ ...q, id: uid('q') })}>
@@ -586,10 +587,19 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
   const [shuffle, setShuffle] = useState(assessment?.shuffle ?? false)
   const [grading, setGrading] = useState<'score' | 'passfail'>(assessment?.grading ?? 'score')
   const [questions, setQuestions] = useState<AssessmentQuestion[]>(
-    assessment?.questions ?? [{ id: uid('q'), type: 'mcq', question: '', options: ['', '', ''], answer: 0, weight: 1 }],
+    assessment?.questions ?? [],
   )
   const [bankOpen, setBankOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [editingQuestion, setEditingQuestion] = useState<AssessmentQuestion | 'new' | null>(null)
+  const saveQuestion = (q: AssessmentQuestion) => setQuestions((qs) => (qs.some((x) => x.id === q.id) ? qs.map((x) => (x.id === q.id ? q : x)) : [...qs, q]))
+  const moveQuestion = (i: number, by: -1 | 1) =>
+    setQuestions((qs) => {
+      const next = [...qs]
+      ;[next[i], next[i + by]] = [next[i + by], next[i]]
+      return next
+    })
 
   const handleImport = (importedQuestions: AssessmentQuestion[], mode: 'append' | 'replace') => {
     if (mode === 'replace') {
@@ -610,7 +620,6 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
     title.trim() &&
     questions.length > 0 &&
     questions.every((q) => q.question.trim() && q.weight > 0 && (q.type !== 'mcq' || (q.options ?? []).filter((o) => o.trim()).length >= 2) && (q.type !== 'mcq' || q.answer !== undefined))
-  const setQ = (i: number, patch: Partial<AssessmentQuestion>) => setQuestions(questions.map((q, j) => (j === i ? { ...q, ...patch } : q)))
 
   const save = () => {
     const next: Assessment = {
@@ -732,74 +741,69 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
           title={`Questions (${questions.length})`}
           action={
             <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setBulkOpen(true)}>
+                <FileSpreadsheet className="size-3.5" /> Bulk upload
+              </Button>
               <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
                 <FileUp className="size-3.5" /> Import from doc
               </Button>
               <Button size="sm" onClick={() => setBankOpen(true)}>
                 <Library className="size-3.5" /> Add from bank
               </Button>
+              <Button size="sm" variant="primary" onClick={() => setEditingQuestion('new')}>
+                <Plus className="size-3.5" /> Add question
+              </Button>
             </div>
           }
         >
-      <div className="space-y-4">
-        {questions.map((q, i) => (
-          <div key={q.id} className="rounded-xl border border-zinc-200 p-4">
-            <div className="flex gap-2">
-              <Input value={q.question} onChange={(e) => setQ(i, { question: e.target.value })} placeholder={`Question ${i + 1}`} />
-              <Select value={q.type} onChange={(e) => setQ(i, { type: e.target.value as QuestionType })} className="w-auto">
-                {QUESTION_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </Select>
-              <Select value={q.weight} onChange={(e) => setQ(i, { weight: Number(e.target.value) })} className="w-24" title="Weight">
-                {[1, 2, 3, 4, 5].map((w) => (
-                  <option key={w} value={w}>
-                    ×{w}
-                  </option>
-                ))}
-              </Select>
-              <Button variant="ghost" disabled={questions.length === 1} onClick={() => setQuestions(questions.filter((_, j) => j !== i))} aria-label="Remove question">
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
-            {q.type === 'mcq' && (
-              <div className="mt-3 space-y-2">
-                {(q.options ?? []).map((o, oi) => (
-                  <label key={oi} className="flex items-center gap-2">
-                    <input type="radio" name={`ans-${q.id}`} checked={q.answer === oi} onChange={() => setQ(i, { answer: oi })} className="accent-mpesa-600" title="Mark as correct answer" />
-                    <Input value={o} onChange={(e) => setQ(i, { options: (q.options ?? []).map((x, k) => (k === oi ? e.target.value : x)) })} placeholder={`Option ${oi + 1}`} className="py-1.5" />
-          <Button size="sm" variant="ghost" disabled={(q.options ?? []).length <= 2} onClick={() => setQ(i, { options: (q.options ?? []).filter((_, k) => k !== oi), answer: q.answer === oi ? undefined : q.answer })} aria-label="Remove option">
-            <Trash2 className="size-3.5" />
-          </Button>
-                  </label>
-                ))}
-                <Button size="sm" variant="ghost" onClick={() => setQ(i, { options: [...(q.options ?? []), `Option ${(q.options ?? []).length + 1}`] })}>
-                  <Plus className="size-3.5" /> Add option
+          {questions.length ? (
+            <ol className="space-y-2.5">
+              {questions.map((q, i) => (
+                <li key={q.id} className="flex items-start gap-3 rounded-xl border border-zinc-200 p-3.5">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-zinc-100 text-xs font-bold text-zinc-700">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-zinc-900">{q.question}</p>
+                    <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-zinc-600">
+                      <Badge>{QUESTION_TYPES.find((t) => t.value === q.type)?.label}</Badge>
+                      <Badge tone="amber">Weight {q.weight}</Badge>
+                      {categoryLabel(q) && <Badge tone="blue">{categoryLabel(q)}</Badge>}
+                      {q.type === 'mcq' && (
+                        <span>
+                          {(q.options ?? []).length} choices · correct: {typeof q.answer === 'number' ? (q.options?.[q.answer] ?? '—') : '—'}
+                          {q.shuffleOptions ? ' · shuffled' : ''}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button size="sm" variant="ghost" disabled={i === 0} onClick={() => moveQuestion(i, -1)} aria-label="Move up">
+                      <ChevronLeft className="size-3.5 rotate-90" />
+                    </Button>
+                    <Button size="sm" variant="ghost" disabled={i === questions.length - 1} onClick={() => moveQuestion(i, 1)} aria-label="Move down">
+                      <ChevronRight className="size-3.5 rotate-90" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingQuestion(q)} aria-label="Edit question">
+                      <Pencil className="size-3.5" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setQuestions(questions.filter((_, j) => j !== i))} aria-label="Remove question">
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <Empty
+              icon={FileQuestion}
+              title="No questions yet"
+              text="Add them one by one, upload a spreadsheet, import a document or pick from the question bank."
+              action={
+                <Button variant="primary" onClick={() => setEditingQuestion('new')}>
+                  <Plus className="size-4" /> Add question
                 </Button>
-                <p className="text-xs text-zinc-500">Select the radio button next to the correct answer.</p>
-              </div>
-            )}
-            {q.type === 'descriptive' && (
-              <div className="mt-3">
-                <Field label="Model answer" hint="Shown to the grader">
-                  <Textarea value={typeof q.answer === 'string' ? q.answer : ''} onChange={(e) => setQ(i, { answer: e.target.value })} placeholder="What a good answer includes…" />
-                </Field>
-              </div>
-            )}
-            {q.type === 'upload' && <p className="mt-3 text-xs text-zinc-500">Learners upload a file — graded manually against the model answer.</p>}
-          </div>
-        ))}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={() => setQuestions([...questions, { id: uid('q'), type: 'mcq', question: '', options: ['', '', ''], answer: 0, weight: 1 }])}>
-            <Plus className="size-3.5" /> Add question
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setImportOpen(true)}>
-            <FileUp className="size-3.5" /> Import from doc
-          </Button>
-        </div>
-      </div>
+              }
+            />
+          )}
         </WizardCard>
       )}
 
@@ -832,6 +836,16 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
           )}
         </WizardCard>
       )}
+      {editingQuestion && <QuestionModal question={editingQuestion === 'new' ? undefined : editingQuestion} onSave={saveQuestion} onClose={() => setEditingQuestion(null)} />}
+      {bulkOpen && (
+        <BulkQuestionsModal
+          onImport={(qs) => {
+            setQuestions((cur) => [...cur, ...qs])
+            toast(`Added ${qs.length} question${qs.length === 1 ? '' : 's'}`)
+          }}
+          onClose={() => setBulkOpen(false)}
+        />
+      )}
       {bankOpen && (
         <BankPicker
           onAdd={(q) => {
@@ -853,70 +867,6 @@ function AssessmentModal({ kind, assessment, onClose }: { kind: AssessmentKind; 
   )
 }
 
-function BankQuestionModal({ onClose }: { onClose: () => void }) {
-  const { update } = useAdmin()
-  const { toast } = useFeedback()
-  const [category, setCategory] = useState('Consumer')
-  const [type, setType] = useState<QuestionType>('mcq')
-  const [question, setQuestion] = useState('')
-  const [options, setOptions] = useState(['', '', ''])
-  const [answer, setAnswer] = useState(0)
-  const [model, setModel] = useState('')
-  const valid = question.trim() && (type !== 'mcq' || options.filter((o) => o.trim()).length >= 2)
-
-  const save = () => {
-    update(
-      (d) => ({
-        ...d,
-        questionBank: [...d.questionBank, { id: uid('qb'), category, type, question: question.trim(), options: type === 'mcq' ? options : undefined, answer: type === 'mcq' ? answer : model.trim() || undefined, weight: 1 }],
-      }),
-      { action: 'Added question to bank', target: question.trim() },
-    )
-    toast('Question added to bank')
-    onClose()
-  }
-
-  return (
-    <Modal open onClose={onClose} title="New bank question" footer={<>
-      <Button onClick={onClose}>Cancel</Button>
-      <Button variant="primary" disabled={!valid} onClick={save}>Add to bank</Button>
-    </>}>
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Category">
-            <Input value={category} onChange={(e) => setCategory(e.target.value)} />
-          </Field>
-          <Field label="Type">
-            <Select value={type} onChange={(e) => setType(e.target.value as QuestionType)}>
-              {QUESTION_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-        <Field label="Question">
-          <Input value={question} onChange={(e) => setQuestion(e.target.value)} autoFocus />
-        </Field>
-        {type === 'mcq' && (
-          <div className="space-y-2">
-            {options.map((o, i) => (
-              <label key={i} className="flex items-center gap-2">
-                <input type="radio" name="bank-ans" checked={answer === i} onChange={() => setAnswer(i)} className="accent-mpesa-600" />
-                <Input value={o} onChange={(e) => setOptions(options.map((x, j) => (j === i ? e.target.value : x)))} placeholder={`Option ${i + 1}`} />
-              </label>
-            ))}
-          </div>
-        )}
-        {type === 'descriptive' && (
-          <Field label="Model answer">
-            <Textarea value={model} onChange={(e) => setModel(e.target.value)} />
-          </Field>
-        )}
-      </div>
-    </Modal>
-  )
-}
-
 export function AdminAssessments() {
   const { kind: kindParam = 'pre' } = useParams()
   const kind: AssessmentKind = kindParam === 'post' ? 'POST' : 'PRE'
@@ -927,7 +877,9 @@ export function AdminAssessments() {
   const [editing, setEditing] = useState<Assessment | 'new' | null>(() => (new URLSearchParams(window.location.search).get('new') ? 'new' : null))
   const [viewing, setViewing] = useState<Assessment | null>(null)
   const [bankOpen, setBankOpen] = useState(false)
+  const [bankEditing, setBankEditing] = useState<QuestionBankItem | null>(null)
   const [bankImportOpen, setBankImportOpen] = useState(false)
+  const [bankBulkOpen, setBankBulkOpen] = useState(false)
   const list = data.assessments.filter((a) => a.kind === kind)
   const label = kind === 'PRE' ? 'Pre-Assessments' : 'Post-Assessments'
 
@@ -949,6 +901,30 @@ export function AdminAssessments() {
       { action: `Imported ${items.length} questions to bank`, target: `${items.length} questions` },
     )
     toast(`Imported ${items.length} questions to bank`)
+  }
+
+  const toBankItem = (q: AssessmentQuestion, id?: string): QuestionBankItem => ({
+    id: id ?? uid('qb'),
+    category: q.category ?? 'General',
+    subcategory: q.subcategory,
+    type: q.type,
+    question: q.question,
+    options: q.options,
+    answer: q.answer,
+    weight: q.weight ?? 1,
+    shuffleOptions: q.shuffleOptions,
+  })
+  const saveBankQuestion = (q: AssessmentQuestion) => {
+    const editingId = bankEditing?.id
+    update(
+      (d) => ({ ...d, questionBank: editingId ? d.questionBank.map((x) => (x.id === editingId ? toBankItem(q, editingId) : x)) : [...d.questionBank, toBankItem(q)] }),
+      { action: editingId ? 'Updated bank question' : 'Added question to bank', target: q.question },
+    )
+    toast(editingId ? 'Bank question updated' : 'Question added to bank')
+  }
+  const handleBankBulk = (qs: AssessmentQuestion[]) => {
+    update((d) => ({ ...d, questionBank: [...d.questionBank, ...qs.map((q) => toBankItem(q))] }), { action: `Uploaded ${qs.length} questions to bank`, target: `${qs.length} questions` })
+    toast(`Added ${qs.length} question${qs.length === 1 ? '' : 's'} to the bank`)
   }
 
   const clone = (a: Assessment) => {
@@ -980,6 +956,9 @@ export function AdminAssessments() {
         <Tabs value={tab} onChange={setTab} items={[{ value: 'list', label: 'Assessments', count: list.length }, { value: 'bank', label: 'Question bank', count: data.questionBank.length }]} />
         {tab === 'bank' ? (
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setBankBulkOpen(true)}>
+              <FileSpreadsheet className="size-4" /> Bulk upload
+            </Button>
             <Button variant="outline" onClick={() => setBankImportOpen(true)}>
               <FileUp className="size-4" /> Import from doc
             </Button>
@@ -993,11 +972,12 @@ export function AdminAssessments() {
       </TabBar>
 
       {tab === 'bank' ? (
-        <Table head={['Category', 'Type', 'Question', 'Correct answer / model', '']} minWidth={860}>
+        <Table head={['Category', 'Type', 'Weight', 'Question', 'Correct answer / model', '']} minWidth={900}>
           {data.questionBank.map((q) => (
             <tr key={q.id} className="hover:bg-zinc-50">
-              <td className="px-4 py-3"><Badge tone="blue">{q.category}</Badge></td>
+              <td className="px-4 py-3"><Badge tone="blue">{categoryLabel(q) || 'General'}</Badge></td>
               <td className="px-4 py-3 text-zinc-600">{QUESTION_TYPES.find((t) => t.value === q.type)?.label}</td>
+              <td className="px-4 py-3 text-zinc-600 tabular-nums">{q.weight}</td>
               <td className="px-4 py-3 max-w-md"><span className="line-clamp-2 text-sm text-zinc-900">{q.question}</span></td>
               <td className="px-4 py-3 max-w-md">
                 <span className="line-clamp-2 text-sm text-zinc-600">
@@ -1006,6 +986,9 @@ export function AdminAssessments() {
               </td>
               <td className="px-4 py-3">
                 <div className="flex justify-end">
+                  <Button size="sm" variant="ghost" onClick={() => setBankEditing(q)} aria-label="Edit">
+                    <Pencil className="size-3.5" />
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => update((d) => ({ ...d, questionBank: d.questionBank.filter((x) => x.id !== q.id) }), { action: 'Deleted bank question', target: q.question })} aria-label="Delete">
                     <Trash2 className="size-3.5" />
                   </Button>
@@ -1063,7 +1046,16 @@ export function AdminAssessments() {
       )}
 
       {editing && <AssessmentModal kind={kind} assessment={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
-      {bankOpen && <BankQuestionModal onClose={() => setBankOpen(false)} />}
+      {(bankOpen || bankEditing) && (
+        <QuestionModal
+          requireCategory
+          title={bankEditing ? 'Edit bank question' : 'New bank question'}
+          question={bankEditing ? ({ ...bankEditing } as AssessmentQuestion) : undefined}
+          onSave={saveBankQuestion}
+          onClose={() => (setBankOpen(false), setBankEditing(null))}
+        />
+      )}
+      {bankBulkOpen && <BulkQuestionsModal requireCategory onImport={handleBankBulk} onClose={() => setBankBulkOpen(false)} />}
       {bankImportOpen && (
         <ImportQuestionsModal
           open
@@ -1079,6 +1071,11 @@ export function AdminAssessments() {
               <li key={q.id}>
                 <p className="text-sm font-medium text-zinc-900">
                   {i + 1}. {q.question}
+                </p>
+                <p className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                  <Badge>{QUESTION_TYPES.find((t) => t.value === q.type)?.label}</Badge>
+                  <Badge tone="amber">Weight {q.weight}</Badge>
+                  {categoryLabel(q) && <Badge tone="blue">{categoryLabel(q)}</Badge>}
                 </p>
                 {q.type === 'mcq' ? (
                   <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">

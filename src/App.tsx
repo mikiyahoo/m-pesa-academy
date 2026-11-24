@@ -124,7 +124,8 @@ export default function App() {
             <Route path="temporary-access" element={<AdminTemporaryAccess />} />
             <Route path="groups" element={<AdminGroups />} />
             <Route path="training-types" element={<AdminTrainingTypes />} />
-            <Route path="training-types/categories" element={<AdminTrainingTypes byCategory />} />
+            <Route path="training-types/audience" element={<AdminTrainingTypes byCategory />} />
+            <Route path="training-types/categories" element={<Navigate to="/admin/training-types/audience" replace />} />
             <Route path="venues" element={<AdminVenues />} />
             <Route path="audit-logs" element={<AdminAuditLogs />} />
             <Route path="reports" element={<AdminReports />} />
@@ -164,7 +165,8 @@ export default function App() {
             <Route path="users/:id" element={<AdminUserView />} />
             <Route path="groups" element={<AdminGroups />} />
             <Route path="training-types" element={<AdminTrainingTypes />} />
-            <Route path="training-types/categories" element={<AdminTrainingTypes byCategory />} />
+            <Route path="training-types/audience" element={<AdminTrainingTypes byCategory />} />
+            <Route path="training-types/categories" element={<Navigate to="/admin/training-types/audience" replace />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Route>

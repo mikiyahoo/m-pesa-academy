@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { cn, initials } from '../lib/utils'
+import { usePhoto } from '../lib/profilePhoto'
 
 const AVATAR_COUNT = 6
 
@@ -13,7 +14,8 @@ export function avatarFor(name: string) {
 /** Round profile photo; falls back to initials if the image can't load. Size it with `className` (e.g. size-9). */
 export function UserAvatar({ name, className }: { name: string; className?: string }) {
   const [failed, setFailed] = useState(false)
-  if (failed)
+  const uploaded = usePhoto(name)
+  if (failed && !uploaded)
     return <span className={cn('grid shrink-0 place-items-center rounded-full bg-zinc-100 text-xs font-bold text-zinc-700', className)}>{initials(name)}</span>
-  return <img src={avatarFor(name)} alt="" onError={() => setFailed(true)} className={cn('shrink-0 rounded-full bg-zinc-100 object-cover', className)} />
+  return <img src={uploaded ?? avatarFor(name)} alt="" onError={() => setFailed(true)} className={cn('shrink-0 rounded-full bg-zinc-100 object-cover', className)} />
 }

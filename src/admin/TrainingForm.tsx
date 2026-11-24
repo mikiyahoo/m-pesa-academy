@@ -39,7 +39,7 @@ import { FullPageDialog } from './Wizard'
 import { useFeedback } from '../components/Feedback'
 import { cn, localISO, parseDate, todayISO } from '../lib/utils'
 import { shortDate, time12 } from './helpers'
-import { describeRecurrence, findConflicts, LEVELS, makeInviteLink, MAX_OCCURRENCES, occurrenceDates, WEEKDAYS } from './scheduling'
+import { describeRecurrence, findConflicts, LEVELS, makeInviteLink, trainerIdsOf, MAX_OCCURRENCES, occurrenceDates, WEEKDAYS } from './scheduling'
 import { uid, useAdmin } from './store'
 import { useScope } from './scope'
 import { demoMeeting } from './teams/attendance'
@@ -47,7 +47,7 @@ import { searchVenues, venueLabel, venuesOf } from './venues'
 import type { AdminTraining, Journey, Venue, Recurrence, RecurrenceFreq, TrainingLevel } from './types'
 import { ADD_TRAINER_OPTION, AddTrainerModal } from './TrainerModal'
 import { Avatar, Badge, Button, Card, Field, Input, Modal, Select, Textarea } from './ui'
-import { CertificatePreview } from './pages/Settings'
+import { AUDIENCE_LABEL, CertificatePreview } from './pages/Settings'
 import { UserAvatar } from '../components/UserAvatar'
 
 /** Accepts Microsoft Teams join links (work and personal Teams). */
@@ -489,7 +489,37 @@ function readDraft<F>(): TrainingDraft<F> | null {
   }
 }
 
-export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onClose: () => void; preset?: TrainingPreset }) {
+/** Form values for an existing training (edit mode); everything else keeps its default. */
+function withEditing<T extends Record<string, unknown>>(base: T, t: AdminTraining | undefined, covers?: Record<string, string>): T {
+  if (!t) return base
+  return {
+    ...base,
+    name: t.name,
+    categoryId: t.categoryId ?? base.categoryId,
+    subcategoryId: t.subcategoryId ?? '',
+    cover: (t.coverId && covers?.[t.coverId]) || '',
+    description: t.description ?? '',
+    typeId: t.typeId,
+    level: t.level ?? 'Beginner',
+    journeyIds: t.journeyIds?.length ? t.journeyIds : t.journeyId ? [t.journeyId] : [],
+    trainerIds: trainerIdsOf(t),
+    preAssessmentId: t.preAssessmentId ?? '',
+    postAssessmentId: t.postAssessmentId ?? '',
+    delivery: t.delivery ?? (t.location === 'ONLINE' ? 'Online' : 'Physical'),
+    isPublic: !!t.isPublic,
+    feedbackFormId: t.feedbackFormId ?? '',
+    certificateTemplateId: t.certificateTemplateId ?? '',
+    autoIssue: t.autoIssueCertificates !== false,
+    extraMaterialIds: t.extraMaterialIds ?? [],
+    location: t.location === 'ONLINE' ? '' : t.location,
+    date: t.date,
+    startTime: t.startTime,
+    endTime: t.endTime,
+    engagement: t.engagement ?? base.engagement,
+  } as T
+}
+
+export function NewTrainingModal({ open, onClose, preset, editing }: { open: boolean; onClose: () => void; preset?: TrainingPreset; /** Edit this existing training (journey, materials, details, tests) instead of scheduling a new one. */ editing?: AdminTraining }) {
   const { data, update } = useAdmin()
   const scope = useScope()
   const [newJourneyOpen, setNewJourneyOpen] = useState(false)
@@ -503,6 +533,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
       return next
     })
   const navigate = useNavigate()
+  const steps = editing ? STEPS.filter((x) => x.id !== 2) : STEPS
   const [step, setStep] = useState<StepId>(1)
   const [triedSteps, setTriedSteps] = useState<Record<number, boolean>>({})
   const [addingTrainer, setAddingTrainer] = useState(false)
@@ -520,7 +551,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   const startDate = preset?.date && preset.date >= todayISO() ? preset.date : todayISO()
   const presetOnline = preset?.location === 'ONLINE'
 
-  const [f, setF] = useState(() => ({
+  const [f, setF] = useState(() => withEditing({
     name: preset?.name ?? '',
     categoryId: data.categories[0]?.id ?? '',
     subcategoryId: '',
@@ -529,7 +560,8 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
     typeId: preset?.typeId ?? data.trainingTypes[0]?.id ?? '',
     level: 'Beginner' as TrainingLevel,
     /** Ordered: learners take the journeys in this order. */
-    journeyIds: preset?.journeyIds?.length ? preset.journeyIds : [preset?.journeyId ?? data.journeys[0]?.id ?? ''].filter(Boolean),
+    // No journey is pre-picked: the admin chooses one (unless a preset names it).
+    journeyIds: preset?.journeyIds?.length ? preset.journeyIds : [preset?.journeyId ?? ''].filter(Boolean),
     trainerIds: [...new Set(preset?.trainerIds?.length ? preset.trainerIds : [preset?.trainerId ?? scope.trainerId ?? trainers[0]?.id ?? ''].filter(Boolean))],
     preAssessmentId: '',
     postAssessmentId: '',
@@ -559,11 +591,11 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
     emails: '',
     /** Learner engagement settings shown in the course player. */
     engagement: { celebrate: true, progress: true, reminders: true },
-  }))
+  }, editing, data.trainingCovers))
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }))
   const { toast } = useFeedback()
   // A saved draft is offered when starting a new training (not when scheduling a request).
-  const [draft, setDraft] = useState(() => (preset ? null : readDraft<typeof f>()))
+  const [draft, setDraft] = useState(() => (preset || editing ? null : readDraft<typeof f>()))
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
   const saveDraft = () => {
     const savedAt = new Date().toISOString()
@@ -690,19 +722,21 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   const notEmails = entries.filter((e) => !PARTICIPANT_EMAIL_RE.test(e))
   const matched = pasted.map((e) => data.people.find((p) => p.email.toLowerCase() === e)).filter((p) => !!p)
   const unknown = pasted.filter((e) => !data.people.some((p) => p.email.toLowerCase() === e))
-  const participantIds = [
-    ...new Set([
-      ...(preset?.participantIds ?? []),
-      ...data.people.filter((p) => p.status === 'Active' && p.groupIds.some((g) => f.groupIds.includes(g))).map((p) => p.id),
-      ...matched.map((p) => p!.id),
-    ]),
-  ]
+  const participantIds = editing
+    ? editing.participantIds
+    : [
+        ...new Set([
+          ...(preset?.participantIds ?? []),
+          ...data.people.filter((p) => p.status === 'Active' && p.groupIds.some((g) => f.groupIds.includes(g))).map((p) => p.id),
+          ...matched.map((p) => p!.id),
+        ]),
+      ]
 
   const participantKey = participantIds.join(',')
   const trainerKey = f.trainerIds.join(',')
   const conflicts = useMemo(
     () =>
-      dates
+      (editing ? [] : dates)
         .map((date) => ({ date, list: findConflicts({ date, startTime: f.startTime, endTime: f.endTime, trainerId: f.trainerIds[0] ?? '', trainerIds: f.trainerIds, participantIds }, data.trainings, data.people) }))
         .filter((x) => x.list.length),
     [dates, f.startTime, f.endTime, trainerKey, participantKey, data.trainings, data.people], // eslint-disable-line react-hooks/exhaustive-deps
@@ -727,6 +761,12 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   const step3Errors: Record<string, string> = {}
   if (!f.trainerIds.length) step3Errors.trainerIds = 'Choose at least one trainer.'
 
+  // Editing never touches the date, venue, trainers or participants, so those steps' rules don't apply.
+  if (editing) {
+    for (const k of Object.keys(step2Errors)) delete step2Errors[k]
+    for (const k of Object.keys(step3Errors)) delete step3Errors[k]
+  }
+
   const err1 = (k: string) => (triedSteps[1] ? step1Errors[k] : undefined)
   const err2 = (k: string) => (triedSteps[2] ? step2Errors[k] : undefined)
   const err3 = (k: string) => (triedSteps[3] ? step3Errors[k] : undefined)
@@ -745,7 +785,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
         setTriedSteps((x) => ({ ...x, 1: true }))
         return
       }
-      setStep(2)
+      setStep(editing ? 4 : 2)
     } else if (step === 2 || step === 3) {
       if (Object.keys(step2Errors).length || Object.keys(step3Errors).length) {
         setTriedSteps((x) => ({ ...x, 2: true, 3: true }))
@@ -834,20 +874,76 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
     navigate(`/admin/trainings/${sessions[0].id}`)
   }
 
+  /** Save edits to the training being edited: details, journeys, materials, tests and learner settings. */
+  const saveEdit = () => {
+    if (!editing) return
+    if (Object.keys(step1Errors).length) {
+      setTriedSteps((x) => ({ ...x, 1: true }))
+      setStep(1)
+      return
+    }
+    const at = localISO()
+    const original = data.trainingCovers?.[editing.coverId ?? '']
+    const coverId = f.cover ? (editing.coverId && f.cover === original ? editing.coverId : uid('cover')) : undefined
+    const nameOf = (ids: string[]) => ids.map((id) => data.journeys.find((j) => j.id === id)?.name).filter(Boolean).join(' → ') || 'None'
+    const wasJourneys = editing.journeyIds?.length ? editing.journeyIds : editing.journeyId ? [editing.journeyId] : []
+    const changes = [
+      f.name.trim() !== editing.name ? { field: 'Title', from: editing.name, to: f.name.trim() } : null,
+      f.journeyIds.join() !== wasJourneys.join() ? { field: 'Journeys', from: nameOf(wasJourneys), to: nameOf(f.journeyIds) } : null,
+      f.extraMaterialIds.join() !== (editing.extraMaterialIds ?? []).join() ? { field: 'Additional materials', from: `${editing.extraMaterialIds?.length ?? 0}`, to: `${f.extraMaterialIds.length}` } : null,
+      (f.preAssessmentId || undefined) !== editing.preAssessmentId ? { field: 'Pre-assessment', from: editing.preAssessmentId ? 'Attached' : 'None', to: f.preAssessmentId ? 'Attached' : 'None' } : null,
+      (f.postAssessmentId || undefined) !== editing.postAssessmentId ? { field: 'Post-assessment', from: editing.postAssessmentId ? 'Attached' : 'None', to: f.postAssessmentId ? 'Attached' : 'None' } : null,
+    ].filter((c): c is { field: string; from: string; to: string } => !!c)
+    update(
+      (d) => ({
+        ...d,
+        ...(coverId && coverId !== editing.coverId ? { trainingCovers: { ...d.trainingCovers, [coverId]: f.cover } } : {}),
+        trainings: d.trainings.map((t) =>
+          t.id !== editing.id
+            ? t
+            : {
+                ...t,
+                coverId,
+                name: f.name.trim(),
+                journeyId: f.journeyIds[0],
+                journeyIds: f.journeyIds.length > 1 ? f.journeyIds : undefined,
+                extraMaterialIds: f.extraMaterialIds.length ? f.extraMaterialIds : undefined,
+                typeId: f.typeId,
+                categoryId: f.categoryId,
+                subcategoryId: f.subcategoryId || undefined,
+                level: f.level,
+                description: f.description.trim() || undefined,
+                preAssessmentId: f.preAssessmentId || undefined,
+                postAssessmentId: f.postAssessmentId || undefined,
+                feedbackFormId: f.feedbackFormId || typeFeedbackForm?.id,
+                certificateTemplateId: f.certificateTemplateId || undefined,
+                autoIssueCertificates: f.autoIssue ? undefined : false,
+                isPublic: f.isPublic || undefined,
+                engagement: f.engagement,
+                history: [...(t.history ?? []), { at, by: scope.trainerId ? (data.people.find((p) => p.id === scope.trainerId)?.name ?? 'Trainer') : 'Training team', action: 'Edited', detail: changes.map((c) => c.field).join(', ') || undefined }],
+              },
+        ),
+      }),
+      { action: 'Edited training', target: f.name.trim(), changes },
+    )
+    toast('Training updated')
+    onClose()
+  }
+
   const conflictCount = conflicts.reduce((n, c) => n + c.list.length, 0)
-  const stepIndex = Math.max(0, STEPS.findIndex((x) => x.id === (step === 3 ? 2 : step)))
+  const stepIndex = Math.max(0, steps.findIndex((x) => x.id === (step === 3 ? 2 : step)))
 
   if (!open) return null
   const stepper = (
     <nav aria-label="Steps" className="border-b border-zinc-200/70 bg-surface px-4 sm:px-6">
       <ol className="mx-auto flex max-w-4xl items-center">
-        {STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const current = step === 3 ? 2 : step
           const isPast = current > s.id
           const isCurrent = current === s.id
           const accessible = canNavigateTo(s.id)
           return (
-            <li key={s.id} className={cn('flex items-center', i < STEPS.length - 1 && 'flex-1')}>
+            <li key={s.id} className={cn('flex items-center', i < steps.length - 1 && 'flex-1')}>
               <button
                 type="button"
                 disabled={!accessible && !isPast}
@@ -861,7 +957,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                 <span className={cn('hidden text-sm whitespace-nowrap sm:inline', isCurrent ? 'font-bold' : 'font-medium')}>{s.label}</span>
                 {isCurrent && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-brand-600" aria-hidden />}
               </button>
-              {i < STEPS.length - 1 && <span className={cn('mx-2 h-px flex-1', isPast ? 'bg-mpesa-500/60' : 'bg-zinc-200')} aria-hidden />}
+              {i < steps.length - 1 && <span className={cn('mx-2 h-px flex-1', isPast ? 'bg-mpesa-500/60' : 'bg-zinc-200')} aria-hidden />}
             </li>
           )
         })}
@@ -872,32 +968,36 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
   return (
     <FullPageDialog
       onClose={onClose}
-      title={preset?.requestId ? 'Schedule approved request' : 'Schedule a training'}
-      subtitle={`Step ${stepIndex + 1} of ${STEPS.length}`}
+      title={editing ? 'Edit training' : preset?.requestId ? 'Schedule approved request' : 'Schedule a training'}
+      subtitle={`Step ${stepIndex + 1} of ${steps.length}`}
       top={stepper}
       bare
       footer={
         <>
           <div className="mr-auto hidden sm:flex items-center gap-2 text-xs text-zinc-500">
-            <span>{dates.length} session{dates.length === 1 ? '' : 's'}</span>
-            <span>·</span>
+            {!editing && <span>{dates.length} session{dates.length === 1 ? '' : 's'}</span>}
+            {!editing && <span>·</span>}
             <span>{participantIds.length} participant{participantIds.length === 1 ? '' : 's'}</span>
           </div>
           {draftSavedAt && <span className="hidden text-xs text-mpesa-700 sm:inline">Draft saved {time12(new Date(draftSavedAt).toTimeString().slice(0, 5))}</span>}
-          {!preset && (
+          {!preset && !editing && (
             <Button onClick={saveDraft}>
               <Save className="size-4" /> Save draft
             </Button>
           )}
           <Button onClick={onClose}>Cancel</Button>
           {stepIndex > 0 && (
-            <Button onClick={() => setStep(STEPS[Math.max(0, stepIndex - 1)].id)}>
+            <Button onClick={() => setStep(steps[Math.max(0, stepIndex - 1)].id)}>
               <ArrowLeft className="size-4" /> Back
             </Button>
           )}
-          {stepIndex < STEPS.length - 1 ? (
+          {stepIndex < steps.length - 1 ? (
             <Button variant="primary" onClick={handleNext} disabled={coverPending}>
-              {coverPending ? 'Optimizing…' : `Continue to ${STEPS[stepIndex + 1].label.toLowerCase()}`} <ArrowRight className="size-4" />
+              {coverPending ? 'Optimizing…' : `Continue to ${steps[stepIndex + 1].label.toLowerCase()}`} <ArrowRight className="size-4" />
+            </Button>
+          ) : editing ? (
+            <Button variant="primary" onClick={saveEdit}>
+              <Check className="size-4" /> Save changes
             </Button>
           ) : (
             <Button variant="primary" onClick={create}>
@@ -948,7 +1048,7 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                      <Field label={<>Category <span className="text-brand-600">*</span></>}>
+                      <Field label={<>Category <span className="text-brand-600">*</span></>} hint="What the training is about">
                         <Select value={f.categoryId} onChange={(e) => setF((x) => ({ ...x, categoryId: e.target.value, subcategoryId: '' }))}>
                           {data.categories.map((c) => (
                             <option key={c.id} value={c.id}>
@@ -969,11 +1069,11 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
                         ))}
                       </Select>
                     </Field>
-                    <Field label="Training type">
+                    <Field label="Training type" hint="The kind of program and who it is for">
                       <Select value={f.typeId} onChange={(e) => set('typeId', e.target.value)}>
                         {data.trainingTypes.map((t) => (
                           <option key={t.id} value={t.id}>
-                            {t.name}
+                            {t.name} · {AUDIENCE_LABEL[t.category]}
                           </option>
                         ))}
                       </Select>
@@ -1028,12 +1128,15 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
               <section className="rounded-2xl border border-zinc-200/80 bg-surface p-5 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-lg font-bold text-zinc-900">Learning path builder</h2>
-                  <button type="button" onClick={() => setNewJourneyOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-brand-500 px-3.5 py-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-50">
-                    <Plus className="size-4" /> New journey
-                  </button>
+                  {/* Journeys are created by admins under Training Content, not while scheduling a request. */}
+                  {!preset?.requestId && (
+                    <button type="button" onClick={() => setNewJourneyOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-brand-500 px-3.5 py-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-50">
+                      <Plus className="size-4" /> New journey
+                    </button>
+                  )}
                 </div>
                 <div className="mt-4">
-                  <JourneyMultiSelect journeys={data.journeys} selected={f.journeyIds} onChange={(ids) => set('journeyIds', ids)} invalid={!!err1('journeyId')} onCreateNew={() => setNewJourneyOpen(true)} />
+                  <JourneyMultiSelect journeys={data.journeys} selected={f.journeyIds} onChange={(ids) => set('journeyIds', ids)} invalid={!!err1('journeyId')} onCreateNew={preset?.requestId ? undefined : () => setNewJourneyOpen(true)} />
                   {err1('journeyId') && <p className="mt-1 text-xs text-brand-600">{err1('journeyId')}</p>}
                 </div>
                 <div className="mt-4 space-y-4">
@@ -1689,6 +1792,11 @@ export function NewTrainingModal({ open, onClose, preset }: { open: boolean; onC
         {/* STEP 4: ASSESSMENTS & REVIEW */}
         {step === 4 && (
           <section className="space-y-5">
+            {editing && (
+              <p className="rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+                Changes reach learners straight away; anyone who already started keeps their progress on the modules that stay. Date and time, venue, trainers and participants are changed from the training page (Reschedule, Change trainer, Invite).
+              </p>
+            )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field
                 label={
