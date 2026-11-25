@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/academy-lite", "destination": "/academy-lite/index.html" },
+    { "source": "/academy-lite/(.*)", "destination": "/academy-lite/index.html" },
+    { "source": "/((?!academy-lite).*)", "destination": "/index.html" }
+  ]
+}

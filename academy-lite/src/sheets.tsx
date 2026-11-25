@@ -94,7 +94,7 @@ export function ShareSheet({ item, course, onClose }: { item: Item; course: Cour
       icon: Link2,
       tone: 'bg-sky-500',
       run: () => {
-        void navigator.clipboard?.writeText(`${location.origin}/?post=${item.id}`).catch(() => undefined)
+        void navigator.clipboard?.writeText(`${location.origin}${import.meta.env.BASE_URL}?post=${item.id}`).catch(() => undefined)
         toast('Link copied')
         onClose()
       },

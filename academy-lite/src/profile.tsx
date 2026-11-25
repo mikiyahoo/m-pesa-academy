@@ -60,7 +60,7 @@ export function Profile({ onOpenCourse, onOpenItem }: { onOpenCourse: (courseId:
           <button
             type="button"
             onClick={() => {
-              void navigator.clipboard?.writeText(`${location.origin}/?u=${ME.handle}`).catch(() => undefined)
+              void navigator.clipboard?.writeText(`${location.origin}${import.meta.env.BASE_URL}?u=${ME.handle}`).catch(() => undefined)
               toast('Profile link copied')
             }}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-zinc-100 py-2 text-sm font-semibold"
