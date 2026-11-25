@@ -574,6 +574,8 @@ export function AdminUserView() {
   const [editing, setEditing] = useState(false)
 
   const person = data.people.find((p) => p.id === id)
+  // Before the early return: hooks must run on every render.
+  const gamification = useMemo(() => deriveGamification(data), [data])
 
   if (!person) {
     return (
@@ -594,7 +596,6 @@ export function AdminUserView() {
   const accessType = person.accessStart || person.accessEnd ? 'Temporary access' : 'Permanent access'
   const isInternal = isInternalEmail(person.email)
 
-  const gamification = useMemo(() => deriveGamification(data), [data])
   const personGame = gamification.people[person.id]
   const userPoints = personGame?.points ?? 0
   const earnedBadges = personGame?.badges ?? []
@@ -679,7 +680,7 @@ export function AdminUserView() {
 
       {/* Tab 1: Account details */}
       {tab === 'account' && (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 sm:p-6">
             <h2 className="text-base font-bold text-zinc-900">Personal & Contact</h2>
             <dl className="mt-4 divide-y divide-zinc-100">
@@ -701,7 +702,7 @@ export function AdminUserView() {
 
       {/* Tab 2: Role & permissions */}
       {tab === 'access' && (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           <section className="rounded-2xl border border-zinc-200/80 bg-white p-5 sm:p-6">
             <h2 className="text-base font-bold text-zinc-900">Role & Access Period</h2>
             <dl className="mt-4 divide-y divide-zinc-100">

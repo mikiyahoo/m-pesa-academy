@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, BookOpen, Calendar, Check, ChevronLeft, ChevronRight, ChevronUp, Clock3, Copy, Download, ExternalLink, Eye, FileText, Layers, LayoutGrid, List, Lock, LockOpen, Pencil, Plus, RefreshCw, Route, Trash2, Upload, UserPlus, UserRound, Users, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Calendar, Check, ChevronLeft, ChevronRight, ChevronUp, Clock3, Copy, Download, ExternalLink, Eye, FileText, Layers, LayoutGrid, List, Lock, LockOpen, Pencil, Plus, RefreshCw, Route, Trash2, Upload, UserPlus, Users, X } from 'lucide-react'
 import { RowMenu, type RowMenuItem } from '../../components/RowMenu'
 import { canDownloadFile, countDownload, deleteMaterialFile, downloadMaterial, formatBytes, getMaterialFile, materialFileName, saveMaterialFile } from '../materialFiles'
 import { assignedPeople } from '../../lib/assignments'
@@ -8,6 +8,7 @@ import { useFeedback } from '../../components/Feedback'
 import { cn, localISO } from '../../lib/utils'
 import { MaterialPreview, materialIcon } from '../MaterialPreview'
 import { MaterialAttachmentPreview } from '../MaterialAttachmentPreview'
+import { StoredVideo } from '../StoredVideo'
 import { SelectMenu } from '../../components/Pickers'
 import { useScope } from '../scope'
 import { videoSource } from '../embeds'
@@ -339,7 +340,7 @@ export function AdminJourneyDetail() {
       </form>
 
       {/* Order and access rules (US12, US18, US19) */}
-      <div className="mb-6 grid gap-3 md:grid-cols-2">
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 [&>*]:min-w-0">
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200/80 bg-surface px-5 py-4">
           <span className="min-w-0">
             <span className="block text-sm font-bold text-zinc-900">Complete modules in order</span>
@@ -751,7 +752,25 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
   const acceptsFile = form.type === 'DOCUMENT' || form.type === 'PRESENTATION'
   // Any common learning file; picking a slide deck switches the type to Presentation.
   const fileAccept = MATERIAL_FILE_TYPES
-  const valid = !!form.title.trim() && Number(form.minutes) > 0 && (!!material || !acceptsFile || !!uploadedFile)
+  // A video comes from a link (YouTube, Vimeo, Stream, .mp4) or a file uploaded from this computer.
+  const isVideo = form.type === 'VIDEO'
+  const [videoMode, setVideoMode] = useState<'link' | 'file'>(material?.type === 'VIDEO' && material.fileId ? 'file' : 'link')
+  const videoFileInput = useRef<HTMLInputElement>(null)
+  const videoFileName = uploadedFile?.name ?? (videoMode === 'file' ? material?.fileName : undefined)
+  const videoOk = !isVideo || (videoMode === 'file' ? !!uploadedFile || !!material?.fileId : videoSource(form.url).kind !== 'none' || (!!material && !form.url.trim()))
+  const valid = !!form.title.trim() && Number(form.minutes) > 0 && (!!material || !acceptsFile || !!uploadedFile) && videoOk
+  /** Fills the duration from the video itself. */
+  const readDuration = (file: File) => {
+    const url = URL.createObjectURL(file)
+    const probe = document.createElement('video')
+    probe.preload = 'metadata'
+    probe.onloadedmetadata = () => {
+      if (probe.duration > 0 && Number.isFinite(probe.duration)) setForm((c) => ({ ...c, minutes: String(Math.max(1, Math.ceil(probe.duration / 60))) }))
+      URL.revokeObjectURL(url)
+    }
+    probe.onerror = () => URL.revokeObjectURL(url)
+    probe.src = url
+  }
   const [step, setStep] = useState<MaterialStep>('details')
 
   const save = async () => {
@@ -759,7 +778,10 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
     setSaving(true)
     try {
       const now = localISO()
-      const fileId = uploadedFile ? await saveMaterialFile(uploadedFile) : material?.fileId
+      // A video stored as a link keeps no file; a video uploaded from a computer keeps no link.
+      const linkVideo = isVideo && videoMode === 'link'
+      const fileId = linkVideo ? undefined : uploadedFile ? await saveMaterialFile(uploadedFile) : material?.fileId
+      if (material?.fileId && material.fileId !== fileId && isVideo) void deleteMaterialFile(material.fileId).catch(() => undefined)
       const thumbnailFileId = uploadedThumbnail ? await saveMaterialFile(uploadedThumbnail) : clearSavedThumbnail ? undefined : material?.thumbnailFileId
       const next: Material = {
         id: material?.id ?? uid('mat'),
@@ -773,14 +795,14 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
         thumbnail: form.thumbnail,
         thumbnailFileId,
         minViewSeconds: form.type === 'DOCUMENT' ? Number(form.minViewSeconds) || 0 : undefined,
-        url: form.url.trim() || undefined,
+        url: isVideo && videoMode === 'file' ? undefined : form.url.trim() || undefined,
         downloadableGroupIds: form.type === 'VIDEO' ? [] : [...downloadable],
         visibleGroupIds: [...visible],
         taggedTrainerIds: [...trainers],
         version: material?.version ?? 1,
         fileId,
-        fileName: uploadedFile?.name ?? material?.fileName,
-        fileSize: uploadedFile?.size ?? material?.fileSize,
+        fileName: linkVideo ? undefined : uploadedFile?.name ?? material?.fileName,
+        fileSize: linkVideo ? undefined : uploadedFile?.size ?? material?.fileSize,
         history: material
           ? [...material.history, { at: now, by: CURRENT_ADMIN, change: 'Details updated' }]
           : [{ at: now, by: CURRENT_ADMIN, change: 'Created' }],
@@ -859,22 +881,91 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
                 <SkillTagInput values={form.skills} onChange={(skills) => setForm((current) => ({ ...current, skills }))} />
               </Field>
             </div>
-            {(form.type === 'LINK' || form.type === 'VIDEO') && (
+            {form.type === 'LINK' && (
               <div>
-                <Field label={form.type === 'VIDEO' ? 'Stream URL' : 'External URL'} hint={form.type === 'VIDEO' ? 'YouTube, Vimeo or SharePoint / Stream link — videos always stream, never download (D4)' : undefined}>
-                  <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder={form.type === 'VIDEO' ? 'https://www.youtube.com/watch?v=…' : 'https://…'} />
+                <Field label="External URL">
+                  <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://…" />
                 </Field>
-                {form.type === 'LINK' && (() => {
+                {(() => {
                   const v = videoSource(form.url)
                   return v.kind !== 'none' && v.kind !== 'file' ? <p className="mt-1.5 text-xs text-mpesa-700">{v.label} link: plays inside the portal instead of opening a new tab.</p> : null
                 })()}
-                {form.type === 'VIDEO' && form.url.trim() && (
-                  <p className={'mt-1.5 text-xs ' + (videoSource(form.url).kind === 'none' ? 'text-brand-600' : 'text-mpesa-700')}>
-                    {(() => {
-                      const v = videoSource(form.url)
-                      return v.kind === 'none' ? 'Not a recognised video link — use YouTube, Vimeo, SharePoint / Stream or an .mp4 file.' : 'Plays as an embedded ' + v.label + ' video.'
-                    })()}
-                  </p>
+              </div>
+            )}
+            {isVideo && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-zinc-700">Video source</span>
+                  <div role="group" aria-label="Video source" className="inline-flex rounded-xl border border-zinc-200 p-0.5 text-sm font-medium">
+                    {([['link', 'Link (YouTube, Vimeo, Stream)'], ['file', 'Upload from computer']] as const).map(([v, label]) => (
+                      <button key={v} type="button" aria-pressed={videoMode === v} onClick={() => setVideoMode(v)} className={cn('rounded-lg px-3 py-1.5 transition', videoMode === v ? 'bg-charcoal text-white' : 'text-zinc-600 hover:bg-zinc-100')}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {videoMode === 'link' ? (
+                  <div>
+                    <Field label="Video link" hint="Paste a YouTube, Vimeo or SharePoint / Stream link, or a direct .mp4 link. Videos always stream, never download.">
+                      <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://www.youtube.com/watch?v=…" />
+                    </Field>
+                    {form.url.trim() && (
+                      <p className={'mt-1.5 text-xs ' + (videoSource(form.url).kind === 'none' ? 'text-brand-600' : 'text-mpesa-700')}>
+                        {(() => {
+                          const v = videoSource(form.url)
+                          return v.kind === 'none' ? 'Not a recognised video link. Use YouTube, Vimeo, SharePoint / Stream or an .mp4 link.' : 'Plays as an embedded ' + v.label + ' video.'
+                        })()}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <input
+                      ref={videoFileInput}
+                      type="file"
+                      accept="video/mp4,video/webm,video/ogg,video/quicktime,.mp4,.webm,.ogg,.mov"
+                      className="hidden"
+                      aria-label="Upload a video file"
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0] ?? null
+                        if (file && !/^video\//.test(file.type) && !/\.(mp4|webm|ogg|mov)$/i.test(file.name)) toast('Choose a video file (MP4, WebM, OGG or MOV).', { tone: 'error' })
+                        else if (file) {
+                          setUploadedFile(file)
+                          setForm((c) => ({ ...c, thumbnail: automaticThumbnail('VIDEO', file.name) }))
+                          readDuration(file)
+                        }
+                        event.currentTarget.value = ''
+                      }}
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 p-4">
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-zinc-800">Upload a video file</span>
+                        <span className="mt-0.5 block text-xs text-zinc-500">MP4 plays everywhere; WebM, OGG and MOV depend on the browser. It stays in this browser and streams to learners.</span>
+                      </span>
+                      <Button type="button" onClick={() => videoFileInput.current?.click()}>
+                        <Upload className="size-4" /> {videoFileName ? 'Replace video' : 'Browse files'}
+                      </Button>
+                    </div>
+                    {videoFileName && (
+                      <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-surface p-3">
+                        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600"><FileText className="size-4" /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-zinc-900">{videoFileName}</span>
+                          <span className="block text-xs text-zinc-500">{uploadedFile ? `Ready · ${formatBytes(uploadedFile.size)}` : `Saved · ${formatBytes(material?.fileSize)}`}</span>
+                        </span>
+                        {uploadedFile && (
+                          <button type="button" onClick={() => setUploadedFile(null)} className="grid size-8 shrink-0 place-items-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700" aria-label="Remove the chosen video">
+                            <X className="size-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {videoFileName && (
+                      <div className="aspect-video max-w-xl overflow-hidden rounded-xl bg-black">
+                        <StoredVideo file={uploadedFile} fileId={uploadedFile ? undefined : material?.fileId} />
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -1002,12 +1093,12 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
             {[
               ['Title', form.title.trim() || '—'],
               ['Type', form.type],
-              ...(acceptsFile ? [['File', uploadedFile?.name ?? material?.fileName ?? '—']] : []),
+              ...(acceptsFile || (isVideo && videoMode === 'file') ? [['File', uploadedFile?.name ?? material?.fileName ?? '—']] : []),
               ['Duration', `${form.minutes || 0} min`],
               ['Level', form.level],
               ...(form.type === 'DOCUMENT' ? [['Minimum reading time', `${form.minViewSeconds || 0} sec`]] : []),
               ['Skills', form.skills.join(', ') || '—'],
-              ...(form.url.trim() ? [['Link', form.url.trim()]] : []),
+              ...(form.url.trim() && !(isVideo && videoMode === 'file') ? [['Link', form.url.trim()]] : []),
               ...(form.description.trim() ? [['Description', form.description.trim()]] : []),
               ['Visible to', groupNames(visible, 'Everyone enrolled')],
               ['Downloads', form.type === 'VIDEO' ? 'Not available for videos' : groupNames(downloadable, 'No downloads')],
@@ -1032,7 +1123,7 @@ function MaterialModal({ material, onClose }: { material?: Material; onClose: ()
               />
             </div>
           )}
-          {!valid && <p className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">Add a title and duration{!material && acceptsFile && !uploadedFile ? ', then attach a file' : ''} before saving.</p>}
+          {!valid && <p className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">Add a title and duration{!material && acceptsFile && !uploadedFile ? ', then attach a file' : ''}{isVideo && !videoOk ? (videoMode === 'file' ? ', then upload a video file' : ', then paste a video link') : ''} before saving.</p>}
         </WizardCard>
       )}
     </Wizard>
@@ -1483,7 +1574,7 @@ export function AdminMaterials() {
           </div>
         ) : (
         <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full min-w-[1116px] text-left text-sm">
+          <table className="w-full min-w-[920px] text-left text-sm">
             <thead className="border-b border-zinc-200/80 bg-zinc-50/75 text-xs font-semibold text-zinc-600">
               <tr>
                 <th className="py-3 pr-3 pl-4">
@@ -1496,9 +1587,8 @@ export function AdminMaterials() {
                 <th className="px-3 py-3">Skills</th>
                 <th className="px-3 py-3">Duration</th>
                 <th className="px-3 py-3">{journeyOnlyUsage ? 'Journey' : 'Used in'}</th>
-                <th className="px-3 py-3">Assigned</th>
                 <th className="px-3 py-3">Updated</th>
-                <th className="w-12 px-3 py-3"><span className="sr-only">Actions</span></th>
+                <th className="sticky right-0 w-12 bg-surface px-3 py-3"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100/90 text-zinc-800">
@@ -1506,11 +1596,8 @@ export function AdminMaterials() {
                 const TypeIcon = materialIcon[m.type]
                 const journeys = usage(m.id)
                 const trainingsUsed = trainingUsage(m.id)
-                const groups = m.assignedGroupIds?.length ?? 0
-                const individuals = m.assignedPersonIds?.length ?? 0
-                const assignedLabel = groups && individuals ? `${groups} groups · ${individuals} users` : groups ? `${groups} group${groups === 1 ? '' : 's'}` : individuals ? `${individuals} user${individuals === 1 ? '' : 's'}` : ''
                 return (
-                  <tr key={m.id} className="transition-colors hover:bg-zinc-50/80">
+                  <tr key={m.id} className="group transition-colors hover:bg-zinc-50/80">
                     <td className="py-1.5 pr-3 pl-4">
                       <div className="min-w-0">
                         <span className="block min-w-0">
@@ -1549,16 +1636,8 @@ export function AdminMaterials() {
                         <span className="block truncate text-xs font-medium text-brand-700" title={`${journeys} journeys · ${trainingsUsed} trainings`}>{journeys ? `${journeys} journey${journeys === 1 ? '' : 's'}` : ''}{journeys && trainingsUsed ? ' · ' : ''}{trainingsUsed ? `${trainingsUsed} training${trainingsUsed === 1 ? '' : 's'}` : ''}</span>
                       ) : <span className="text-zinc-400">—</span>}
                     </td>
-                    <td className="px-3 py-1.5">
-                      {assignedLabel ? (
-                        <span role="img" aria-label={assignedLabel} className="inline-flex max-w-40 items-center gap-2 rounded-full bg-mpesa-500/10 px-2.5 py-1 text-xs font-semibold text-mpesa-700" title={assignedLabel}>
-                          {groups > 0 && <span className="inline-flex items-center gap-1"><Users className="size-3.5 shrink-0" />{groups}</span>}
-                          {individuals > 0 && <span className="inline-flex items-center gap-1"><UserRound className="size-3.5 shrink-0" />{individuals}</span>}
-                        </span>
-                      ) : <span className="text-zinc-400">—</span>}
-                    </td>
                     <td className="whitespace-nowrap px-3 py-1.5 text-zinc-600">{updatedLabel(m.updatedAt)}</td>
-                    <td className="px-3 py-1.5">
+                    <td className="sticky right-0 bg-surface px-3 py-1.5 group-hover:bg-zinc-50">
                       <div className="flex items-center justify-end gap-1.5">
                         {!canEdit(m) && <Badge>View only</Badge>}
                         <RowMenu label={`Actions for ${m.title}`} items={menuItems(m)} />
@@ -1567,7 +1646,7 @@ export function AdminMaterials() {
                   </tr>
                 )
               })}
-              {!visibleRows.length && <tr><td colSpan={9} className="px-4 py-2"><Empty icon={FileText} compact title={data.materials.length ? 'No materials match these filters' : 'No materials yet'} text={data.materials.length ? 'Try another type, level, skill or search.' : 'Add documents, videos and presentations to use in journeys.'} /></td></tr>}
+              {!visibleRows.length && <tr><td colSpan={8} className="px-4 py-2"><Empty icon={FileText} compact title={data.materials.length ? 'No materials match these filters' : 'No materials yet'} text={data.materials.length ? 'Try another type, level, skill or search.' : 'Add documents, videos and presentations to use in journeys.'} /></td></tr>}
             </tbody>
           </table>
         </div>

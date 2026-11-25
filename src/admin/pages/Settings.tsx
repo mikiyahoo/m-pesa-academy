@@ -405,6 +405,7 @@ export const AUDIENCE_LABEL: Record<TrainingType['category'], string> = { Intern
 
 export function AdminTrainingTypes({ byCategory = false }: { byCategory?: boolean }) {
   const { data } = useAdmin()
+  const [grouped, setGrouped] = useState(byCategory)
   const [editing, setEditing] = useState<TrainingType | 'new' | null>(null)
   const usage = (id: string) => data.trainings.filter((t) => t.typeId === id).length
 
@@ -429,15 +430,24 @@ export function AdminTrainingTypes({ byCategory = false }: { byCategory?: boolea
   return (
     <>
       <PageHeader
-        title={byCategory ? 'Training Types by Audience' : 'Training Types'}
+        title="Training Types"
         description="The kind of program, who it is for and its level. What a training is about is set by its category."
         actions={
-          <Button variant="primary" onClick={() => setEditing('new')}>
-            <Plus className="size-4" /> New type
-          </Button>
+          <>
+            <div role="group" aria-label="Group types" className="inline-flex rounded-xl border border-zinc-200 p-0.5 text-sm font-medium">
+              {([[false, 'All'], [true, 'By audience']] as const).map(([v, label]) => (
+                <button key={label} type="button" aria-pressed={grouped === v} onClick={() => setGrouped(v)} className={cn('rounded-lg px-3 py-1.5 transition', grouped === v ? 'bg-charcoal text-white' : 'text-zinc-600 hover:bg-zinc-100')}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <Button variant="primary" onClick={() => setEditing('new')}>
+              <Plus className="size-4" /> New type
+            </Button>
+          </>
         }
       />
-      {byCategory ? (
+      {grouped ? (
         <div className="space-y-8">
           {(['Internal', 'Partner', 'Customer'] as const).map((c) => {
             const items = data.trainingTypes.filter((t) => t.category === c)

@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AssessmentGate } from './pages/AssessmentGate'
 import { AdminVenues } from './admin/pages/Venues'
+import { AdminSettings } from './admin/pages/SettingsHub'
+import { AdminVisibility } from './admin/pages/Visibility'
 import { loadAdminData } from './admin/storage'
 import { AdminLayout } from './admin/AdminLayout'
 import { AdminAssignments } from './admin/pages/Assignments'
@@ -12,7 +14,7 @@ import { AdminJourneyDetail, AdminJourneys, AdminMaterials } from './admin/pages
 import { AdminDashboard } from './admin/pages/Dashboard'
 import { AdminAssessments, AdminFeedbackForms, AdminFeedbackResponses, AdminSubmissions } from './admin/pages/Evaluation'
 import { AdminDiscussions } from './admin/pages/Discussions'
-import { AdminDepartments } from './admin/pages/Departments'
+import { AdminDepartmentDetail, AdminDepartments } from './admin/pages/Departments'
 import { AdminGroups, AdminUserView, AdminUsers } from './admin/pages/People'
 import { AdminReports } from './admin/pages/Reports'
 import { AdminRequests } from './admin/pages/Requests'
@@ -102,9 +104,22 @@ export default function App() {
             <Route path="trainings" element={<AdminTrainings />} />
             <Route path="trainings/:id" element={<AdminTrainingDetail />} />
             <Route path="trainings/:id/attendance" element={<AdminTrainingAttendance />} />
+            <Route path="visibility" element={<AdminVisibility />} />
             <Route path="requests" element={<AdminRequests />} />
             <Route path="calendar" element={<Navigate to="/admin/trainings?view=calendar" replace />} />
-            <Route path="categories" element={<AdminCategories />} />
+            {/* Set-up pages live under Settings; the old addresses still work. */}
+            <Route path="settings" element={<AdminSettings />}>
+              <Route index element={<Navigate to="categories" replace />} />
+              <Route path="categories" element={<AdminCategories />} />
+              <Route path="training-types" element={<AdminTrainingTypes />} />
+              <Route path="venues" element={<AdminVenues />} />
+              <Route path="certificate-templates" element={<AdminCertificateTemplates />} />
+              <Route path="audit-logs" element={<AdminAuditLogs />} />
+            </Route>
+            <Route path="categories" element={<Navigate to="/admin/settings/categories" replace />} />
+            <Route path="venues" element={<Navigate to="/admin/settings/venues" replace />} />
+            <Route path="certificate-templates" element={<Navigate to="/admin/settings/certificate-templates" replace />} />
+            <Route path="audit-logs" element={<Navigate to="/admin/settings/audit-logs" replace />} />
             <Route path="journeys" element={<AdminJourneys />} />
             <Route path="journeys/:id" element={<AdminJourneyDetail />} />
             <Route path="materials" element={<AdminMaterials />} />
@@ -114,20 +129,17 @@ export default function App() {
             <Route path="feedback/responses" element={<AdminFeedbackResponses />} />
             <Route path="discussions" element={<AdminDiscussions />} />
             <Route path="departments" element={<AdminDepartments />} />
+            <Route path="departments/:name" element={<AdminDepartmentDetail />} />
             <Route path="assessments" element={<Navigate to="/admin/assessments/pre" replace />} />
             <Route path="assessments/:kind" element={<AdminAssessments />} />
             <Route path="submissions" element={<AdminSubmissions />} />
             <Route path="certificates" element={<AdminCertificates />} />
-            <Route path="certificate-templates" element={<AdminCertificateTemplates />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="users/:id" element={<AdminUserView />} />
             <Route path="temporary-access" element={<AdminTemporaryAccess />} />
             <Route path="groups" element={<AdminGroups />} />
-            <Route path="training-types" element={<AdminTrainingTypes />} />
-            <Route path="training-types/audience" element={<AdminTrainingTypes byCategory />} />
-            <Route path="training-types/categories" element={<Navigate to="/admin/training-types/audience" replace />} />
-            <Route path="venues" element={<AdminVenues />} />
-            <Route path="audit-logs" element={<AdminAuditLogs />} />
+            <Route path="training-types" element={<Navigate to="/admin/settings/training-types" replace />} />
+            <Route path="training-types/*" element={<Navigate to="/admin/settings/training-types" replace />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="leaderboard" element={<AdminLeaderboard />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />

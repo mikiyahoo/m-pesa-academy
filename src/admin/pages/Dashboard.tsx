@@ -263,7 +263,7 @@ export function AdminDashboard() {
         />
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] [&>*]:min-w-0">
         {/* Activity chart */}
         <section className="rounded-2xl border border-zinc-200/80 bg-surface p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -358,10 +358,10 @@ export function AdminDashboard() {
         </section>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2 [&>*]:min-w-0">
         {/* Upcoming trainings */}
         <section className="rounded-2xl border border-zinc-200/80 bg-surface p-5 shadow-card sm:p-6">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 text-lg font-bold text-zinc-900">
               <span className="grid size-9 place-items-center rounded-xl bg-brand-50 text-brand-600">
                 <CalendarDays className="size-4" />
@@ -461,7 +461,7 @@ export function AdminDashboard() {
           ) : (
             <Empty icon={BarChart3} title="No activity yet" text="Changes across trainings and users appear here." />
           )}
-          <Link to="/admin/audit-logs" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
+          <Link to="/admin/settings/audit-logs" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
             View audit logs <ArrowRight className="size-3.5" />
           </Link>
         </section>

@@ -66,6 +66,8 @@ export type TrainingPreset = {
   participantIds?: string[]
   /** When scheduling an approved request, the request is linked to the new training. */
   requestId?: string
+  /** Carried over from the approval: false switches the Q&A discussion off. */
+  discussionsEnabled?: boolean
 }
 
 const addDays = (iso: string, n: number) => {
@@ -516,6 +518,7 @@ function withEditing<T extends Record<string, unknown>>(base: T, t: AdminTrainin
     startTime: t.startTime,
     endTime: t.endTime,
     engagement: t.engagement ?? base.engagement,
+    discussions: t.discussionsEnabled !== false,
   } as T
 }
 
@@ -591,6 +594,8 @@ export function NewTrainingModal({ open, onClose, preset, editing }: { open: boo
     emails: '',
     /** Learner engagement settings shown in the course player. */
     engagement: { celebrate: true, progress: true, reminders: true },
+    /** Q&A discussion under the training for learners. */
+    discussions: preset?.discussionsEnabled !== false,
   }, editing, data.trainingCovers))
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }))
   const { toast } = useFeedback()
@@ -851,6 +856,7 @@ export function NewTrainingModal({ open, onClose, preset, editing }: { open: boo
         teamsMeeting: f.delivery === 'Online' ? (f.teamsUrl.trim() ? { joinUrl: f.teamsUrl.trim(), meetingId: '' } : demoMeeting(id)) : undefined,
         isPublic: f.isPublic || undefined,
         engagement: f.engagement,
+        discussionsEnabled: f.discussions ? undefined : false,
         inviteLink: makeInviteLink(id),
         createdById: scope.trainerId,
         department: scope.department || undefined,
@@ -920,6 +926,7 @@ export function NewTrainingModal({ open, onClose, preset, editing }: { open: boo
                 autoIssueCertificates: f.autoIssue ? undefined : false,
                 isPublic: f.isPublic || undefined,
                 engagement: f.engagement,
+                discussionsEnabled: f.discussions ? undefined : false,
                 history: [...(t.history ?? []), { at, by: scope.trainerId ? (data.people.find((p) => p.id === scope.trainerId)?.name ?? 'Trainer') : 'Training team', action: 'Edited', detail: changes.map((c) => c.field).join(', ') || undefined }],
               },
         ),
@@ -1365,8 +1372,9 @@ export function NewTrainingModal({ open, onClose, preset, editing }: { open: boo
 
               {/* Keep learners motivated */}
               <section className="rounded-2xl border border-zinc-200/80 bg-surface p-5 sm:p-6">
-                <h2 className="text-lg font-bold text-zinc-900">Keep learners motivated</h2>
+                <h2 className="text-lg font-bold text-zinc-900">Learner settings</h2>
                 <div className="mt-3 divide-y divide-zinc-100">
+                  <ToggleRow label="Q&A discussion" hint="Let learners ask questions and reply under this training." on={f.discussions} onChange={(v) => set('discussions', v)} />
                   <ToggleRow label="Celebrate module completion" hint="Show a success message when a module is completed." on={f.engagement.celebrate} onChange={(v) => set('engagement', { ...f.engagement, celebrate: v })} />
                   <ToggleRow label="Show progress and milestones" hint="Let learners track their progress." on={f.engagement.progress} onChange={(v) => set('engagement', { ...f.engagement, progress: v })} />
                   <ToggleRow label="Send gentle learning reminders" hint="Remind learners about unfinished training." on={f.engagement.reminders} onChange={(v) => set('engagement', { ...f.engagement, reminders: v })} />

@@ -10,9 +10,9 @@ type Item = { id: string; label: string; hint: string; to: string; icon: typeof 
 const pages: [string, string][] = [
   ['Dashboard', '/admin'],
   ['Trainings', '/admin/trainings'],
+  ['Training Visibility (public, department, invite only)', '/admin/visibility'],
   ['Training Requests', '/admin/requests'],
   ['Calendar', '/admin/trainings?view=calendar'],
-  ['Training Categories', '/admin/categories'],
   ['Journeys', '/admin/journeys'],
   ['Materials', '/admin/materials'],
   ['Feedback Forms', '/admin/feedback/forms'],
@@ -20,12 +20,14 @@ const pages: [string, string][] = [
   ['Pre-Assessments', '/admin/assessments/pre'],
   ['Post-Assessments', '/admin/assessments/post'],
   ['Submissions', '/admin/submissions'],
-  ['Certificate Templates', '/admin/certificate-templates'],
   ['Users', '/admin/users'],
   ['Users · Temporary access', '/admin/temporary-access'],
   ['Groups', '/admin/groups'],
-  ['Training Types', '/admin/training-types'],
-  ['Audit Logs', '/admin/audit-logs'],
+  ['Settings · Categories', '/admin/settings/categories'],
+  ['Settings · Training types', '/admin/settings/training-types'],
+  ['Settings · Venues', '/admin/settings/venues'],
+  ['Settings · Certificate templates', '/admin/settings/certificate-templates'],
+  ['Settings · Audit log', '/admin/settings/audit-logs'],
   ['Reports', '/admin/reports'],
 ]
 

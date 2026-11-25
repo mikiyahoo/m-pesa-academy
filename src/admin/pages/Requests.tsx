@@ -26,6 +26,7 @@ export const requestPreset = (r: TrainingRequest, people: Person[], trainerIds?:
   location: r.delivery === 'Online' ? 'ONLINE' : r.location,
   participantIds: r.participants.map((p) => personByEmail(people, p.email)?.id).filter((x): x is string => !!x),
   requestId: r.id,
+  discussionsEnabled: r.discussionsEnabled,
 })
 
 export function RejectModal({ request, onClose }: { request: TrainingRequest; onClose: () => void }) {
@@ -92,6 +93,7 @@ export function ApproveModal({ request, onClose, onApproved }: { request: Traini
     return [...new Set(existing)]
   })
   const [addingTrainer, setAddingTrainer] = useState(() => trainerIds.length === 0)
+  const [discussions, setDiscussions] = useState(request.discussionsEnabled !== false)
   const [candidateTrainerId, setCandidateTrainerId] = useState('')
   const assignedTrainers = trainerIds.map((id) => trainers.find((trainer) => trainer.id === id)).filter((trainer): trainer is (typeof trainers)[number] => !!trainer)
   const availableTrainers = trainers.filter((trainer) => !trainerIds.includes(trainer.id))
@@ -136,6 +138,7 @@ export function ApproveModal({ request, onClose, onApproved }: { request: Traini
                 status: 'APPROVED',
                 trainerId,
                 trainerIds,
+                discussionsEnabled: discussions ? undefined : false,
                 joinLink: makeJoinLink(r.id),
                 history: [...r.history, { at: now(), by: 'Training team', label: 'Approved', detail: `Trainers: ${assignedTrainers.map((trainer) => trainer.name).join(', ') || '—'}` }],
               }
@@ -210,6 +213,15 @@ export function ApproveModal({ request, onClose, onApproved }: { request: Traini
           )}
         </div>
       </Field>
+      <div className="mt-5 flex items-center justify-between gap-4 rounded-xl border border-zinc-200 px-4 py-3">
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-zinc-900">Q&amp;A discussion</span>
+          <span className="block text-xs text-zinc-500">Let learners ask questions and reply under this training.</span>
+        </span>
+        <button type="button" role="switch" aria-checked={discussions} aria-label="Q&A discussion" onClick={() => setDiscussions((v) => !v)} className={cn('relative h-6 w-11 shrink-0 rounded-full transition', discussions ? 'bg-brand-600' : 'bg-zinc-300')}>
+          <span className={cn('absolute top-0.5 size-5 rounded-full bg-white shadow transition-all', discussions ? 'left-[22px]' : 'left-0.5')} />
+        </button>
+      </div>
     </Modal>
   )
 }

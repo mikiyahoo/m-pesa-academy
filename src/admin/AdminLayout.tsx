@@ -1,4 +1,4 @@
-import { ArrowRight, Award, BadgeCheck, BarChart3, Bell, BellOff, Briefcase, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileClock, FileQuestion, GraduationCap, LayoutDashboard, LogOut, type LucideIcon, MapPin, Menu, KeyRound, MessageSquare, MessagesSquare, Moon, RotateCcw, Search, Settings2, Sun, Trophy, UserRoundPlus, UserPen, Users, X } from 'lucide-react'
+import { ArrowRight, BadgeCheck, BarChart3, Bell, BellOff, Briefcase, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileQuestion, GraduationCap, LayoutDashboard, Library, LogOut, type LucideIcon, Menu, KeyRound, MessageSquare, MessagesSquare, Moon, RotateCcw, Search, Settings, Settings2, Sun, UserPen, Users, X } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '../lib/utils'
@@ -17,16 +17,31 @@ type NavItem = { label: string; icon: LucideIcon; to?: string; end?: boolean; ch
 
 const nav: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin', end: true },
-  { label: 'Trainings', icon: GraduationCap, to: '/admin/trainings' },
+  {
+    label: 'Trainings',
+    icon: GraduationCap,
+    children: [
+      { label: 'All trainings', to: '/admin/trainings' },
+      { label: 'Visibility', to: '/admin/visibility' },
+    ],
+  },
   { label: 'Training Requests', icon: FileQuestion, to: '/admin/requests' },
   {
-    label: 'Training Content',
-    icon: GraduationCap,
+    label: 'Content',
+    icon: Library,
     children: [
       { label: 'Journeys', to: '/admin/journeys' },
       { label: 'Materials', to: '/admin/materials' },
       { label: 'Assignments', to: '/admin/assignments' },
-      { label: 'Training Categories', to: '/admin/categories' },
+    ],
+  },
+  {
+    label: 'Assessments',
+    icon: ClipboardList,
+    children: [
+      { label: 'Pre-Assessments', to: '/admin/assessments/pre' },
+      { label: 'Post-Assessments', to: '/admin/assessments/post' },
+      { label: 'Submissions', to: '/admin/submissions' },
     ],
   },
   {
@@ -38,39 +53,27 @@ const nav: NavItem[] = [
     ],
   },
   { label: 'Discussions', icon: MessagesSquare, to: '/admin/discussions' },
-  {
-    label: 'Assessments',
-    icon: ClipboardList,
-    children: [
-      { label: 'Pre-Assessments', to: '/admin/assessments/pre' },
-      { label: 'Post-Assessments', to: '/admin/assessments/post' },
-      { label: 'Submissions', to: '/admin/submissions' },
-    ],
-  },
   { label: 'Certificates', icon: BadgeCheck, to: '/admin/certificates' },
-  { label: 'Certificate Templates', icon: Award, to: '/admin/certificate-templates' },
   {
-    label: 'Users',
+    label: 'People',
     icon: Users,
     children: [
-      { label: 'All users', to: '/admin/users' },
+      { label: 'Users', to: '/admin/users' },
+      { label: 'Groups', to: '/admin/groups' },
       { label: 'Temporary access', to: '/admin/temporary-access' },
       { label: 'Departments', to: '/admin/departments' },
     ],
   },
-  { label: 'Groups', icon: UserRoundPlus, to: '/admin/groups' },
   {
-    label: 'Training Types',
-    icon: Settings2,
+    label: 'Reports',
+    icon: BarChart3,
     children: [
-      { label: 'All Types', to: '/admin/training-types' },
-      { label: 'By Audience', to: '/admin/training-types/audience' },
+      { label: 'All reports', to: '/admin/reports' },
+      { label: 'Leaderboard', to: '/admin/leaderboard' },
     ],
   },
-  { label: 'Venues', icon: MapPin, to: '/admin/venues' },
-  { label: 'Audit Logs', icon: FileClock, to: '/admin/audit-logs' },
-  { label: 'Reports', icon: BarChart3, to: '/admin/reports' },
-  { label: 'Leaderboard', icon: Trophy, to: '/admin/leaderboard' },
+  // Categories, training types, venues, certificate templates and the audit log, as tabs.
+  { label: 'Settings', icon: Settings, to: '/admin/settings' },
 ]
 
 /** Trainer portal (D04, S10): trainings, requests, content, feedback and assessments; data stays limited to their own sessions. */
@@ -79,11 +82,20 @@ const trainerNav: NavItem[] = [
   { label: 'Trainings', icon: GraduationCap, to: '/admin/trainings' },
   { label: 'Training Requests', icon: FileQuestion, to: '/admin/requests' },
   {
-    label: 'Training Content',
-    icon: GraduationCap,
+    label: 'Content',
+    icon: Library,
     children: [
       { label: 'Journeys', to: '/admin/journeys' },
       { label: 'Materials', to: '/admin/materials' },
+    ],
+  },
+  {
+    label: 'Assessments',
+    icon: ClipboardList,
+    children: [
+      { label: 'Pre-Assessments', to: '/admin/assessments/pre' },
+      { label: 'Post-Assessments', to: '/admin/assessments/post' },
+      { label: 'Submissions', to: '/admin/submissions' },
     ],
   },
   {
@@ -95,26 +107,16 @@ const trainerNav: NavItem[] = [
     ],
   },
   { label: 'Discussions', icon: MessagesSquare, to: '/admin/discussions' },
-  {
-    label: 'Assessments',
-    icon: ClipboardList,
-    children: [
-      { label: 'Pre-Assessments', to: '/admin/assessments/pre' },
-      { label: 'Post-Assessments', to: '/admin/assessments/post' },
-      { label: 'Submissions', to: '/admin/submissions' },
-    ],
-  },
   { label: 'Certificates', icon: BadgeCheck, to: '/admin/certificates' },
-  { label: 'Users', icon: Users, to: '/admin/users' },
-  { label: 'Groups', icon: UserRoundPlus, to: '/admin/groups' },
   {
-    label: 'Training Types',
-    icon: Settings2,
+    label: 'People',
+    icon: Users,
     children: [
-      { label: 'All Types', to: '/admin/training-types' },
-      { label: 'By Audience', to: '/admin/training-types/audience' },
+      { label: 'Users', to: '/admin/users' },
+      { label: 'Groups', to: '/admin/groups' },
     ],
   },
+  { label: 'Training Types', icon: Settings2, to: '/admin/training-types' },
   { label: 'Reports', icon: BarChart3, to: '/admin/reports' },
 ]
 
@@ -139,7 +141,7 @@ function NavCount({ n, collapsed, label }: { n?: number; collapsed?: boolean; la
 
 const itemCls = (active: boolean, collapsed = false) =>
   cn(
-    'relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium transition-all',
+    'relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium outline-none transition-all focus-visible:ring-2 focus-visible:ring-white/70',
     collapsed && 'justify-center px-0',
     active ? 'bg-white/15 text-white ring-1 ring-white/20' : 'text-white/90 hover:bg-white/10 hover:text-white',
   )
@@ -172,7 +174,7 @@ function NavGroup({ item, open, onToggle, onNavigate, collapsed, onExpand, count
         {!collapsed && (open ? <ChevronDown className="size-4 text-white/60" /> : <ChevronRight className="size-4 text-white/60" />)}
       </button>
       {open && !collapsed && (
-        <div className="mt-0.5 ml-[17px] space-y-0.5 border-l border-white/20 pl-3">
+        <div className="mt-1 mb-1.5 ml-[17px] space-y-1 border-l border-white/20 pl-3">
           {item.children!.map((c) => (
             <NavLink key={c.to} to={c.to} onClick={onNavigate} className={({ isActive }) => itemCls(isActive)}>
               <span className="min-w-0 flex-1 truncate">{c.label}</span>
@@ -314,7 +316,7 @@ function Sidebar({ onNavigate, items, promo, collapsed = false, onExpand }: { on
           <span className="block text-sm leading-[1.05] font-semibold text-white/85">Academy</span>
         </span>}
       </Link>
-      <nav className="scrollbar-none flex-1 space-y-0.5 overflow-y-auto">
+      <nav className="scrollbar-none flex-1 space-y-1 overflow-y-auto">
         {items.map((item) =>
           item.children ? (
             <NavGroup key={item.label} item={item} open={openGroup === item.label} onToggle={() => setOpenGroup((g) => (g === item.label ? '' : item.label))} onNavigate={onNavigate} collapsed={collapsed} onExpand={onExpand} counts={counts} />
@@ -351,9 +353,13 @@ const crumbLabels: Record<string, string> = {
   'temporary-access': 'Temporary access',
   groups: 'Groups',
   'training-types': 'Training Types',
-  audience: 'By Audience',
-  categories: 'Training Categories',
-  'audit-logs': 'Audit Logs',
+  settings: 'Settings',
+  visibility: 'Visibility',
+  venues: 'Venues',
+  departments: 'Departments',
+  leaderboard: 'Leaderboard',
+  categories: 'Categories',
+  'audit-logs': 'Audit Log',
   certificates: 'Certificates',
   reports: 'Reports',
 }
@@ -367,7 +373,7 @@ function Breadcrumbs() {
     const to = `/admin/${parts.slice(0, i + 1).join('/')}`
     const named = data.trainings.find((t) => t.id === p)?.name ?? data.journeys.find((j) => j.id === p)?.name
     const label = crumbLabels[p]
-    crumbs.push({ label: label ?? named ?? p, to })
+    crumbs.push({ label: label ?? named ?? decodeURIComponent(p), to })
   })
 
   return (

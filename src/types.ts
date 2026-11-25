@@ -22,6 +22,8 @@ export type Module = {
   lockedReason?: string
   /** Video lesson streamed by the player (sample files under /public/trainings, TE-3.2). */
   video?: string
+  /** A video uploaded from the admin's computer, kept in this browser's file storage. */
+  videoFileId?: string
   /** YouTube / Vimeo / Stream link played inside the portal with the provider's own player. */
   embed?: { src: string; label: string }
   /** Source deck offered for download next to the in-app slides (sample file under /public/trainings). */
@@ -49,6 +51,8 @@ export type QuizSettings = {
 }
 
 export type Training = {
+  /** Q&A discussion for this training; unset means on. */
+  discussionsEnabled?: boolean
   id: string
   title: string
   trainer: string

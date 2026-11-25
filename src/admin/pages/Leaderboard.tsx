@@ -126,7 +126,7 @@ export function AdminLeaderboard() {
         <StatCard icon={Target} label="Completions" value={totalCompletions} tone="green" />
       </div>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Rankings */}
         <div className="min-w-0">
           {filtered.length ? (
@@ -233,7 +233,7 @@ export function AdminLeaderboard() {
         </div>
 
         {/* Top performers and badges beside the table */}
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           {top3.length >= 3 && (
             <section className="rounded-2xl border border-zinc-200/80 bg-surface p-5">
               <h2 className="text-base font-bold text-zinc-900">Top performers</h2>

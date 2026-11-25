@@ -14,6 +14,16 @@ const ASSIGNMENT_SAMPLE_MIGRATION_KEY = 'mpesa-learning:assignment-samples:v1'
 /** The learner portal's demo account as an admin person (group ISON), so admins can invite and assign them. */
 /** Demo department admin (Enterprise) so the role can be tried without setting it up first. */
 export const DEMO_DEPARTMENT_ADMIN_ID = 'dept-admin-demo'
+/** Demo: when no training is public or run by a department yet, a few get one so the Visibility page has all three kinds. */
+function withSampleVisibility(data: AdminData): AdminData {
+  if (data.trainings.some((t) => t.isPublic || t.department)) return data
+  const pool = data.trainings.filter((t) => t.status === 'SCHEDULED' && t.id !== 'qr-demo-today')
+  const picks: Partial<AdminData['trainings'][number]>[] = [{ isPublic: true }, { isPublic: true }, { department: 'Enterprise' }, { department: 'Enterprise' }, { department: 'Retail' }]
+  const byId = new Map(pool.slice(0, picks.length).map((t, i) => [t.id, picks[i]]))
+  if (!byId.size) return data
+  return { ...data, trainings: data.trainings.map((t) => (byId.has(t.id) ? { ...t, ...byId.get(t.id) } : t)) }
+}
+
 /** Demo: when no training has additional materials yet, a few of the demo learner's trainings get some. */
 function withSampleExtraMaterials(data: AdminData): AdminData {
   if (data.trainings.some((t) => t.extraMaterialIds?.length)) return data
@@ -193,11 +203,11 @@ function withSampleAssignments(data: AdminData): AdminData {
 export function loadAdminData(): AdminData {
   try {
     const raw = localStorage.getItem(ADMIN_STORAGE_KEY)
-    if (raw) return withSampleExtraMaterials(withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(JSON.parse(raw)))))))
+    if (raw) return withSampleVisibility(withSampleExtraMaterials(withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(JSON.parse(raw))))))))
   } catch {
     // Fall through to seed data.
   }
-  return withSampleExtraMaterials(withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(seedAdminData()))))))
+  return withSampleVisibility(withSampleExtraMaterials(withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(seedAdminData())))))))
 }
 
 /** Fired after admin data is saved, so the learner portal can pick up newly scheduled trainings. */

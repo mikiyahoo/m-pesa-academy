@@ -208,6 +208,8 @@ export type TrainingEvent = {
 export type AdminTraining = {
   id: string
   name: string
+  /** Q&A discussion for this training; unset means on. */
+  discussionsEnabled?: boolean
   /** Reference to a shared uploaded cover, stored once even for recurring sessions. */
   coverId?: string
   journeyId: string
@@ -294,6 +296,8 @@ export type RequestEvent = { at: string; by: string; label: string; detail?: str
 export type TrainingRequest = {
   id: string
   requesterId: string
+  /** Set by the admin when approving: whether the training gets a Q&A discussion (unset = on). */
+  discussionsEnabled?: boolean
   /** Requester's team at the time of the request; used for duplicate checks and link sharing. */
   team: string
   topic: string

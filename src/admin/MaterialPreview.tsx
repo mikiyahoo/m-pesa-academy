@@ -7,6 +7,7 @@ import { videoSource } from './embeds'
 import { PptxViewer } from '../components/PptxViewer'
 import { countDownload, downloadMaterial, materialFileName } from './materialFiles'
 import { MaterialAttachmentPreview } from './MaterialAttachmentPreview'
+import { StoredVideo } from './StoredVideo'
 import { useAdmin } from './store'
 import type { Material } from './types'
 import { Badge, Button, Modal } from './ui'
@@ -38,7 +39,13 @@ export function MaterialPreview({ material, onClose }: { material: Material | nu
           <span>· No download groups selected</span>
         )}
       </div>
-      {(material.type === 'VIDEO' || material.type === 'LINK') && video.kind !== 'none' ? (
+      {material.type === 'VIDEO' && material.fileId ? (
+        <div className="relative aspect-video overflow-hidden rounded-xl bg-black" onContextMenu={(e) => e.preventDefault()}>
+          <StoredVideo fileId={material.fileId} />
+          <Watermark text={watermark} dark />
+          <span className="pointer-events-none absolute top-3 left-3 rounded bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">Uploaded video · stream only</span>
+        </div>
+      ) : (material.type === 'VIDEO' || material.type === 'LINK') && video.kind !== 'none' ? (
         <div className="relative aspect-video overflow-hidden rounded-xl bg-black" onContextMenu={(e) => e.preventDefault()}>
           {video.kind === 'file' ? (
             <video src={video.src} controls controlsList="nodownload noplaybackrate" disablePictureInPicture playsInline preload="metadata" className="size-full" />

@@ -1,0 +1,45 @@
+import { Award, FileClock, MapPin, Settings2, Tags, type LucideIcon } from 'lucide-react'
+import { NavLink, Outlet } from 'react-router-dom'
+import { cn } from '../../lib/utils'
+import { PageHeader, SectionHeaderProvider, TabBar } from '../ui'
+
+const SECTIONS: { to: string; label: string; icon: LucideIcon }[] = [
+  { to: 'categories', label: 'Categories', icon: Tags },
+  { to: 'training-types', label: 'Training types', icon: Settings2 },
+  { to: 'venues', label: 'Venues', icon: MapPin },
+  { to: 'certificate-templates', label: 'Certificate templates', icon: Award },
+  { to: 'audit-logs', label: 'Audit log', icon: FileClock },
+]
+
+/**
+ * Everything that is set up once and rarely changed lives here, one horizontal tab each.
+ * The page under the tabs keeps its own actions (New category, New venue…), with a smaller section title.
+ */
+export function AdminSettings() {
+  return (
+    <>
+      <PageHeader title="Settings" />
+      <TabBar>
+        <nav aria-label="Settings sections" className="scrollbar-none flex min-w-0 max-w-full gap-1 overflow-x-auto">
+          {SECTIONS.map((s) => (
+            <NavLink
+              key={s.to}
+              to={s.to}
+              className={({ isActive }) =>
+                cn(
+                  'flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition',
+                  isActive ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30' : 'text-zinc-600 hover:bg-zinc-50',
+                )
+              }
+            >
+              <s.icon className="size-4" /> {s.label}
+            </NavLink>
+          ))}
+        </nav>
+      </TabBar>
+      <SectionHeaderProvider>
+        <Outlet />
+      </SectionHeaderProvider>
+    </>
+  )
+}

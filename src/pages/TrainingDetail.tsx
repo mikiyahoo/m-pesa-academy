@@ -72,6 +72,9 @@ export function TrainingDetail() {
   const stickyBar = useRef<HTMLDivElement>(null)
   const [compact, setCompact] = useState(false)
   const [activeTab, setActiveTab] = useState<TabId>('about')
+  // Trainings with the Q&A discussion switched off don't show its tab or section.
+  const discussionsOn = training?.discussionsEnabled !== false
+  const sectionTabs = tabs.filter((t) => t.id !== 'discussion' || discussionsOn)
   const [watching, setWatching] = useState(false)
 
   // On scroll: show the CTA in the sticky tab row once the hero button is hidden,
@@ -84,13 +87,13 @@ export function TrainingDetail() {
         const cta = heroCta.current?.getBoundingClientRect()
         setCompact(!!cta && cta.bottom < 64)
         const line = (stickyBar.current?.getBoundingClientRect().bottom ?? 0) + 48
-        let current: TabId = tabs[0].id
-        for (const t of tabs) {
+        let current: TabId = sectionTabs[0].id
+        for (const t of sectionTabs) {
           const el = document.getElementById(t.id)
           if (el && el.getBoundingClientRect().top <= line) current = t.id
         }
         // At the very bottom the last section may be too short to reach the bar.
-        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) current = tabs[tabs.length - 1].id
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) current = sectionTabs[sectionTabs.length - 1].id
         setActiveTab(current)
       })
     }
@@ -100,7 +103,7 @@ export function TrainingDetail() {
       cancelAnimationFrame(frame)
       window.removeEventListener('scroll', onScroll)
     }
-  }, [training?.id])
+  }, [training?.id, discussionsOn]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const p = training ? progress[training.id] : undefined
 
@@ -410,7 +413,7 @@ export function TrainingDetail() {
         <div className="mx-auto max-w-6xl px-4 sm:px-8">
           <div className="flex items-center gap-4 border-b border-zinc-200">
           <nav className="scrollbar-none flex min-w-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden" aria-label="Sections">
-            {tabs.map((t) => (
+            {sectionTabs.map((t) => (
               <button
                 key={t.id}
                 onClick={() => scrollToSection(t.id)}
@@ -539,7 +542,7 @@ export function TrainingDetail() {
                 <h3 className="flex items-center gap-2 text-base font-bold text-zinc-900">
                   Additional materials <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">Optional</span>
                 </h3>
-                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 [&>*]:min-w-0">
                   {extraModules.map((m) => {
                     const done = !!p?.completedModules.includes(m.id)
                     const Icon = m.kind === 'video' ? PlayCircle : FileText
@@ -577,12 +580,14 @@ export function TrainingDetail() {
             </div>
           </section>
 
-          <section id="discussion" className={cn(card, 'scroll-mt-48')}>
-            <div className="mb-5">
-              <SectionTitle icon={MessageSquare}>Course Discussions</SectionTitle>
-            </div>
-            <CourseDiscussion trainingId={training.id} />
-          </section>
+          {discussionsOn && (
+            <section id="discussion" className={cn(card, 'scroll-mt-48')}>
+              <div className="mb-5">
+                <SectionTitle icon={MessageSquare}>Course Discussions</SectionTitle>
+              </div>
+              <CourseDiscussion trainingId={training.id} />
+            </section>
+          )}
         </div>
 
         {/* Side column */}

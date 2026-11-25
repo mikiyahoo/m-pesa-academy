@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { AdminData, Material } from './types'
 
 /** Uploaded file bytes stay in browser IndexedDB; demo records without an uploaded file use sample downloads. */
@@ -59,6 +60,37 @@ export async function deleteMaterialFile(id: string) {
   const transaction = db.transaction(FILE_STORE, 'readwrite')
   transaction.objectStore(FILE_STORE).delete(id)
   await transactionDone(transaction)
+}
+
+/** A playable/downloadable object URL for a stored file (or a just-picked File); revoked when no longer needed. */
+export function useStoredFileUrl(fileId?: string, file?: File | null) {
+  const [state, setState] = useState<{ url?: string; loading: boolean; error: boolean }>({ loading: !!file || !!fileId, error: false })
+  useEffect(() => {
+    let active = true
+    let objectUrl: string | undefined
+    if (!file && !fileId) {
+      setState({ loading: false, error: false })
+      return
+    }
+    setState({ loading: true, error: false })
+    const load = async () => {
+      try {
+        const blob = file ?? (await getMaterialFile(fileId!))?.blob
+        if (!active) return
+        if (!blob) return setState({ loading: false, error: true })
+        objectUrl = URL.createObjectURL(blob)
+        setState({ url: objectUrl, loading: false, error: false })
+      } catch {
+        if (active) setState({ loading: false, error: true })
+      }
+    }
+    void load()
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [fileId, file])
+  return state
 }
 
 export const formatBytes = (bytes?: number) =>

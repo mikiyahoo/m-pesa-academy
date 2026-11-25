@@ -1,6 +1,7 @@
 import { Check, CheckCircle2, Play, PlayCircle, RotateCcw } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { Module } from '../../../types'
+import { useStoredFileUrl } from '../../../admin/materialFiles'
 import { cn } from '../../../lib/utils'
 import { Watermark, btnPrimary } from './shared'
 
@@ -38,6 +39,8 @@ export function VideoItem({ module: m, index, total, done, canUndo, watermark, o
     if (m.embed) setWatched(true)
     void video.current?.play()
   }
+  const stored = useStoredFileUrl(m.videoFileId)
+  const src = m.video ?? stored.url
   const embedSrc = m.embed ? `${m.embed.src}${m.embed.src.includes('?') ? '&' : '?'}autoplay=1` : ''
 
   return (
@@ -57,12 +60,12 @@ export function VideoItem({ module: m, index, total, done, canUndo, watermark, o
           ) : (
             <div className="aspect-video w-full bg-gradient-to-br from-zinc-900 via-zinc-950 to-black" />
           )
-        ) : m.video ? (
+        ) : src ? (
           <video
             ref={video}
-            key={m.video}
+            key={src}
             className="aspect-video w-full bg-black"
-            src={m.video}
+            src={src}
             controls={started}
             controlsList="nodownload noplaybackrate"
             disablePictureInPicture
@@ -80,10 +83,10 @@ export function VideoItem({ module: m, index, total, done, canUndo, watermark, o
             }}
           />
         ) : (
-          <div className="grid aspect-video place-items-center text-sm text-zinc-400">The trainer hasn't attached the video yet.</div>
+          <div className="grid aspect-video place-items-center text-sm text-zinc-400">{m.videoFileId && stored.loading ? 'Loading video…' : m.videoFileId && stored.error ? 'This video is only available in the browser it was uploaded from.' : "The trainer hasn't attached the video yet."}</div>
         )}
         <Watermark text={watermark} dark />
-        {(m.video || m.embed) && !started && (
+        {(src || m.embed) && !started && (
           <button onClick={play} aria-label={`Play ${m.title}`} className="group absolute inset-0 grid place-items-center bg-gradient-to-t from-black/50 via-black/10 to-transparent">
             <span className="grid size-20 place-items-center rounded-full bg-black/55 text-white ring-1 ring-white/20 backdrop-blur transition group-hover:scale-105 group-hover:bg-brand-600 sm:size-24">
               <Play className="ml-1 size-9 fill-current sm:size-10" />

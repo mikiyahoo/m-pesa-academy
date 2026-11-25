@@ -42,7 +42,7 @@ export function StatStrip({ items, className }: { items: StatItem[]; className?:
       {items.map(({ icon: Icon, label, value, tone, onClick, active }) => {
         const body = (
           <>
-            <span className={cn('grid size-11 shrink-0 place-items-center rounded-full sm:size-12', TONE[tone].tile, TONE[tone].text)}>
+            <span className={cn('grid size-9 shrink-0 place-items-center rounded-full sm:size-12', TONE[tone].tile, TONE[tone].text)}>
               <Icon className="size-5" />
             </span>
             <span className="min-w-0">
@@ -53,7 +53,7 @@ export function StatStrip({ items, className }: { items: StatItem[]; className?:
         )
         // White card with a thin outline: icon on the left, label and value beside it.
         const cls = cn(
-          'flex min-w-0 items-center gap-3.5 rounded-2xl border border-zinc-200/80 bg-surface p-4 text-left shadow-card transition sm:p-5',
+          'flex min-w-0 items-center gap-2.5 rounded-2xl border border-zinc-200/80 bg-surface p-3 text-left shadow-card transition sm:gap-3.5 sm:p-5',
           onClick && 'hover:border-zinc-300',
           active && 'border-brand-300 ring-2 ring-brand-100',
         )

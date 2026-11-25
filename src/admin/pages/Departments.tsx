@@ -1,12 +1,16 @@
-import { Building2, PauseCircle, PlayCircle, UserPlus } from 'lucide-react'
+import { ArrowLeft, Award, Building2, CalendarDays, GraduationCap, PauseCircle, PlayCircle, UserCheck, UserPlus, Users } from 'lucide-react'
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
+import { UserAvatar } from '../../components/UserAvatar'
 import { DEMO_PASSWORD } from '../../data/trainings'
+import { shortDate } from '../helpers'
+import { attended, attendanceMap } from '../insights'
+import { combinedJourney } from '../journeys'
 import { isInternalEmail } from '../requests'
 import { useScope } from '../scope'
-import { uid, useAdmin } from '../store'
-import { Avatar, Badge, Button, Empty, Field, Input, Modal, PageHeader, Select, Table } from '../ui'
+import { participantProgress, uid, useAdmin } from '../store'
+import { Avatar, Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, StatCard, Table, trainingStatusTone } from '../ui'
 
 const NEW_DEPT = '__new__'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -16,7 +20,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * Each department has one department admin: adding one where there is already one replaces them
  * (the old one goes back to participant). They sign in with their work email and manage only their department.
  */
-function AddDepartmentAdminModal({ departments, initialDepartment, onClose }: { departments: string[]; initialDepartment?: string; onClose: () => void }) {
+export function AddDepartmentAdminModal({ departments, initialDepartment, onClose }: { departments: string[]; initialDepartment?: string; onClose: () => void }) {
   const { data, update } = useAdmin()
   const { toast } = useFeedback()
   const [name, setName] = useState('')
@@ -211,13 +215,17 @@ export function AdminDepartments() {
         <Table head={['Department', 'Department admin', 'People', 'Trainings', 'Access', '']} minWidth={760}>
           {rows.map((r) => (
             <tr key={r.name} className="transition hover:bg-zinc-50/80">
-              <td className="px-4 py-3 font-semibold text-zinc-900">{r.name}</td>
+              <td className="px-4 py-3 font-semibold text-zinc-900">
+                <Link to={`/admin/departments/${encodeURIComponent(r.name)}`} className="hover:text-brand-600 hover:underline">
+                  {r.name}
+                </Link>
+              </td>
               <td className="px-4 py-3">
                 <span className="flex flex-wrap items-center gap-2">
                   {r.leads.map((p) => (
-                    <span key={p.id} className="inline-flex items-center gap-1.5 text-sm text-zinc-700">
+                    <Link key={p.id} to={`/admin/departments/${encodeURIComponent(r.name)}`} className="inline-flex items-center gap-1.5 text-sm text-zinc-700 hover:text-brand-600 hover:underline">
                       <Avatar name={p.name} size="sm" /> {p.name}
-                    </span>
+                    </Link>
                   ))}
                   <button
                     type="button"
@@ -233,6 +241,9 @@ export function AdminDepartments() {
               <td className="px-4 py-3 text-zinc-700 tabular-nums">{r.trainings}</td>
               <td className="px-4 py-3">{suspended.has(r.name) ? <Badge tone="red">Suspended</Badge> : <Badge tone="green">Active</Badge>}</td>
               <td className="px-4 py-3 text-right">
+                <Link to={`/admin/departments/${encodeURIComponent(r.name)}`} className="mr-1.5 inline-flex items-center rounded-xl px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-50">
+                  Details
+                </Link>
                 <Button size="sm" variant={suspended.has(r.name) ? 'primary' : 'outline'} onClick={() => void toggle(r.name)}>
                   {suspended.has(r.name) ? (
                     <>
@@ -254,6 +265,215 @@ export function AdminDepartments() {
         </div>
       )}
       {adding && <AddDepartmentAdminModal departments={names} initialDepartment={adding.department} onClose={() => setAdding(null)} />}
+    </>
+  )
+}
+
+/**
+ * One department at a glance: its department admin's full profile, the trainings run under them,
+ * the trainees and trainers in the department, and the headline numbers.
+ */
+export function AdminDepartmentDetail() {
+  const { name: raw = '' } = useParams()
+  const name = decodeURIComponent(raw)
+  const { data, update } = useAdmin()
+  const { confirm } = useFeedback()
+  const scope = useScope()
+  const [changing, setChanging] = useState(false)
+
+  // Main admins only, like the Departments list.
+  if (scope.role !== 'admin') return <Navigate to="/admin" replace />
+
+  const suspended = (data.suspendedDepartments ?? []).includes(name)
+  const admin = data.people.find((p) => p.role === 'Department Admin' && p.department === name)
+  const known = data.people.some((p) => p.department === name) || data.trainings.some((t) => t.department === name)
+  if (!known) return <Navigate to="/admin/departments" replace />
+
+  const trainings = data.trainings.filter((t) => t.department === name || (!!admin && t.createdById === admin.id)).sort((a, b) => b.date.localeCompare(a.date))
+  const live = trainings.filter((t) => t.status !== 'CANCELLED')
+  const moduleIds = new Map(trainings.map((t) => [t.id, combinedJourney(data, t)?.modules.map((m) => m.id) ?? []]))
+  const attendanceOf = (t: (typeof trainings)[number]) => {
+    const marks = attendanceMap(data, t)
+    return t.participantIds.length ? Math.round((t.participantIds.filter((pid) => attended(marks.get(pid))).length / t.participantIds.length) * 100) : null
+  }
+  const ran = live.filter((t) => t.status === 'COMPLETED' || t.status === 'ONGOING')
+  const attendanceRates = ran.map(attendanceOf).filter((x): x is number => x !== null)
+  const avgAttendance = attendanceRates.length ? Math.round(attendanceRates.reduce((a, b) => a + b, 0) / attendanceRates.length) : null
+  const certificates = trainings.reduce((n, t) => n + (t.certificates?.length ?? 0), 0)
+
+  const enrolled = new Set(trainings.flatMap((t) => t.participantIds))
+  const trainees = data.people.filter((p) => p.role === 'Participant' && (p.department === name || enrolled.has(p.id)))
+  const trainers = data.people.filter((p) => p.role === 'Trainer' && p.department === name)
+  const progressOf = (pid: string) => {
+    const mine = trainings.filter((t) => t.participantIds.includes(pid) && t.status !== 'CANCELLED')
+    return mine.length ? Math.round(mine.reduce((sum, t) => sum + participantProgress(t, pid, moduleIds.get(t.id) ?? []), 0) / mine.length) : null
+  }
+  const byStatus = (st: string) => trainings.filter((t) => t.status === st).length
+
+  const toggleAccess = async () => {
+    const on = !suspended
+    if (on && !(await confirm({ title: `Suspend ${name}?`, message: 'Its department admin can’t sign in or manage trainings until you restore access.', confirmLabel: 'Suspend access', danger: true }))) return
+    update((d) => ({ ...d, suspendedDepartments: on ? [...(d.suspendedDepartments ?? []), name] : (d.suspendedDepartments ?? []).filter((x) => x !== name) }), {
+      action: on ? 'Suspended department access' : 'Restored department access',
+      target: name,
+      changes: [{ field: 'Department access', from: on ? 'Active' : 'Suspended', to: on ? 'Suspended' : 'Active' }],
+    })
+  }
+
+  const profile: [string, string][] = admin
+    ? [
+        ['Email', admin.email],
+        ['Phone', admin.phone || '—'],
+        ['Job title', admin.designation || '—'],
+        ['Organization', admin.organization || '—'],
+        ['Region', admin.region || '—'],
+        ['Department', admin.department],
+        ['Account', admin.status],
+        ['Added', `${admin.createdAt ? shortDate(admin.createdAt) : '—'}${admin.createdBy ? ` by ${admin.createdBy}` : ''}`],
+      ]
+    : []
+
+  return (
+    <>
+      <Link to="/admin/departments" className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 transition hover:text-zinc-800">
+        <ArrowLeft className="size-4" /> Departments
+      </Link>
+      <div className="mb-6 flex flex-wrap items-center gap-4">
+        <UserAvatar name={admin?.name ?? name} className="size-16 shrink-0 ring-4 ring-brand-50" />
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-2xl leading-tight font-bold tracking-tight text-zinc-900">{admin ? admin.name : name}</h1>
+          <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
+            {admin ? `Department admin · ${name}` : `${name} · no department admin yet`}
+            {suspended ? <Badge tone="red">Suspended</Badge> : <Badge tone="green">Active</Badge>}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setChanging(true)}>
+            <UserPlus className="size-4" /> {admin ? 'Change admin' : 'Add department admin'}
+          </Button>
+          <Button variant={suspended ? 'primary' : 'outline'} onClick={() => void toggleAccess()}>
+            {suspended ? (
+              <>
+                <PlayCircle className="size-4" /> Restore access
+              </>
+            ) : (
+              <>
+                <PauseCircle className="size-4" /> Suspend access
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <StatCard icon={GraduationCap} label="Trainings" value={trainings.length} hint={`${byStatus('SCHEDULED')} scheduled · ${byStatus('ONGOING')} ongoing · ${byStatus('COMPLETED')} done`} tone="red" />
+        <StatCard icon={Users} label="Trainees" value={trainees.length} hint="Enrolled or in the department" tone="zinc" />
+        <StatCard icon={UserCheck} label="Trainers" value={trainers.length} hint="In this department" tone="zinc" />
+        <StatCard icon={CalendarDays} label="Avg. attendance" value={avgAttendance === null ? '—' : `${avgAttendance}%`} hint={`${ran.length} session${ran.length === 1 ? '' : 's'} held`} tone="green" />
+        <StatCard icon={Award} label="Certificates" value={certificates} hint="Issued in its trainings" tone="amber" />
+      </div>
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+        <div className="space-y-6">
+          <Card>
+            <h2 className="text-base font-bold text-zinc-900">Profile</h2>
+            {admin ? (
+              <dl className="mt-4 divide-y divide-zinc-100 text-sm">
+                {profile.map(([k, v]) => (
+                  <div key={k} className="flex items-start justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                    <dt className="shrink-0 text-zinc-500">{k}</dt>
+                    <dd className="min-w-0 text-right font-medium break-words text-zinc-900">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <Empty compact icon={UserPlus} title="No department admin yet" text="Add one so this department can run its own trainings." action={<Button size="sm" variant="primary" onClick={() => setChanging(true)}>Add department admin</Button>} />
+            )}
+          </Card>
+          <Card>
+            <h2 className="text-base font-bold text-zinc-900">Trainers ({trainers.length})</h2>
+            {trainers.length ? (
+              <ul className="mt-3 space-y-2.5">
+                {trainers.map((p) => (
+                  <li key={p.id} className="flex items-center gap-3">
+                    <Avatar name={p.name} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-zinc-900">{p.name}</span>
+                      <span className="block truncate text-xs text-zinc-500">{p.email}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-zinc-500">No trainers in this department yet. The department admin can give trainer access to people from Users.</p>
+            )}
+          </Card>
+        </div>
+
+        <div className="min-w-0 space-y-6">
+          <Card className="overflow-hidden p-0">
+            <h2 className="px-5 pt-5 text-base font-bold text-zinc-900">Trainings ({trainings.length})</h2>
+            {trainings.length ? (
+              <div className="mt-3">
+                <Table head={['Training', 'Date', 'Status', 'Trainees', 'Attendance']} minWidth={560}>
+                  {trainings.map((t) => {
+                    const rate = t.status === 'COMPLETED' || t.status === 'ONGOING' ? attendanceOf(t) : null
+                    return (
+                      <tr key={t.id} className="hover:bg-zinc-50">
+                        <td className="px-4 py-3">
+                          <Link to={`/admin/trainings/${t.id}`} className="font-medium text-zinc-900 hover:text-brand-600">
+                            {t.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-zinc-600">{shortDate(t.date)}</td>
+                        <td className="px-4 py-3">
+                          <Badge tone={trainingStatusTone[t.status]}>{t.status[0] + t.status.slice(1).toLowerCase()}</Badge>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-700 tabular-nums">{t.participantIds.length}</td>
+                        <td className="px-4 py-3 text-zinc-700 tabular-nums">{rate === null ? '—' : `${rate}%`}</td>
+                      </tr>
+                    )
+                  })}
+                </Table>
+              </div>
+            ) : (
+              <p className="px-5 pt-2 pb-5 text-sm text-zinc-500">No trainings have been created under this department yet.</p>
+            )}
+          </Card>
+
+          <Card className="overflow-hidden p-0">
+            <h2 className="px-5 pt-5 text-base font-bold text-zinc-900">Trainees ({trainees.length})</h2>
+            {trainees.length ? (
+              <div className="mt-3 max-h-[420px] overflow-y-auto">
+                <Table head={['Trainee', 'Trainings', 'Avg. progress']} minWidth={480}>
+                  {trainees.map((p) => {
+                    const mine = trainings.filter((t) => t.participantIds.includes(p.id)).length
+                    const progress = progressOf(p.id)
+                    return (
+                      <tr key={p.id} className="hover:bg-zinc-50">
+                        <td className="px-4 py-3">
+                          <span className="flex items-center gap-3">
+                            <Avatar name={p.name} size="sm" />
+                            <span className="min-w-0">
+                              <span className="block truncate font-medium text-zinc-900">{p.name}</span>
+                              <span className="block truncate text-xs text-zinc-500">{p.email}</span>
+                            </span>
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-700 tabular-nums">{mine}</td>
+                        <td className="px-4 py-3 text-zinc-700 tabular-nums">{progress === null ? '—' : `${progress}%`}</td>
+                      </tr>
+                    )
+                  })}
+                </Table>
+              </div>
+            ) : (
+              <p className="px-5 pt-2 pb-5 text-sm text-zinc-500">No trainees yet.</p>
+            )}
+          </Card>
+        </div>
+      </div>
+      {changing && <AddDepartmentAdminModal departments={[...new Set(data.people.map((x) => x.department).filter((d): d is string => !!d && d !== 'Visitor'))].sort()} initialDepartment={name} onClose={() => setChanging(false)} />}
     </>
   )
 }

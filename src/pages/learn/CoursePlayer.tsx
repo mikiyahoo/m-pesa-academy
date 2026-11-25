@@ -247,6 +247,7 @@ export function CoursePlayer() {
           <span className="hidden sm:inline">{percent}%</span>
         </span>
         <OfflineCourseToggle training={training} compact />
+        {training.discussionsEnabled !== false && (
         <button
           onClick={() => setShowQa(!showQa)}
           className={cn(
@@ -260,6 +261,7 @@ export function CoursePlayer() {
           <MessageSquare className="size-4" />
           <span className="hidden sm:inline">Q&A</span>
         </button>
+        )}
         <UserAvatar name={user.name} className="size-9 ring-1 ring-zinc-200" />
       </header>
 
@@ -354,7 +356,7 @@ export function CoursePlayer() {
         </main>
 
         {/* Course Q&A Panel */}
-        {showQa && (
+        {showQa && training.discussionsEnabled !== false && (
           <aside className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-zinc-200 bg-white shadow-2xl lg:static lg:z-auto lg:w-[380px] lg:rounded-2xl lg:border lg:border-zinc-200/70 lg:shadow-none">
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-100 px-4">
               <div className="flex items-center gap-2">

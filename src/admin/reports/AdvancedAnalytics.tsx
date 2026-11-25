@@ -1,8 +1,7 @@
-import { AlertTriangle, BellRing, CheckCircle2, Globe2, MapPin, Send, ShieldAlert, TrendingDown } from 'lucide-react'
+import { AlertTriangle, BellRing, CheckCircle2, Globe2, Send, ShieldAlert } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
-import { cn } from '../../lib/utils'
 import { attended, attendanceMap } from '../insights'
 import { filteredParticipants, type useReportFilters } from './filters'
 import type { Sheet } from './export'
@@ -10,6 +9,8 @@ import { participantProgress } from '../store'
 import type { AdminData, AdminTraining } from '../types'
 import { Badge, Button, Card, ProgressBar, Table } from '../ui'
 import { combinedJourney } from '../journeys'
+import { RegionMap } from './EthiopiaMap'
+import { CompletionFunnel } from './CompletionFunnel'
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0)
 
@@ -90,6 +91,18 @@ export function buildFunnelReport(
     if (stages[i].dropOff > worstStage.dropOff) worstStage = stages[i]
   }
 
+  // Overall conversion month by month (by training date), for the trend in the banner.
+  const months = new Map<string, { enrolled: number; certified: number }>()
+  for (const t of live) {
+    const ps = filteredParticipants(data, t, filters)
+    const certPids = (t.certificates ?? []).map((c) => c.personId)
+    const m = months.get(t.date.slice(0, 7)) ?? { enrolled: 0, certified: 0 }
+    m.enrolled += ps.length
+    m.certified += ps.filter((pid) => certPids.includes(pid)).length
+    months.set(t.date.slice(0, 7), m)
+  }
+  const trend = [...months.entries()].filter(([, m]) => m.enrolled > 0).sort(([x], [y]) => x.localeCompare(y)).slice(-6).map(([, m]) => pct(m.certified, m.enrolled))
+
   const sheets: Sheet[] = [
     {
       name: 'Completion Funnel',
@@ -98,85 +111,7 @@ export function buildFunnelReport(
     },
   ]
 
-  const view = (
-    <div className="space-y-6">
-      {/* Bottleneck insight banner */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-50 via-white to-orange-50/40 p-5 shadow-xs">
-        <div className="flex items-start gap-3.5">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-700">
-            <TrendingDown className="size-5" />
-          </span>
-          <div>
-            <h3 className="text-sm font-bold text-amber-950">Primary Drop-off Bottleneck</h3>
-            <p className="mt-0.5 text-xs text-amber-900/80">
-              The steepest drop-off occurs at <strong className="font-semibold text-amber-950">{worstStage.name}</strong> with a <span className="font-bold text-brand-700">-{worstStage.dropOff}% drop-off</span>.
-              Targeted reminders for this stage will yield the highest completion gains.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Overall Conversion</p>
-            <p className="text-xl font-black text-mpesa-600">{stages[4].pctOfTotal}%</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Visual Funnel Cards */}
-      <div className="space-y-3">
-        {stages.map((stage, idx) => {
-          const colors = [
-            'from-sky-500 to-blue-600',
-            'from-blue-600 to-indigo-600',
-            'from-indigo-600 to-purple-600',
-            'from-purple-600 to-amber-600',
-            'from-emerald-500 to-mpesa-600',
-          ]
-          return (
-            <div
-              key={stage.name}
-              className="group relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-xs transition hover:border-zinc-300"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-zinc-100 text-xs font-bold text-zinc-700">
-                    {idx + 1}
-                  </span>
-                  <div>
-                    <h4 className="text-sm font-bold text-zinc-900">{stage.name}</h4>
-                    <p className="text-xs text-zinc-500">
-                      {stage.count.toLocaleString()} learners reached this step
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-6">
-                  {idx > 0 && (
-                    <div className="text-right">
-                      <span className="text-[11px] text-zinc-400 block">Stage Drop-off</span>
-                      <span className="text-xs font-bold text-red-600">-{stage.dropOff}%</span>
-                    </div>
-                  )}
-                  <div className="text-right min-w-[70px]">
-                    <span className="text-[11px] text-zinc-400 block">Retained</span>
-                    <span className="text-base font-black text-zinc-900">{stage.pctOfTotal}%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-zinc-100">
-                <div
-                  className={cn('h-full rounded-full bg-gradient-to-r transition-all duration-500', colors[idx])}
-                  style={{ width: `${Math.max(stage.pctOfTotal, 3)}%` }}
-                />
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+  const view = <CompletionFunnel stages={stages} worst={worstStage} trend={trend} />
 
   return { view, sheets: () => sheets }
 }
@@ -293,67 +228,8 @@ export function buildHeatmapReport(
         </div>
       </div>
 
-      {/* Heatmap Grid & Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {rows.map((r) => (
-          <div
-            key={r.region}
-            className={cn(
-              'rounded-2xl border p-5 shadow-xs transition hover:shadow-md',
-              r.rating === 'high' && 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/30 to-white',
-              r.rating === 'medium' && 'border-zinc-200/80 bg-white',
-              r.rating === 'low' && 'border-amber-200/80 bg-gradient-to-br from-amber-50/30 to-white',
-            )}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h4 className="flex items-center gap-1.5 text-base font-bold text-zinc-900">
-                  <MapPin className="size-4 text-brand-600" /> {r.region}
-                </h4>
-                <p className="text-xs text-zinc-500">{r.enrolments} total enrolments</p>
-              </div>
-              <Badge tone={r.rating === 'high' ? 'green' : r.rating === 'medium' ? 'blue' : 'amber'}>
-                {r.rating === 'high' ? 'Optimal' : r.rating === 'medium' ? 'Standard' : 'Needs Focus'}
-              </Badge>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              <div>
-                <div className="flex justify-between text-xs font-medium">
-                  <span className="text-zinc-600">Completion Rate</span>
-                  <span className="font-bold text-zinc-900">{r.completionRate}%</span>
-                </div>
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-zinc-100">
-                  <div
-                    className={cn(
-                      'h-full rounded-full transition-all',
-                      r.completionRate >= 70 ? 'bg-mpesa-600' : r.completionRate >= 50 ? 'bg-amber-500' : 'bg-brand-600',
-                    )}
-                    style={{ width: `${r.completionRate}%` }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-medium">
-                  <span className="text-zinc-600">Attendance Rate</span>
-                  <span className="font-bold text-zinc-900">{r.attendanceRate}%</span>
-                </div>
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-zinc-100">
-                  <div className="h-full rounded-full bg-blue-600" style={{ width: `${r.attendanceRate}%` }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-medium">
-                  <span className="text-zinc-600">Avg Assessment Score</span>
-                  <span className="font-bold text-zinc-900">{r.avgScore ? `${r.avgScore}%` : '—'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Ethiopia map with the selected region's details beside it */}
+      <RegionMap rows={rows} />
     </div>
   )
 

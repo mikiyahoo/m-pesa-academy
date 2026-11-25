@@ -23,6 +23,7 @@ function toModule(id: string, title: string, m: Material | undefined, i: number)
   if (m && source && source.kind !== 'none' && source.kind !== 'file') {
     return { id, title, minutes: m.minutes || 10, kind: 'video', embed: { src: source.src, label: source.label } }
   }
+  if (m?.type === 'VIDEO' && m.fileId) return { id, title, minutes: m.minutes || 10, kind: 'video', videoFileId: m.fileId }
   if (m?.type === 'VIDEO') {
     const direct = m.url && /\.(mp4|webm)(\?|$)/i.test(m.url) ? m.url : undefined
     return { id, title, minutes: m.minutes || 10, kind: 'video', video: direct ?? SAMPLE_VIDEOS[i % SAMPLE_VIDEOS.length] }
@@ -84,6 +85,7 @@ export function adminToLearnerTraining(data: AdminData, t: AdminTraining, person
     quiz: mcq.length ? mcq.map((q) => ({ id: q.id, question: q.question, options: q.options!, answer: q.answer as number, shuffleOptions: q.shuffleOptions })) : fallbackQuiz(t.name),
     quizSettings: post ? { timeLimitMinutes: post.timeLimitMinutes, maxAttempts: post.maxAttempts, shuffle: post.shuffle } : undefined,
     isPublic: t.isPublic,
+    discussionsEnabled: t.discussionsEnabled,
     attemptsResetAt: personId ? t.attemptResets?.filter((r) => r.personId === personId && r.assessmentId === t.postAssessmentId).at(-1)?.at : undefined,
   }
 }

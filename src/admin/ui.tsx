@@ -1,5 +1,5 @@
 import { Award, BarChart3, CheckCircle2, ClipboardCheck, Clock, Download, FileQuestion, GraduationCap, MessageSquare, Minus, Search, Star, TrendingDown, TrendingUp, UserCheck, Users, X, XCircle } from 'lucide-react'
-import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { createContext, useContext, useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '../lib/utils'
 import type { RequestStatus, TrainingStatus } from './types'
@@ -167,11 +167,17 @@ export function ProgressBar({ value, className, tone = 'red' }: { value: number;
   )
 }
 
+const SectionHeaderContext = createContext(false)
+/** Pages rendered inside another page (Settings tabs) show a section title instead of a page title. */
+export const SectionHeaderProvider = ({ children }: { children: ReactNode }) => <SectionHeaderContext.Provider value>{children}</SectionHeaderContext.Provider>
+
 export function PageHeader({ title, description, actions, meta }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; meta?: ReactNode }) {
+  const section = useContext(SectionHeaderContext)
+  const Heading = section ? 'h2' : 'h1'
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div className={cn('flex flex-wrap items-start justify-between gap-4', section ? 'mb-4' : 'mb-6')}>
       <div className="min-w-0">
-        <h1 className="flex flex-wrap items-center gap-3 text-2xl leading-tight font-bold tracking-tight text-zinc-900">{title}</h1>
+        <Heading className={cn('flex flex-wrap items-center gap-3 leading-tight font-bold tracking-tight text-zinc-900', section ? 'text-lg' : 'text-2xl')}>{title}</Heading>
         {/* Titles stand alone like the learner portal; `description` is kept for screen readers only. */}
         {description && <p className="sr-only">{description}</p>}
         {meta && <div className="mt-2 flex flex-wrap items-center gap-5 text-sm text-zinc-500">{meta}</div>}
