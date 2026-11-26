@@ -1,6 +1,6 @@
 import { ArrowLeft, BellOff, Camera, CheckCheck, Eye, Mic, Paperclip, Pin, Phone, Play, Search, Send, Smile, SquarePen, Video } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CHATS, CLASSMATES, trainerReply, type Chat, type Msg } from './data'
+import { CHATS, CLASSMATES, trainerOf, trainerReply, type Chat, type Msg } from './data'
 import { unreadIn, useLite } from './store'
 import { Avatar, cn, timeLabel, useToast } from './ui'
 
@@ -116,7 +116,7 @@ export function Inbox({ target, onTargetUsed, onTrainer }: { target?: { chatId: 
 const SENDER_COLOURS = ['text-[#d03c3b]', 'text-sky-600', 'text-violet-600', 'text-amber-600', 'text-emerald-600']
 const colourOf = (name: string) => SENDER_COLOURS[[...name].reduce((n, ch) => n + ch.charCodeAt(0), 0) % SENDER_COLOURS.length]
 
-function ChatView({ chat, onBack, initialText = '', onTrainer }: { chat: Chat; onBack: () => void; initialText?: string; onTrainer?: (trainerId: string) => void }) {
+export function ChatView({ chat, onBack, initialText = '', onTrainer }: { chat: Chat; onBack: () => void; initialText?: string; onTrainer?: (trainerId: string) => void }) {
   const { s, set } = useLite()
   const toast = useToast()
   const [text, setText] = useState(initialText)
@@ -147,6 +147,14 @@ function ChatView({ chat, onBack, initialText = '', onTrainer }: { chat: Chat; o
         setTyping(null)
         push({ from: chat.id, text: trainerReply(kind === 'voice' ? 'voice' : v) })
       }, 2000)
+    } else if (chat.kind === 'group' && chat.trainerId) {
+      // A question channel: its trainer answers.
+      const t = trainerOf(chat.trainerId)
+      window.setTimeout(() => setTyping(t.name.split(' ')[0]), 700)
+      window.setTimeout(() => {
+        setTyping(null)
+        push({ from: t.name, text: trainerReply(kind === 'voice' ? 'voice' : v) })
+      }, 2200)
     } else if (chat.kind === 'group') {
       const mate = CLASSMATES[Math.floor(Math.random() * CLASSMATES.length)]
       window.setTimeout(() => setTyping(mate.name.split(' ')[0]), 900)

@@ -1,7 +1,7 @@
 import { House, MessageCircle, Play, UserRound, UsersRound } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Community } from './community'
-import { CHATS, COURSES, chatOfTrainer, findItem } from './data'
+import { CHATS, COURSES, allChannels, chatOfTrainer, findItem } from './data'
 import { Feed, type FeedTab } from './feed'
 import { Inbox } from './inbox'
 import { Profile } from './profile'
@@ -90,13 +90,14 @@ function Shell() {
   }
 
   const unread = CHATS.reduce((n, c) => n + unreadIn(s, c.id), 0)
+  const communityUnread = allChannels().reduce((n, { channel }) => n + unreadIn(s, channel.id), 0)
   const dark = screen === 'home'
 
   return (
     <div className="flex h-full flex-col">
       <div className="relative min-h-0 flex-1">
         {screen === 'home' && <Feed tab={feedTab} onTab={setFeedTab} jumpTo={jumpTo} onJumped={() => setJumpTo(null)} onDiscover={() => setDiscover(true)} onLive={() => setLive(true)} onTrainer={setTrainer} />}
-        {screen === 'community' && <Community />}
+        {screen === 'community' && <Community onTrainer={setTrainer} />}
         {screen === 'inbox' && <Inbox target={chatTarget} onTargetUsed={clearChatTarget} onTrainer={setTrainer} />}
         {screen === 'profile' && <Profile onOpenCourse={openCourse} onOpenItem={openItem} />}
         {discover && <Discover onClose={() => setDiscover(false)} onOpenItem={openItem} onOpenCourse={openCourse} />}
@@ -104,11 +105,13 @@ function Shell() {
         {trainer && <TrainerProfile trainerId={trainer} onClose={() => setTrainer(null)} onChat={openChat} onOpenCourse={openCourse} />}
       </div>
 
-      <nav className={cn('flex h-14 shrink-0 items-center justify-around border-t pb-[env(safe-area-inset-bottom)]', dark ? 'border-white/10 bg-black text-white' : 'border-zinc-200 bg-white text-zinc-900')} aria-label="Main">
+      {/* Home keeps a solid black bar; the other screens get a floating, rounded bar. */}
+      <div className={cn('shrink-0 pb-[env(safe-area-inset-bottom)]', dark ? 'bg-black' : screen === 'community' ? 'bg-[#f0f2f5] px-3 pt-1.5 pb-2.5' : 'bg-white px-3 pt-1.5 pb-2.5')}>
+      <nav className={cn('flex items-center justify-around', dark ? 'h-14 border-t border-white/10 text-white' : 'h-[62px] rounded-full border border-zinc-200/80 bg-white px-1 text-zinc-900 shadow-[0_6px_24px_rgba(0,0,0,0.12)]')} aria-label="Main">
         <NavBtn label="Home" active={screen === 'home'} onClick={() => setScreen('home')} dark={dark}>
           <House className={cn('size-6', screen === 'home' && 'fill-current')} />
         </NavBtn>
-        <NavBtn label="Community" active={screen === 'community'} onClick={() => setScreen('community')} dark={dark}>
+        <NavBtn label="Community" active={screen === 'community'} onClick={() => setScreen('community')} dark={dark} badge={communityUnread}>
           <UsersRound className={cn('size-6', screen === 'community' && 'fill-current')} />
         </NavBtn>
         <button type="button" onClick={resume} aria-label="Continue learning" className="relative -mt-1 flex h-9 w-14 items-center justify-center rounded-xl bg-gradient-to-r from-[#39b54a] to-[#d03c3b] p-[3px] shadow-lg transition active:scale-95">
@@ -123,13 +126,22 @@ function Shell() {
           <UserRound className={cn('size-6', screen === 'profile' && 'fill-current')} />
         </NavBtn>
       </nav>
+      </div>
     </div>
   )
 }
 
 function NavBtn({ label, active, onClick, children, dark, badge }: { label: string; active: boolean; onClick: () => void; children: React.ReactNode; dark: boolean; badge?: number }) {
   return (
-    <button type="button" onClick={onClick} aria-current={active ? 'page' : undefined} className={cn('relative flex w-14 flex-col items-center gap-0.5 text-[10px] font-semibold transition', active ? '' : dark ? 'text-white/60' : 'text-zinc-400')}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'relative flex min-w-14 flex-col items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-semibold transition',
+        dark ? (active ? '' : 'text-white/60') : active ? 'bg-[#d03c3b]/10 text-[#d03c3b]' : 'text-zinc-500',
+      )}
+    >
       {children}
       {label}
       {!!badge && <span className="absolute -top-1 right-2 grid h-4 min-w-4 place-items-center rounded-full bg-[#d03c3b] px-1 text-[9px] font-bold text-white">{badge}</span>}

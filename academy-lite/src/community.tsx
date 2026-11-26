@@ -1,7 +1,8 @@
 import { BadgeCheck, Bell, Globe2, MessageCircle, MoreHorizontal, Search, Share2, ThumbsUp, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { ACADEMY, CLASSMATES, ME, type Post } from './data'
-import { useLite } from './store'
+import { ACADEMY, CLASSMATES, ME, allChannels, type Post } from './data'
+import { SpacesView } from './spaces'
+import { unreadIn, useLite } from './store'
 import { Avatar, cn, useToast } from './ui'
 
 // Academy highlights: posted by the Academy team, celebrating learners.
@@ -14,10 +15,12 @@ const STORIES = [
 ]
 
 /** Community: updates from the Academy team and trainers. Learners react, comment and share; they don’t post. */
-export function Community() {
+export function Community({ onTrainer }: { onTrainer: (trainerId: string) => void }) {
   const { s, toggle } = useLite()
   const toast = useToast()
   const [story, setStory] = useState<number | null>(null)
+  const [view, setView] = useState<'feed' | 'spaces'>('feed')
+  const spacesUnread = allChannels().reduce((n, { channel }) => n + unreadIn(s, channel.id), 0)
 
   return (
     <div className="flex h-full flex-col bg-[#f0f2f5] text-zinc-900">
@@ -34,6 +37,26 @@ export function Community() {
         </div>
       </div>
 
+      {/* Feed (posts from the team) or Spaces (channels) */}
+      <div className="flex shrink-0 gap-1 bg-white px-4 pb-2.5" role="tablist" aria-label="Community view">
+        {(
+          [
+            ['feed', 'Feed'],
+            ['spaces', 'Spaces'],
+          ] as const
+        ).map(([v, label]) => (
+          <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)} className={cn('flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition', view === v ? 'bg-[#d03c3b] text-white' : 'bg-zinc-100 text-zinc-600')}>
+            {label}
+            {v === 'spaces' && spacesUnread > 0 && <span className={cn('grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-bold', view === v ? 'bg-white text-[#d03c3b]' : 'bg-[#d03c3b] text-white')}>{spacesUnread}</span>}
+          </button>
+        ))}
+      </div>
+
+      {view === 'spaces' ? (
+        <div className="min-h-0 flex-1">
+          <SpacesView onTrainer={onTrainer} />
+        </div>
+      ) : (
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-4">
         {/* Academy highlights */}
         <div className="bg-white px-4 pt-3 pb-3">
@@ -55,6 +78,7 @@ export function Community() {
           <PostCard key={p.id} post={p} reacted={s.reacted.includes(p.id)} onReact={() => toggle('reacted', p.id)} />
         ))}
       </div>
+      )}
 
       {story !== null && <StoryViewer index={story} onIndex={setStory} onClose={() => setStory(null)} />}
     </div>
