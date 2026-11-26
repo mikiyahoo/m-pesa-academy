@@ -7,7 +7,7 @@ import { Inbox } from './inbox'
 import { Profile } from './profile'
 import { Discover, LiveSheet } from './sheets'
 import { TrainerProfile } from './trainer'
-import { LiteProvider, unreadIn, useLite } from './store'
+import { LiteProvider, soundUnlock, unreadIn, useLite } from './store'
 import { ToastProvider, cn, useToast } from './ui'
 
 type Screen = 'home' | 'community' | 'inbox' | 'profile'
@@ -29,7 +29,7 @@ export default function App() {
 }
 
 function Shell() {
-  const { s, toggle } = useLite()
+  const { s, set, toggle } = useLite()
   const toast = useToast()
   const [screen, setScreen] = useState<Screen>('home')
   const [feedTab, setFeedTab] = useState<FeedTab>('foryou')
@@ -46,6 +46,17 @@ function Shell() {
     setChatTarget({ chatId: chatOfTrainer(trainerId).id, draft })
   }, [])
   const clearChatTarget = useCallback(() => setChatTarget(null), [])
+
+  // Videos start silent (phones only autoplay that way); the first tap anywhere turns the sound on.
+  useEffect(() => {
+    if (!s.muted) return
+    const unlock = () => {
+      soundUnlock.at = Date.now()
+      set((x) => ({ ...x, muted: false }))
+    }
+    window.addEventListener('pointerdown', unlock, { once: true, capture: true })
+    return () => window.removeEventListener('pointerdown', unlock, { capture: true })
+  }, [s.muted, set])
 
   // A shared link (?post=…) opens that post.
   useEffect(() => {

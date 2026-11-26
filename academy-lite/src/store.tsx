@@ -66,7 +66,7 @@ function load(): LiteState {
       const fresh = initial()
       const saved = JSON.parse(raw) as Partial<LiteState>
       // New chats (e.g. a new trainer) appear for returning learners too.
-      return { ...fresh, ...saved, chats: { ...fresh.chats, ...saved.chats }, lastRead: { ...fresh.lastRead, ...saved.lastRead }, posts: POSTS }
+      return { ...fresh, ...saved, chats: { ...fresh.chats, ...saved.chats }, lastRead: { ...fresh.lastRead, ...saved.lastRead }, posts: POSTS, muted: true }
     }
   } catch {
     // Fall back to a fresh start.
@@ -132,4 +132,7 @@ export function useLite() {
 }
 
 /** Unread messages in a chat (messages from others after the last time it was opened). */
+/** When the first tap turned the sound on, so that same tap doesn't also pause a video. */
+export const soundUnlock = { at: 0 }
+
 export const unreadIn = (s: LiteState, chatId: string) => (s.chats[chatId] ?? []).filter((m) => m.from !== 'me' && m.at > (s.lastRead[chatId] ?? 0)).length

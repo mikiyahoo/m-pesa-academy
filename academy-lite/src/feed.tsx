@@ -1,8 +1,8 @@
-import { Bookmark, Check, ChevronRight, Heart, MessageCircle, Play, Plus, Radio, Search, Share2, Sparkles, Volume2, VolumeX } from 'lucide-react'
+import { Bookmark, Check, ChevronRight, Heart, MessageCircle, Play, Plus, Radio, Search, Share2, Sparkles } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { COURSES, compact, seedComments, seeded, trainerOf, type Course, type Item, type Slide } from './data'
 import { CommentsSheet, CourseSheet, ShareSheet } from './sheets'
-import { useLite } from './store'
+import { soundUnlock, useLite } from './store'
 import { Avatar, Confetti, cn, useToast } from './ui'
 
 export type FeedTab = 'mine' | 'foryou'
@@ -174,7 +174,8 @@ function Post({ entry, active, onComments, onShare, onPlaylist, onTrainer }: { e
       return
     }
     lastTap.current = now
-    if (item.kind === 'video') single.current = window.setTimeout(() => setPaused((p) => !p), 280)
+    // The tap that just turned the sound on doesn't also pause the video.
+    if (item.kind === 'video' && now - soundUnlock.at > 500) single.current = window.setTimeout(() => setPaused((p) => !p), 280)
   }
 
   return (
@@ -188,7 +189,7 @@ function Post({ entry, active, onComments, onShare, onPlaylist, onTrainer }: { e
         <Heart key={h.id} className="animate-heart pointer-events-none absolute z-30 size-24 fill-[#f43f5e] text-[#f43f5e] drop-shadow-lg" style={{ left: h.x, top: h.y, ['--tilt' as string]: `${h.tilt}deg` }} />
       ))}
 
-      <ActionRail entry={entry} active={active} onComments={onComments} onShare={onShare} onTrainer={onTrainer} />
+      <ActionRail entry={entry} onComments={onComments} onShare={onShare} onTrainer={onTrainer} />
       <Caption entry={entry} onPlaylist={onPlaylist} onTrainer={onTrainer} />
     </div>
   )
@@ -196,7 +197,7 @@ function Post({ entry, active, onComments, onShare, onPlaylist, onTrainer }: { e
 
 /* ------------------------------- right-side rail ------------------------------ */
 
-function ActionRail({ entry, active, onComments, onShare, onTrainer }: { entry: Entry; active: boolean; onComments: () => void; onShare: () => void; onTrainer: (trainerId: string) => void }) {
+function ActionRail({ entry, onComments, onShare, onTrainer }: { entry: Entry; onComments: () => void; onShare: () => void; onTrainer: (trainerId: string) => void }) {
   const { s, toggle } = useLite()
   const toast = useToast()
   const item = entry.item!
@@ -211,16 +212,16 @@ function ActionRail({ entry, active, onComments, onShare, onTrainer }: { entry: 
 
   const Btn = ({ label, count, onClick, children, pressed }: { label: string; count?: string; onClick: () => void; children: React.ReactNode; pressed?: boolean }) => (
     <button type="button" onClick={onClick} aria-label={label} aria-pressed={pressed} className="flex flex-col items-center gap-1 transition active:scale-90">
-      <span className="grid size-11 place-items-center rounded-full bg-black/15">{children}</span>
-      {count !== undefined && <span className="text-shadow text-xs font-semibold">{count}</span>}
+      <span className="grid size-9 place-items-center rounded-full bg-black/15">{children}</span>
+      {count !== undefined && <span className="text-shadow text-[11px] leading-none font-semibold">{count}</span>}
     </button>
   )
 
   return (
-    <div className="absolute right-2 bottom-24 z-20 flex flex-col items-center gap-3.5">
-      <div className="relative mb-2">
+    <div className="absolute right-2 bottom-24 z-20 flex flex-col items-center gap-3">
+      <div className="relative mb-1.5">
         <button type="button" onClick={() => onTrainer(t.id)} aria-label={`Open ${t.name}’s profile`} className="block rounded-full transition active:scale-95">
-          <Avatar src={t.avatar} name={t.name} size={48} ring="ring-2 ring-white" />
+          <Avatar src={t.avatar} name={t.name} size={40} ring="ring-2 ring-white" />
         </button>
         <button
           type="button"
@@ -229,16 +230,16 @@ function ActionRail({ entry, active, onComments, onShare, onTrainer }: { entry: 
             toast(following ? `Unfollowed ${t.name}` : `Following ${t.name}`)
           }}
           aria-label={following ? `Unfollow ${t.name}` : `Follow ${t.name}`}
-          className={cn('absolute -bottom-2.5 left-1/2 grid size-5 -translate-x-1/2 place-items-center rounded-full transition', following ? 'bg-white text-[#f43f5e]' : 'bg-[#f43f5e] text-white')}
+          className={cn('absolute -bottom-2 left-1/2 grid size-4 -translate-x-1/2 place-items-center rounded-full transition', following ? 'bg-white text-[#f43f5e]' : 'bg-[#f43f5e] text-white')}
         >
-          {following ? <Check className="size-3" strokeWidth={3} /> : <Plus className="size-3.5" strokeWidth={3} />}
+          {following ? <Check className="size-2.5" strokeWidth={3} /> : <Plus className="size-3" strokeWidth={3} />}
         </button>
       </div>
       <Btn label={liked ? 'Unlike' : 'Like'} count={compact(likes)} onClick={() => toggle('liked', item.id)} pressed={liked}>
-        <Heart className={cn('size-8 drop-shadow transition', liked ? 'scale-110 fill-[#f43f5e] text-[#f43f5e]' : 'fill-white/90 text-white/90')} />
+        <Heart className={cn('size-6 drop-shadow transition', liked ? 'scale-110 fill-[#f43f5e] text-[#f43f5e]' : 'fill-white/90 text-white/90')} />
       </Btn>
       <Btn label="Comments" count={compact(commentCount)} onClick={onComments}>
-        <MessageCircle className="size-8 fill-white/90 text-white/90 drop-shadow" />
+        <MessageCircle className="size-6 fill-white/90 text-white/90 drop-shadow" />
       </Btn>
       <Btn
         label={saved ? 'Remove from saved' : 'Save'}
@@ -249,15 +250,11 @@ function ActionRail({ entry, active, onComments, onShare, onTrainer }: { entry: 
           toast(saved ? 'Removed from saved' : 'Saved to your profile')
         }}
       >
-        <Bookmark className={cn('size-8 drop-shadow', saved ? 'fill-amber-400 text-amber-400' : 'fill-white/90 text-white/90')} />
+        <Bookmark className={cn('size-6 drop-shadow', saved ? 'fill-amber-400 text-amber-400' : 'fill-white/90 text-white/90')} />
       </Btn>
       <Btn label="Share" count={compact(shares)} onClick={onShare}>
-        <Share2 className="size-7 text-white drop-shadow" />
+        <Share2 className="size-[22px] text-white drop-shadow" />
       </Btn>
-      {/* Spinning course disc */}
-      <span className={cn('mt-1 grid size-11 place-items-center rounded-full bg-gradient-to-br from-zinc-700 to-zinc-950 p-2 ring-[6px] ring-zinc-900/90', active && item.kind === 'video' && 'animate-spin-slow')}>
-        <img src={entry.course.cover} alt="" className="size-full rounded-full object-cover" />
-      </span>
     </div>
   )
 }
@@ -297,14 +294,15 @@ function Caption({ entry, onPlaylist, onTrainer }: { entry: Entry; onPlaylist: (
 /* ---------------------------------- post bodies --------------------------------- */
 
 function VideoBody({ src, active, paused, cover }: { src: string; active: boolean; paused: boolean; cover: string }) {
-  const { s, set } = useLite()
+  const { s } = useLite()
   const ref = useRef<HTMLVideoElement>(null)
   const [progress, setProgress] = useState(0)
   useEffect(() => {
     const v = ref.current
     if (!v) return
     v.muted = s.muted
-    if (active && !paused) void v.play().catch(() => undefined)
+    // If the phone refuses to play with sound, fall back to silent until the next tap.
+    if (active && !paused) void v.play().catch(() => ((v.muted = true), void v.play().catch(() => undefined)))
     else v.pause()
   }, [active, paused, s.muted])
   return (
@@ -315,15 +313,6 @@ function VideoBody({ src, active, paused, cover }: { src: string; active: boolea
           <Play className="ml-1 size-10 fill-white/90 text-white/90" />
         </span>
       )}
-      <button
-        type="button"
-        onClick={() => set((x) => ({ ...x, muted: !x.muted }))}
-        className="absolute top-14 left-3 z-20 flex items-center gap-1.5 rounded-full bg-black/35 px-3 py-1.5 text-xs font-semibold backdrop-blur"
-        aria-label={s.muted ? 'Turn sound on' : 'Mute'}
-      >
-        {s.muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-        {s.muted ? 'Tap for sound' : 'Sound on'}
-      </button>
       <div className="absolute inset-x-0 bottom-0 z-20 h-0.5 bg-white/20">
         <div className="h-full bg-white/90" style={{ width: `${progress * 100}%` }} />
       </div>
@@ -414,13 +403,22 @@ function QuizBody({ item }: { item: Extract<Item, { kind: 'quiz' }> }) {
   const done = chosen !== undefined
   const right = chosen === item.answer
   const [burst, setBurst] = useState(0)
+  // After answering, bring the explanation into view (short screens).
+  const explain = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    // Scroll only the middle box, never the feed around it.
+    const box = explain.current?.closest<HTMLElement>("[data-quiz-scroll]")
+    if (done && box) box.scrollTo({ top: box.scrollHeight, behavior: "smooth" })
+  }, [done])
   return (
-    <div className="flex size-full flex-col justify-center bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#0b0a24] px-6 pt-16 pr-20 pb-44">
-      <span className="mb-4 flex w-fit items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-bold tracking-wide">
-        <Sparkles className="size-3.5 text-amber-300" /> QUICK CHECK · +10 XP
+    <div className="relative size-full bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#0b0a24]">
+      <div data-quiz-scroll className="scrollbar-none absolute top-16 right-[4.25rem] bottom-40 left-4 flex flex-col overflow-y-auto overscroll-contain">
+      <div className="my-auto">
+      <span className="mb-3 flex w-fit items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold tracking-wide">
+        <Sparkles className="size-3 text-amber-300" /> QUICK CHECK · +10 XP
       </span>
-      <h2 className="text-2xl leading-snug font-extrabold">{item.question}</h2>
-      <div className="mt-6 space-y-2.5">
+      <h2 className="text-lg leading-snug font-bold">{item.question}</h2>
+      <div className="mt-4 space-y-2">
         {item.options.map((o, i) => {
           const isRight = i === item.answer
           const isChosen = i === chosen
@@ -434,15 +432,15 @@ function QuizBody({ item }: { item: Extract<Item, { kind: 'quiz' }> }) {
                 if (isRight) setBurst((b) => b + 1)
               }}
               className={cn(
-                'flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left text-[15px] font-semibold transition active:scale-[0.98]',
+                'flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm leading-snug font-medium transition active:scale-[0.98]',
                 !done && 'border-white/25 bg-white/10 hover:bg-white/20',
                 done && isRight && 'border-mpesa-500 bg-mpesa-500 text-white',
                 done && isChosen && !isRight && 'border-[#f43f5e] bg-[#f43f5e]/90',
                 done && !isRight && !isChosen && 'border-white/10 bg-white/5 text-white/50',
               )}
             >
-              <span className={cn('grid size-7 shrink-0 place-items-center rounded-full text-xs font-bold', done && (isRight || isChosen) ? 'bg-white/25' : 'bg-white/15')}>
-                {done && isRight ? <Check className="size-4" strokeWidth={3} /> : String.fromCharCode(65 + i)}
+              <span className={cn('grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold', done && (isRight || isChosen) ? 'bg-white/25' : 'bg-white/15')}>
+                {done && isRight ? <Check className="size-3.5" strokeWidth={3} /> : String.fromCharCode(65 + i)}
               </span>
               {o}
             </button>
@@ -450,11 +448,13 @@ function QuizBody({ item }: { item: Extract<Item, { kind: 'quiz' }> }) {
         })}
       </div>
       {done && (
-        <div className="animate-pop mt-5 rounded-2xl bg-white/10 p-4 text-sm leading-relaxed">
+        <div ref={explain} className="animate-pop mt-3 rounded-xl bg-white/10 p-3 text-[13px] leading-relaxed">
           <p className="font-bold">{right ? '🎉 Correct! +10 XP' : '💡 Not quite. The right answer is highlighted.'}</p>
           <p className="mt-1 text-white/80">{item.explain}</p>
         </div>
       )}
+      </div>
+      </div>
       {burst > 0 && right && <Confetti key={burst} />}
     </div>
   )
