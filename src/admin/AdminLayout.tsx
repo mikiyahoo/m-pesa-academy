@@ -8,12 +8,13 @@ import { CommandPalette } from './CommandPalette'
 import { ChangePasswordDialog, EditProfileDialog } from '../components/ProfileSettings'
 import { DepartmentScope, TrainerScope, useAdmin } from './store'
 import { ScopeContext } from './scope'
+import { canOpen, permissionsOf } from './permissions'
 import { useDiscussionAttention } from './pages/Discussions'
 import { dateTime } from './helpers'
 import { UserAvatar } from '../components/UserAvatar'
 import { Button, Empty } from './ui'
 
-type NavItem = { label: string; icon: LucideIcon; to?: string; end?: boolean; children?: { label: string; to: string }[] }
+type NavItem = { label: string; icon: LucideIcon; to?: string; end?: boolean; children?: { label: string; to: string }[]; /** Pinned below the scrolling list so it is always visible. */ bottom?: boolean }
 
 const nav: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin', end: true },
@@ -73,7 +74,7 @@ const nav: NavItem[] = [
     ],
   },
   // Categories, training types, venues, certificate templates and the audit log, as tabs.
-  { label: 'Settings', icon: Settings, to: '/admin/settings' },
+  { label: 'Settings', icon: Settings, to: '/admin/settings', bottom: true },
 ]
 
 /** Trainer portal (D04, S10): trainings, requests, content, feedback and assessments; data stays limited to their own sessions. */
@@ -188,7 +189,7 @@ function NavGroup({ item, open, onToggle, onNavigate, collapsed, onExpand, count
 }
 
 /** Profile menu in the header, matching the learner portal: role and email, theme, demo reset, sign out. */
-function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean) => void; role: string }) {
+function UserMenu({ dark, setDark, role, showSettings }: { dark: boolean; setDark: (d: boolean) => void; role: string; showSettings: boolean }) {
   const { user, logout } = useAuth()
   const { reset } = useAdmin()
   const { confirm, toast } = useFeedback()
@@ -247,6 +248,11 @@ function UserMenu({ dark, setDark, role }: { dark: boolean; setDark: (d: boolean
             >
               <KeyRound className="size-4" /> Change password
             </button>
+            {showSettings && (
+              <Link to="/admin/settings" onClick={() => setOpen(false)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
+                <Settings className="size-4" /> Settings
+              </Link>
+            )}
             <button onClick={() => setDark(!dark)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-700 hover:bg-zinc-100">
               {dark ? <Sun className="size-4" /> : <Moon className="size-4" />} {dark ? 'Light mode' : 'Dark mode'}
             </button>
@@ -317,7 +323,7 @@ function Sidebar({ onNavigate, items, promo, collapsed = false, onExpand }: { on
         </span>}
       </Link>
       <nav className="scrollbar-none flex-1 space-y-1 overflow-y-auto">
-        {items.map((item) =>
+        {items.filter((item) => !item.bottom).map((item) =>
           item.children ? (
             <NavGroup key={item.label} item={item} open={openGroup === item.label} onToggle={() => setOpenGroup((g) => (g === item.label ? '' : item.label))} onNavigate={onNavigate} collapsed={collapsed} onExpand={onExpand} counts={counts} />
           ) : (
@@ -329,7 +335,21 @@ function Sidebar({ onNavigate, items, promo, collapsed = false, onExpand }: { on
           ),
         )}
       </nav>
-      {!collapsed && promo && <div className="mt-3 shrink-0">{promo}</div>}
+      {/* Always visible, however short the screen. */}
+      {items.some((item) => item.bottom) && (
+        <div className="mt-2 shrink-0 space-y-1 border-t border-white/15 pt-2">
+          {items
+            .filter((item) => item.bottom)
+            .map((item) => (
+              <NavLink key={item.label} to={item.to!} end={item.end} onClick={onNavigate} title={collapsed ? item.label : undefined} className={({ isActive }) => itemCls(isActive, collapsed)}>
+                <item.icon className="size-4 shrink-0" />
+                {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+              </NavLink>
+            ))}
+        </div>
+      )}
+      {/* The attention card only shows when there is room for it. */}
+      {!collapsed && promo && <div className="mt-3 hidden shrink-0 [@media(min-height:780px)]:block">{promo}</div>}
     </div>
   )
 }
@@ -354,6 +374,7 @@ const crumbLabels: Record<string, string> = {
   groups: 'Groups',
   'training-types': 'Training Types',
   settings: 'Settings',
+  roles: 'Roles & access',
   visibility: 'Visibility',
   venues: 'Venues',
   departments: 'Departments',
@@ -476,7 +497,11 @@ export function AdminLayout({ variant = 'admin', trainerId, personId }: { varian
   const { data } = useAdmin()
   // Training Requests is extra access an admin gives a trainer ("Can manage requests").
   const canManageRequests = !!data.people.find((p) => p.id === trainerId)?.canApprove
-  const items = variant === 'trainer' ? trainerNav.filter((i) => i.to !== '/admin/requests' || canManageRequests) : nav
+  // The sidebar only lists what this role may open (Settings → Roles & access); Departments is for main admins.
+  const allowed = (to: string) => canOpen(data, variant, to) && (variant === 'admin' || to !== '/admin/departments')
+  const items = (variant === 'trainer' ? trainerNav.filter((i) => i.to !== '/admin/requests' || canManageRequests) : nav)
+    .map((i) => (i.children ? { ...i, children: i.children.filter((c) => allowed(c.to)) } : i))
+    .filter((i) => (i.children ? i.children.length > 0 : allowed(i.to!)))
   // A department admin works on one department: their own, from their user record.
   const department = variant === 'department' ? (data.people.find((p) => p.id === personId)?.department ?? '') : undefined
   const title = variant === 'trainer' ? 'Trainer' : variant === 'department' ? `Dept admin · ${department || 'No department'}` : 'Admin'
@@ -604,14 +629,22 @@ export function AdminLayout({ variant = 'admin', trainerId, personId }: { varian
                 <Search className="size-4" />
               </button>
               {variant === 'admin' && <AlertsBell />}
-              <UserMenu dark={dark} setDark={setDark} role={title} />
+              <UserMenu dark={dark} setDark={setDark} role={title} showSettings={variant === 'admin' || (variant === 'department' && permissionsOf(data).department.settings)} />
             </div>
           </header>
           {/* Full-page editors (wizards) render here: under the header, beside the sidebar. */}
           <div id="admin-page-overlay" className="absolute inset-x-0 top-16 bottom-0 z-30 empty:hidden" />
           <div ref={scroller} className="relative z-0 flex-1 overflow-y-auto scrollbar-thin print:overflow-visible">
             <main className="mx-auto w-full max-w-[1400px] p-4 sm:p-6 print:max-w-none print:p-0">
-              {variant === 'trainer' && trainerId ? (
+              {!canOpen(data, variant, pathname) || (variant !== 'admin' && pathname.startsWith('/admin/departments')) ? (
+                <div className="mx-auto mt-16 max-w-md rounded-3xl border border-zinc-200/80 bg-surface p-8 text-center">
+                  <p className="text-lg font-bold text-zinc-900">No access to this page</p>
+                  <p className="mt-1 text-sm text-zinc-500">Your role doesn’t include this area. Ask an admin to change it under Settings → Roles & access.</p>
+                  <Link to="/admin" className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+                    Back to dashboard
+                  </Link>
+                </div>
+              ) : variant === 'trainer' && trainerId ? (
                 <TrainerScope trainerId={trainerId}>
                   <Outlet />
                 </TrainerScope>
@@ -626,7 +659,8 @@ export function AdminLayout({ variant = 'admin', trainerId, personId }: { varian
           </div>
         </div>
       </div>
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      {/* Search only finds what this person may see. */}
+      {scoped(<CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />)}
     </div>
     </ScopeContext.Provider>
   )

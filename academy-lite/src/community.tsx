@@ -1,22 +1,22 @@
-import { Bell, Globe2, Image as ImageIcon, MessageCircle, MoreHorizontal, Plus, Search, Share2, ThumbsUp, X } from 'lucide-react'
+import { BadgeCheck, Bell, Globe2, MessageCircle, MoreHorizontal, Search, Share2, ThumbsUp, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { CLASSMATES, ME, type Post } from './data'
+import { ACADEMY, CLASSMATES, ME, type Post } from './data'
 import { useLite } from './store'
-import { Avatar, Sheet, cn, useToast } from './ui'
+import { Avatar, cn, useToast } from './ui'
 
+// Academy highlights: posted by the Academy team, celebrating learners.
 const STORIES = [
-  { id: 's1', person: CLASSMATES[0], emoji: '🎓', text: 'Finished “Spot the Scam”!', bg: 'from-[#d03c3b] to-[#6e1717]' },
-  { id: 's2', person: CLASSMATES[2], emoji: '🔥', text: '7 days in a row. Who’s next?', bg: 'from-[#f59e0b] to-[#9a3412]' },
-  { id: 's3', person: CLASSMATES[1], emoji: '💯', text: 'Got every quiz right in Fayda ID', bg: 'from-[#39b54a] to-[#0f4d1f]' },
-  { id: 's4', person: CLASSMATES[3], emoji: '🏪', text: 'Set up my first merchant till today', bg: 'from-[#0ea5e9] to-[#1e1b4b]' },
-  { id: 's5', person: CLASSMATES[4], emoji: '📚', text: 'Started Customer Care Excellence', bg: 'from-[#a855f7] to-[#3b0764]' },
+  { id: 's1', person: CLASSMATES[0], emoji: '🎓', text: 'Selam finished “Spot the Scam”!', bg: 'from-[#d03c3b] to-[#6e1717]' },
+  { id: 's2', person: CLASSMATES[2], emoji: '🔥', text: 'Meron: 7 days in a row. Who’s next?', bg: 'from-[#f59e0b] to-[#9a3412]' },
+  { id: 's3', person: CLASSMATES[1], emoji: '💯', text: 'Abel got every quiz right in Fayda ID', bg: 'from-[#39b54a] to-[#0f4d1f]' },
+  { id: 's4', person: CLASSMATES[3], emoji: '🏪', text: 'Yonas set up his first merchant till', bg: 'from-[#0ea5e9] to-[#1e1b4b]' },
+  { id: 's5', person: CLASSMATES[4], emoji: '📚', text: 'Liya started Customer Care Excellence', bg: 'from-[#a855f7] to-[#3b0764]' },
 ]
 
-/** Social learning: classmates’ stories, a composer and posts with reactions, comments and shares. */
+/** Community: updates from the Academy team and trainers. Learners react, comment and share; they don’t post. */
 export function Community() {
   const { s, toggle } = useLite()
   const toast = useToast()
-  const [composing, setComposing] = useState(false)
   const [story, setStory] = useState<number | null>(null)
 
   return (
@@ -35,26 +35,12 @@ export function Community() {
       </div>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-4">
-        {/* Composer */}
-        <div className="flex items-center gap-3 bg-white px-4 py-3">
-          <Avatar src={ME.avatar} name={ME.name} size={40} />
-          <button type="button" onClick={() => setComposing(true)} className="flex-1 rounded-full border border-zinc-200 px-4 py-2.5 text-left text-sm text-zinc-500 hover:bg-zinc-50">
-            What did you learn today?
-          </button>
-          <button type="button" onClick={() => setComposing(true)} aria-label="Add photo" className="grid size-9 place-items-center rounded-full text-mpesa-600 hover:bg-zinc-100">
-            <ImageIcon className="size-5" />
-          </button>
-        </div>
-
-        {/* Stories */}
-        <div className="scrollbar-none flex gap-2 overflow-x-auto bg-white px-4 py-3">
-          <button type="button" onClick={() => setComposing(true)} className="relative h-44 w-28 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-white text-left">
-            <img src={ME.avatar} alt="" className="h-28 w-full object-cover" />
-            <span className="absolute top-[100px] left-1/2 grid size-8 -translate-x-1/2 place-items-center rounded-full border-4 border-white bg-[#d03c3b] text-white">
-              <Plus className="size-4" strokeWidth={3} />
-            </span>
-            <span className="absolute inset-x-0 bottom-2 text-center text-xs font-semibold">Share a win</span>
-          </button>
+        {/* Academy highlights */}
+        <div className="bg-white px-4 pt-3 pb-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
+            <BadgeCheck className="size-4 text-[#d03c3b]" /> Highlights from the Academy team
+          </p>
+          <div className="scrollbar-none flex gap-2 overflow-x-auto">
           {STORIES.map((st, i) => (
             <button key={st.id} type="button" onClick={() => setStory(i)} className={cn('relative h-44 w-28 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br text-left text-white', st.bg)}>
               <span className="absolute top-2 left-2 z-10"><Avatar src={st.person.avatar} name={st.person.name} size={36} ring="ring-[3px] ring-[#d03c3b] ring-offset-2" /></span>
@@ -62,6 +48,7 @@ export function Community() {
               <span className="absolute inset-x-2 bottom-2 text-xs leading-tight font-semibold">{st.person.name}</span>
             </button>
           ))}
+          </div>
         </div>
 
         {s.posts.map((p) => (
@@ -69,7 +56,6 @@ export function Community() {
         ))}
       </div>
 
-      {composing && <Composer onClose={() => setComposing(false)} />}
       {story !== null && <StoryViewer index={story} onIndex={setStory} onClose={() => setStory(null)} />}
     </div>
   )
@@ -83,9 +69,12 @@ function PostCard({ post, reacted, onReact }: { post: Post; reacted: boolean; on
   return (
     <article className="bg-white pt-3">
       <header className="flex items-center gap-2.5 px-4">
-        <Avatar src={post.avatar} name={post.author} size={40} />
+        <Avatar src={post.avatar} name={post.author} size={40} className={post.avatar === ACADEMY.avatar ? 'bg-[#d03c3b] p-1.5' : undefined} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold">{post.author}</p>
+          <p className="flex items-center gap-1 truncate text-[15px] font-semibold">
+            {post.author}
+            {post.official && <BadgeCheck className="size-4 shrink-0 fill-[#d03c3b] text-white" aria-label="Academy team" />}
+          </p>
           <p className="flex items-center gap-1 text-xs text-zinc-500">
             {post.ago} · <Globe2 className="size-3" />
           </p>
@@ -158,46 +147,6 @@ function PostCard({ post, reacted, onReact }: { post: Post; reacted: boolean; on
   )
 }
 
-function Composer({ onClose }: { onClose: () => void }) {
-  const { set, s } = useLite()
-  const toast = useToast()
-  const [text, setText] = useState('')
-  const latest = s.certified.at(-1)
-  return (
-    <Sheet open onClose={onClose} title="Create post" height="60%">
-      <div className="flex h-full flex-col px-4 pb-4">
-        <div className="flex items-center gap-2.5">
-          <Avatar src={ME.avatar} name={ME.name} size={40} />
-          <div>
-            <p className="text-sm font-semibold">{ME.name}</p>
-            <p className="flex items-center gap-1 text-xs text-zinc-500">
-              <Globe2 className="size-3" /> Everyone in the Academy
-            </p>
-          </div>
-        </div>
-        <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="What did you learn today? Share a tip or a win…" className="mt-3 min-h-0 flex-1 resize-none text-lg outline-none" />
-        {latest && !text && (
-          <button type="button" onClick={() => setText('Just earned my certificate 🎓 Thanks to the trainers!')} className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-left text-sm text-amber-900">
-            🎓 Share your latest certificate
-          </button>
-        )}
-        <button
-          type="button"
-          disabled={!text.trim()}
-          onClick={() => {
-            set((x) => ({ ...x, posts: [{ id: `me-${Date.now()}`, author: ME.name, avatar: ME.avatar, ago: 'Just now', text: text.trim(), reactions: 0, comments: 0, shares: 0 }, ...x.posts] }))
-            toast('Posted to the community')
-            onClose()
-          }}
-          className="w-full rounded-xl bg-[#d03c3b] py-3 text-sm font-bold text-white disabled:opacity-40"
-        >
-          Post
-        </button>
-      </div>
-    </Sheet>
-  )
-}
-
 /** Full-screen stories with progress bars that move on by themselves; tap left or right to skip. */
 function StoryViewer({ index, onIndex, onClose }: { index: number; onIndex: (i: number) => void; onClose: () => void }) {
   const toast = useToast()
@@ -216,8 +165,8 @@ function StoryViewer({ index, onIndex, onClose }: { index: number; onIndex: (i: 
         ))}
       </div>
       <div className="flex items-center gap-2.5 px-3 pt-3">
-        <Avatar src={st.person.avatar} name={st.person.name} size={34} />
-        <span className="text-sm font-semibold">{st.person.name}</span>
+        <Avatar src={ACADEMY.avatar} name={ACADEMY.name} size={34} className="bg-[#d03c3b] p-1.5" />
+        <span className="text-sm font-semibold">{ACADEMY.name}</span>
         <span className="text-xs text-white/70">2h</span>
         <button type="button" onClick={onClose} aria-label="Close story" className="ml-auto grid size-9 place-items-center">
           <X className="size-6" />

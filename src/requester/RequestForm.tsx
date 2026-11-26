@@ -783,7 +783,7 @@ export function RequestForm() {
       {step === 'review' && (
         <ReviewStep
           rows={[
-            { step: 'about', title: 'About the training', items: [['Title', form.topic], ['Categories', [...form.categories, ...(otherOn && form.otherCategory ? [form.otherCategory] : [])].join(', ')]] },
+            { step: 'about', title: 'About the training', items: [['Title', form.topic], ['Categories', [...form.categories, ...(otherOn && form.otherCategory ? [form.otherCategory] : [])].join(', ')], ['Sub-categories', (form.subcategories ?? []).join(', ')]] },
             { step: 'audience', title: 'Audience & participants', items: [['Groups', form.targetGroupIds.map((g) => data.groups.find((x) => x.id === g)?.name ?? g).join(', ')], ['Other audience', form.audienceNote], ['Participants', form.participants.length ? `${form.participants.length} people${temporary ? ` · ${temporary} temporary` : ''}` : '']] },
             { step: 'when', title: 'Delivery & timing', items: [['Delivery', form.delivery === 'Online' ? 'Online (Microsoft Teams)' : 'In person'], ...(form.delivery === 'Physical' ? [['Location', form.location] as [string, string]] : []), ['Preferred date', form.preferredDate ? shortDate(form.preferredDate) : ''], ['Preferred time', form.preferredTime]] },
             { step: 'goals', title: 'Objectives & files', items: [['Objectives', form.objectives], ['Details', form.description], ['Attachments', form.attachments.map((a) => a.name).join(', ')]] },

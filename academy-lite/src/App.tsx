@@ -1,11 +1,12 @@
 import { House, MessageCircle, Play, UserRound, UsersRound } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Community } from './community'
-import { COURSES, findItem } from './data'
+import { CHATS, COURSES, chatOfTrainer, findItem } from './data'
 import { Feed, type FeedTab } from './feed'
 import { Inbox } from './inbox'
 import { Profile } from './profile'
 import { Discover, LiveSheet } from './sheets'
+import { TrainerProfile } from './trainer'
 import { LiteProvider, unreadIn, useLite } from './store'
 import { ToastProvider, cn, useToast } from './ui'
 
@@ -35,6 +36,16 @@ function Shell() {
   const [jumpTo, setJumpTo] = useState<string | null>(null)
   const [discover, setDiscover] = useState(false)
   const [live, setLive] = useState(false)
+  const [trainer, setTrainer] = useState<string | null>(null)
+  const [chatTarget, setChatTarget] = useState<{ chatId: string; draft?: string } | null>(null)
+
+  // From a trainer profile: open (or start) the chat with them, optionally with a question typed in.
+  const openChat = useCallback((trainerId: string, draft?: string) => {
+    setTrainer(null)
+    setScreen('inbox')
+    setChatTarget({ chatId: chatOfTrainer(trainerId).id, draft })
+  }, [])
+  const clearChatTarget = useCallback(() => setChatTarget(null), [])
 
   // A shared link (?post=…) opens that post.
   useEffect(() => {
@@ -43,6 +54,7 @@ function Shell() {
   }, [])
 
   const openItem = useCallback((itemId: string) => {
+    setTrainer(null)
     setDiscover(false)
     setScreen('home')
     setFeedTab('foryou')
@@ -53,6 +65,7 @@ function Shell() {
     (courseId: string) => {
       const c = COURSES.find((x) => x.id === courseId)
       if (!c) return
+      setTrainer(null)
       if (!s.enrolled.includes(courseId)) {
         toggle('enrolled', courseId)
         toast(`Added “${c.title}” to My learning`)
@@ -76,18 +89,19 @@ function Shell() {
     else toast('All caught up 🎉 Find a new course in search')
   }
 
-  const unread = ['announce', 'dereje', 'fraud-group', 'mariamawit', 'bole-team', 'hana'].reduce((n, id) => n + unreadIn(s, id), 0)
+  const unread = CHATS.reduce((n, c) => n + unreadIn(s, c.id), 0)
   const dark = screen === 'home'
 
   return (
     <div className="flex h-full flex-col">
       <div className="relative min-h-0 flex-1">
-        {screen === 'home' && <Feed tab={feedTab} onTab={setFeedTab} jumpTo={jumpTo} onJumped={() => setJumpTo(null)} onDiscover={() => setDiscover(true)} onLive={() => setLive(true)} />}
+        {screen === 'home' && <Feed tab={feedTab} onTab={setFeedTab} jumpTo={jumpTo} onJumped={() => setJumpTo(null)} onDiscover={() => setDiscover(true)} onLive={() => setLive(true)} onTrainer={setTrainer} />}
         {screen === 'community' && <Community />}
-        {screen === 'inbox' && <Inbox />}
+        {screen === 'inbox' && <Inbox key={chatTarget?.chatId ?? 'inbox'} target={chatTarget} onTargetUsed={clearChatTarget} onTrainer={setTrainer} />}
         {screen === 'profile' && <Profile onOpenCourse={openCourse} onOpenItem={openItem} />}
         {discover && <Discover onClose={() => setDiscover(false)} onOpenItem={openItem} onOpenCourse={openCourse} />}
         {live && <LiveSheet onClose={() => setLive(false)} />}
+        {trainer && <TrainerProfile trainerId={trainer} onClose={() => setTrainer(null)} onChat={openChat} onOpenCourse={openCourse} />}
       </div>
 
       <nav className={cn('flex h-14 shrink-0 items-center justify-around border-t pb-[env(safe-area-inset-bottom)]', dark ? 'border-white/10 bg-black text-white' : 'border-zinc-200 bg-white text-zinc-900')} aria-label="Main">

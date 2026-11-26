@@ -1,5 +1,13 @@
 # React + TypeScript + Vite
 
+## Microsoft Graph / Teams attendance
+
+For an explanation of Microsoft Graph, Entra app registration, permissions, Teams attendance report setup, and how to connect this repository to a Graph backend, see [docs/microsoft-graph-setup.md](docs/microsoft-graph-setup.md).
+
+The current attendance provider uses simulated data unless a Graph backend URL is configured. The guide documents the missing authentication/backend setup before enabling live sync.
+
+---
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

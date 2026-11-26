@@ -16,12 +16,20 @@ const FILTERS: [Filter, string][] = [
 const preview = (m?: Msg) => (!m ? '' : m.kind === 'voice' ? '🎤 Voice message' : m.kind === 'share' ? '📘 Shared a post' : m.text)
 
 /** Chats: trainers, class groups and the Academy announcements channel. */
-export function Inbox() {
+export function Inbox({ target, onTargetUsed, onTrainer }: { target?: { chatId: string; draft?: string } | null; onTargetUsed?: () => void; onTrainer?: (trainerId: string) => void }) {
   const { s } = useLite()
   const toast = useToast()
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
-  const [open, setOpen] = useState<Chat | null>(null)
+  const [open, setOpen] = useState<Chat | null>(() => (target ? (CHATS.find((c) => c.id === target.chatId) ?? null) : null))
+  const [draft] = useState(target?.draft ?? '')
+  // Opened from a trainer profile: go straight to that chat.
+  useEffect(() => {
+    if (!target) return
+    const c = CHATS.find((x) => x.id === target.chatId)
+    if (c) setOpen(c)
+    onTargetUsed?.()
+  }, [target, onTargetUsed])
 
   const rows = useMemo(
     () =>
@@ -32,7 +40,7 @@ export function Inbox() {
     [s, filter, q],
   )
 
-  if (open) return <ChatView chat={open} onBack={() => setOpen(null)} />
+  if (open) return <ChatView chat={open} onBack={() => setOpen(null)} initialText={open.id === target?.chatId || draft ? draft : ''} onTrainer={onTrainer} />
 
   return (
     <div className="flex h-full flex-col bg-white text-zinc-900">
@@ -93,10 +101,10 @@ export function Inbox() {
 const SENDER_COLOURS = ['text-[#d03c3b]', 'text-sky-600', 'text-violet-600', 'text-amber-600', 'text-emerald-600']
 const colourOf = (name: string) => SENDER_COLOURS[[...name].reduce((n, ch) => n + ch.charCodeAt(0), 0) % SENDER_COLOURS.length]
 
-function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
+function ChatView({ chat, onBack, initialText = '', onTrainer }: { chat: Chat; onBack: () => void; initialText?: string; onTrainer?: (trainerId: string) => void }) {
   const { s, set } = useLite()
   const toast = useToast()
-  const [text, setText] = useState('')
+  const [text, setText] = useState(initialText)
   const [typing, setTyping] = useState<string | null>(null)
   const [emoji, setEmoji] = useState(false)
   const end = useRef<HTMLDivElement>(null)
@@ -156,11 +164,19 @@ function ChatView({ chat, onBack }: { chat: Chat; onBack: () => void }) {
         <button type="button" onClick={onBack} aria-label="Back to chats" className="grid size-9 place-items-center rounded-full hover:bg-zinc-100">
           <ArrowLeft className="size-5" />
         </button>
-        <Avatar src={chat.avatar} name={chat.name} size={40} className={channel ? 'bg-[#d03c3b] p-1.5' : undefined} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold">{chat.name}</p>
-          <p className={cn('truncate text-xs', typing ? 'text-mpesa-600' : 'text-zinc-500')}>{status}</p>
-        </div>
+        <button
+          type="button"
+          disabled={!chat.trainerId || !onTrainer}
+          onClick={() => chat.trainerId && onTrainer?.(chat.trainerId)}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-xl text-left enabled:hover:bg-zinc-50"
+          aria-label={chat.trainerId ? `Open ${chat.name}’s profile` : undefined}
+        >
+          <Avatar src={chat.avatar} name={chat.name} size={40} className={channel ? 'bg-[#d03c3b] p-1.5' : undefined} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-semibold">{chat.name}</span>
+            <span className={cn('block truncate text-xs', typing ? 'text-mpesa-600' : 'text-zinc-500')}>{status}</span>
+          </span>
+        </button>
         {!channel && (
           <>
             <button type="button" onClick={() => toast('Demo: video call')} aria-label="Video call" className="grid size-9 place-items-center rounded-full hover:bg-zinc-100">

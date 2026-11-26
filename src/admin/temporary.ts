@@ -12,6 +12,9 @@ export const DEFAULT_GRACE_DAYS = 30
 
 export const isTemporary = (p: Pick<Person, 'email'>) => !isInternalEmail(p.email)
 
+/** One rule everywhere: anyone with an access window, or from outside the company, has temporary access. */
+export const accessTypeOf = (p: Pick<Person, 'email' | 'accessStart' | 'accessEnd'>): 'Temporary' | 'Permanent' => (p.accessStart || p.accessEnd || isTemporary(p) ? 'Temporary' : 'Permanent')
+
 const daysBetween = (a: string, b: string) => Math.round((parseDate(b).getTime() - parseDate(a).getTime()) / 86_400_000)
 
 export function addDays(iso: string, n: number) {

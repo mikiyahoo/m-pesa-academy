@@ -19,6 +19,8 @@ export type LiteState = {
   reminders: string[]
   streak: { days: number; last: string }
   muted: boolean
+  /** Your star rating per trainer. */
+  ratings: Record<string, number>
 }
 
 const KEY = 'academy-lite:v1'
@@ -38,7 +40,7 @@ function initial(): LiteState {
     comments: {},
     chats,
     // Everything is read except the newest few, so the inbox shows unread badges.
-    lastRead: { dereje: now, mariamawit: now, hana: now, 'bole-team': now, announce: now - 60 * 60_000, 'fraud-group': now - 60 * 60_000 },
+    lastRead: { dereje: now, mariamawit: now, hana: now, bereket: now, selamawit: now, 'bole-team': now, announce: now - 60 * 60_000, 'fraud-group': now - 60 * 60_000 },
     posts: POSTS,
     reacted: [],
     enrolled: ['basics', 'fraud'],
@@ -46,13 +48,19 @@ function initial(): LiteState {
     reminders: [],
     streak: { days: 3, last: yesterday() },
     muted: true,
+    ratings: {},
   }
 }
 
 function load(): LiteState {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return { ...initial(), ...JSON.parse(raw) }
+    if (raw) {
+      const fresh = initial()
+      const saved = JSON.parse(raw) as Partial<LiteState>
+      // New chats (e.g. a new trainer) appear for returning learners too.
+      return { ...fresh, ...saved, chats: { ...fresh.chats, ...saved.chats }, lastRead: { ...fresh.lastRead, ...saved.lastRead }, posts: POSTS }
+    }
   } catch {
     // Fall back to a fresh start.
   }

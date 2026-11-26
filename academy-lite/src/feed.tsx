@@ -19,7 +19,7 @@ function buildEntries(tab: FeedTab, enrolled: string[]): Entry[] {
   return out
 }
 
-export function Feed({ tab, onTab, jumpTo, onJumped, onDiscover, onLive }: { tab: FeedTab; onTab: (t: FeedTab) => void; jumpTo: string | null; onJumped: () => void; onDiscover: () => void; onLive: () => void }) {
+export function Feed({ tab, onTab, jumpTo, onJumped, onDiscover, onLive, onTrainer }: { tab: FeedTab; onTab: (t: FeedTab) => void; jumpTo: string | null; onJumped: () => void; onDiscover: () => void; onLive: () => void; onTrainer: (trainerId: string) => void }) {
   const { s, markViewed } = useLite()
   const entries = useMemo(() => buildEntries(tab, s.enrolled), [tab, s.enrolled])
   const scroller = useRef<HTMLDivElement>(null)
@@ -107,7 +107,7 @@ export function Feed({ tab, onTab, jumpTo, onJumped, onDiscover, onLive }: { tab
             <section key={e.key} data-index={i} className="relative h-full w-full snap-start snap-always overflow-hidden">
               {Math.abs(i - active) <= 2 ? (
                 e.item ? (
-                  <Post entry={e} active={i === active} onComments={() => setComments(e)} onShare={() => setShare(e)} onPlaylist={() => setPlaylist(e.course)} />
+                  <Post entry={e} active={i === active} onComments={() => setComments(e)} onShare={() => setShare(e)} onPlaylist={() => setPlaylist(e.course)} onTrainer={onTrainer} />
                 ) : (
                   <FinishCard course={e.course} onNext={() => scrollTo(i + 1, true)} onPlaylist={() => setPlaylist(e.course)} />
                 )
@@ -146,7 +146,7 @@ export function Feed({ tab, onTab, jumpTo, onJumped, onDiscover, onLive }: { tab
 
 /* ----------------------------------- a post ----------------------------------- */
 
-function Post({ entry, active, onComments, onShare, onPlaylist }: { entry: Entry; active: boolean; onComments: () => void; onShare: () => void; onPlaylist: () => void }) {
+function Post({ entry, active, onComments, onShare, onPlaylist, onTrainer }: { entry: Entry; active: boolean; onComments: () => void; onShare: () => void; onPlaylist: () => void; onTrainer: (trainerId: string) => void }) {
   const { s, toggle } = useLite()
   const item = entry.item!
   const [hearts, setHearts] = useState<{ id: number; x: number; y: number; tilt: number }[]>([])
@@ -188,15 +188,15 @@ function Post({ entry, active, onComments, onShare, onPlaylist }: { entry: Entry
         <Heart key={h.id} className="animate-heart pointer-events-none absolute z-30 size-24 fill-[#f43f5e] text-[#f43f5e] drop-shadow-lg" style={{ left: h.x, top: h.y, ['--tilt' as string]: `${h.tilt}deg` }} />
       ))}
 
-      <ActionRail entry={entry} active={active} onComments={onComments} onShare={onShare} />
-      <Caption entry={entry} onPlaylist={onPlaylist} />
+      <ActionRail entry={entry} active={active} onComments={onComments} onShare={onShare} onTrainer={onTrainer} />
+      <Caption entry={entry} onPlaylist={onPlaylist} onTrainer={onTrainer} />
     </div>
   )
 }
 
 /* ------------------------------- right-side rail ------------------------------ */
 
-function ActionRail({ entry, active, onComments, onShare }: { entry: Entry; active: boolean; onComments: () => void; onShare: () => void }) {
+function ActionRail({ entry, active, onComments, onShare, onTrainer }: { entry: Entry; active: boolean; onComments: () => void; onShare: () => void; onTrainer: (trainerId: string) => void }) {
   const { s, toggle } = useLite()
   const toast = useToast()
   const item = entry.item!
@@ -219,7 +219,9 @@ function ActionRail({ entry, active, onComments, onShare }: { entry: Entry; acti
   return (
     <div className="absolute right-2 bottom-24 z-20 flex flex-col items-center gap-3.5">
       <div className="relative mb-2">
-        <Avatar src={t.avatar} name={t.name} size={48} ring="ring-2 ring-white" />
+        <button type="button" onClick={() => onTrainer(t.id)} aria-label={`Open ${t.name}’s profile`} className="block rounded-full transition active:scale-95">
+          <Avatar src={t.avatar} name={t.name} size={48} ring="ring-2 ring-white" />
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -262,7 +264,7 @@ function ActionRail({ entry, active, onComments, onShare }: { entry: Entry; acti
 
 /* ------------------------------- caption & course ------------------------------- */
 
-function Caption({ entry, onPlaylist }: { entry: Entry; onPlaylist: () => void }) {
+function Caption({ entry, onPlaylist, onTrainer }: { entry: Entry; onPlaylist: () => void; onTrainer: (trainerId: string) => void }) {
   const { progress } = useLite()
   const [more, setMore] = useState(false)
   const item = entry.item!
@@ -270,7 +272,9 @@ function Caption({ entry, onPlaylist }: { entry: Entry; onPlaylist: () => void }
   const p = progress(entry.course.id)
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/75 via-black/30 to-transparent pt-24 pr-20 pb-4 pl-3">
-      <p className="text-shadow text-[15px] font-bold">@{t.handle}</p>
+      <button type="button" onClick={() => onTrainer(t.id)} className="text-shadow pointer-events-auto text-[15px] font-bold hover:underline">
+        @{t.handle}
+      </button>
       <button type="button" onClick={() => setMore((m) => !m)} className={cn('text-shadow pointer-events-auto mt-1 block text-left text-sm leading-snug', !more && 'line-clamp-2')}>
         {item.caption}
       </button>

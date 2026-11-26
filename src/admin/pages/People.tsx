@@ -13,7 +13,7 @@ import { useScope } from '../scope'
 import { OrganizationInput } from '../OrganizationInput'
 import { ALL_BADGES } from '../types'
 import { deriveGamification } from '../gamification'
-import { makeInviteToken } from '../temporary'
+import { accessTypeOf, makeInviteToken } from '../temporary'
 import { useAuth } from '../../store/Auth'
 import { Avatar, Badge, Button, Card, downloadCsv, Empty, Field, Input, Modal, PageHeader, SearchInput, Select, TabBar, Tabs, Textarea } from '../ui'
 import { isInRange } from '../reports/filters'
@@ -593,7 +593,7 @@ export function AdminUserView() {
 
   const groupNames = person.groupIds.map((id) => data.groups.find((g) => g.id === id)?.name).filter((n): n is string => !!n)
   const accessHistory = person.accessHistory ?? []
-  const accessType = person.accessStart || person.accessEnd ? 'Temporary access' : 'Permanent access'
+  const accessType = `${accessTypeOf(person)} access`
   const isInternal = isInternalEmail(person.email)
 
   const personGame = gamification.people[person.id]
@@ -657,7 +657,7 @@ export function AdminUserView() {
       <StatStrip
         items={[
           { icon: Users, label: 'Groups', value: `${groupNames.length} Assigned`, tone: 'zinc' },
-          { icon: Key, label: 'Access Type', value: person.accessStart || person.accessEnd ? 'Temporary' : 'Permanent', tone: person.accessStart || person.accessEnd ? 'amber' : 'green' },
+          { icon: Key, label: 'Access Type', value: accessTypeOf(person), tone: accessTypeOf(person) === 'Temporary' ? 'amber' : 'green' },
           { icon: Shield, label: 'System Role', value: person.role, tone: person.role === 'Admin' ? 'red' : person.role === 'Trainer' ? 'blue' : 'zinc' },
           { icon: Trophy, label: 'Gamification', value: `${userPoints} pts · ${earnedBadges.length} Badges`, tone: 'amber' },
         ]}
@@ -937,7 +937,7 @@ export function AdminUsers() {
     const matches = (p: Person) => {
       const query = `${p.name} ${p.email} ${p.department} ${p.designation ?? ''} ${p.organization ?? ''} ${p.region ?? ''} ${p.createdBy ?? p.invitedBy ?? ''} ${groupName(p)}`.toLowerCase()
       const userType = isInternalEmail(p.email) ? 'Internal' : 'External'
-      const accessType = p.accessStart || p.accessEnd ? 'Temporary' : 'Permanent'
+      const accessType = accessTypeOf(p)
       return (!q || query.includes(q.trim().toLowerCase())) &&
         (!userTypes.size || userTypes.has(userType)) &&
         (!groups.size || p.groupIds.some((id) => {
@@ -1060,7 +1060,7 @@ export function AdminUsers() {
         <UserFilterMenu label="Group" options={data.groups.map((group) => group.name)} selected={groups} onChange={(value) => { setGroups(value); resetPage() }} />
         <UserFilterMenu label="Role" options={['Admin', 'Trainer', 'Participant', 'Requester']} selected={roles} onChange={(value) => { setRoles(value); resetPage() }} />
         <UserFilterMenu label="Status" options={['Active', 'Inactive']} selected={statuses} onChange={(value) => { setStatuses(value); resetPage() }} />
-        <UserFilterMenu label="Permanent" options={['Permanent', 'Temporary']} selected={accessTypes} onChange={(value) => { setAccessTypes(value); resetPage() }} />
+        <UserFilterMenu label="Access" options={['Permanent', 'Temporary']} selected={accessTypes} onChange={(value) => { setAccessTypes(value); resetPage() }} />
         <DateRangePicker value={createdRange} onChange={(value) => { setCreatedRange(value); resetPage() }} emptyLabel="Created At" />
         {hasFilters && <Button size="sm" variant="ghost" onClick={clearFilters}><X className="size-3.5" /> Clear filters</Button>}
         <SearchInput value={q} onChange={(value) => { setQ(value); resetPage() }} placeholder="Search by name/email…" className="w-full sm:ml-auto sm:w-[280px]" />

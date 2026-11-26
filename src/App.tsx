@@ -4,6 +4,7 @@ import { AssessmentGate } from './pages/AssessmentGate'
 import { AdminVenues } from './admin/pages/Venues'
 import { AdminSettings } from './admin/pages/SettingsHub'
 import { AdminVisibility } from './admin/pages/Visibility'
+import { AdminRoles } from './admin/pages/Roles'
 import { loadAdminData } from './admin/storage'
 import { AdminLayout } from './admin/AdminLayout'
 import { AdminAssignments } from './admin/pages/Assignments'
@@ -109,7 +110,8 @@ export default function App() {
             <Route path="calendar" element={<Navigate to="/admin/trainings?view=calendar" replace />} />
             {/* Set-up pages live under Settings; the old addresses still work. */}
             <Route path="settings" element={<AdminSettings />}>
-              <Route index element={<Navigate to="categories" replace />} />
+              <Route index element={<Navigate to={role === 'admin' ? 'roles' : 'categories'} replace />} />
+              <Route path="roles" element={<AdminRoles />} />
               <Route path="categories" element={<AdminCategories />} />
               <Route path="training-types" element={<AdminTrainingTypes />} />
               <Route path="venues" element={<AdminVenues />} />

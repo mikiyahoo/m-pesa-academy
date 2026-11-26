@@ -1,9 +1,11 @@
-import { Award, FileClock, MapPin, Settings2, Tags, type LucideIcon } from 'lucide-react'
+import { Award, FileClock, MapPin, Settings2, ShieldCheck, Tags, type LucideIcon } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { cn } from '../../lib/utils'
+import { useScope } from '../scope'
 import { PageHeader, SectionHeaderProvider, TabBar } from '../ui'
 
-const SECTIONS: { to: string; label: string; icon: LucideIcon }[] = [
+const SECTIONS: { to: string; label: string; icon: LucideIcon; adminOnly?: boolean }[] = [
+  { to: 'roles', label: 'Roles & access', icon: ShieldCheck, adminOnly: true },
   { to: 'categories', label: 'Categories', icon: Tags },
   { to: 'training-types', label: 'Training types', icon: Settings2 },
   { to: 'venues', label: 'Venues', icon: MapPin },
@@ -16,12 +18,13 @@ const SECTIONS: { to: string; label: string; icon: LucideIcon }[] = [
  * The page under the tabs keeps its own actions (New category, New venue…), with a smaller section title.
  */
 export function AdminSettings() {
+  const scope = useScope()
   return (
     <>
       <PageHeader title="Settings" />
       <TabBar>
         <nav aria-label="Settings sections" className="scrollbar-none flex min-w-0 max-w-full gap-1 overflow-x-auto">
-          {SECTIONS.map((s) => (
+          {SECTIONS.filter((s) => !s.adminOnly || scope.role === 'admin').map((s) => (
             <NavLink
               key={s.to}
               to={s.to}

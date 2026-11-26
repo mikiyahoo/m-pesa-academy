@@ -311,32 +311,7 @@ export function CoursePlayer() {
               {/* Lesson tools (e.g. Full screen, Download) render here from the item. */}
               <div id="player-footer-tools" className="flex shrink-0 items-center gap-2 empty:hidden" />
               <div className="flex min-w-0 items-center gap-3">
-                {next && (
-                  <div className="hidden min-w-0 items-center gap-2.5 md:flex">
-                    {(() => {
-                      const NextIcon = KIND_ICON[next.kind];
-                      return (
-                        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-zinc-100 text-zinc-600">
-                          <NextIcon className="size-4" />
-                        </span>
-                      );
-                    })()}
-                    {/* Next item: title and length on one line. */}
-                    <p
-                      className="min-w-0 truncate text-xs text-zinc-500"
-                      title={nextLocked ? next.lockedReason : undefined}
-                    >
-                      <span className="font-semibold text-zinc-800">
-                        {next.title}
-                      </span>
-                      <span className="mx-1.5 text-zinc-300">•</span>
-                      {nextLocked && item.state !== "done"
-                        ? "Finish this item first"
-                        : next.meta}
-                    </p>
-                  </div>
-                )}
-                {!next && <p className="text-xs text-zinc-500">Last item</p>}
+                {/* What comes next is already shown in the course outline (top left), so it isn't repeated here. */}
                 <button
                   onClick={() => next && go(next.id)}
                   disabled={nextLocked}

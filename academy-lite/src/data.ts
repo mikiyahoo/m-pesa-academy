@@ -3,7 +3,28 @@
  * one-tap quizzes and tips. Videos, covers and avatars come from the main project's public folder.
  */
 
-export type Trainer = { id: string; name: string; handle: string; avatar: string; title: string }
+export type Review = { name: string; stars: number; text: string; ago: string }
+export type Trainer = {
+  id: string
+  name: string
+  handle: string
+  avatar: string
+  title: string
+  /** Demo contact details (not real numbers). */
+  phone: string
+  telegram: string
+  email: string
+  bio: string
+  languages: string[]
+  region: string
+  /** Office hours: days (0 = Sunday) and local times. */
+  hours: { days: number[]; from: string; to: string }
+  replies: string
+  rating: number
+  reviews: Review[]
+  /** Quick questions learners often ask this trainer. */
+  faqs: string[]
+}
 
 export type Slide = { emoji: string; title: string; body?: string; points?: string[]; bg: string }
 
@@ -25,15 +46,72 @@ export type Course = {
   items: Item[]
 }
 
-export const ME = { id: 'me', name: 'Fasil Wolde', handle: 'fasil.wolde', avatar: '/avatars/avatar-2.png', role: 'Agent Relations Officer · Addis Ababa' }
+export const ME = { id: 'me', name: 'Fasil Wolde', handle: 'fasil.wolde', avatar: '/avatars/avatar-2.png', role: 'Agent Relations Officer · Addis Ababa', phone: '+251 911 222 333' }
 
+const WEEKDAYS = [1, 2, 3, 4, 5, 6]
 export const TRAINERS: Trainer[] = [
-  { id: 't1', name: 'Dereje Desta', handle: 'dereje.trains', avatar: '/avatars/avatar-1.png', title: 'Lead trainer · Onboarding' },
-  { id: 't2', name: 'Mariamawit Fekadeselase', handle: 'mariamawit.f', avatar: '/avatars/avatar-3.png', title: 'Fraud & risk trainer' },
-  { id: 't3', name: 'Bereket Belay', handle: 'bereket.fayda', avatar: '/avatars/avatar-4.png', title: 'Fayda integration trainer' },
-  { id: 't4', name: 'Selamawit Bekele', handle: 'selam.merchants', avatar: '/avatars/avatar-5.png', title: 'Enterprise & merchants' },
-  { id: 't5', name: 'Hana Tesfaye', handle: 'hana.cares', avatar: '/avatars/avatar-6.png', title: 'Customer care coach' },
+  {
+    id: 't1', name: 'Dereje Desta', handle: 'dereje.trains', avatar: '/avatars/avatar-1.png', title: 'Lead trainer · Onboarding',
+    phone: '+251911000101', telegram: 'dereje_trains', email: 'dereje.desta@example.com',
+    bio: '8 years onboarding agents and merchants across Ethiopia. I keep things short, practical and friendly. Ask me anything about getting started with M-PESA.',
+    languages: ['Amharic', 'English'], region: 'Addis Ababa', hours: { days: WEEKDAYS, from: '08:30', to: '17:30' }, replies: 'within an hour', rating: 4.9,
+    reviews: [
+      { name: 'Selam Tadesse', stars: 5, text: 'Explains KYC better than anyone. Called me back the same day!', ago: '1 week' },
+      { name: 'Yonas Alemu', stars: 5, text: 'Very patient with our new agents.', ago: '3 weeks' },
+    ],
+    faqs: ['How do I register a new customer?', 'Which ID documents are accepted?', 'Can you visit our shop for a session?'],
+  },
+  {
+    id: 't2', name: 'Mariamawit Fekadeselase', handle: 'mariamawit.f', avatar: '/avatars/avatar-3.png', title: 'Fraud & risk trainer',
+    phone: '+251911000102', telegram: 'mariamawit_f', email: 'mariamawit.f@example.com',
+    bio: 'I help agents and merchants spot scams before they cost anything. If something feels wrong at your counter, message me straight away.',
+    languages: ['Amharic', 'English', 'Afaan Oromo'], region: 'Addis Ababa', hours: { days: WEEKDAYS, from: '08:00', to: '18:00' }, replies: 'within 30 minutes', rating: 4.8,
+    reviews: [
+      { name: 'Abel Girma', stars: 5, text: 'Her red flags saved one of our customers last week.', ago: '5 days' },
+      { name: 'Meron Kebede', stars: 4, text: 'Great live Q&A sessions, very practical.', ago: '1 month' },
+    ],
+    faqs: ['I think a customer is being scammed. What now?', 'How do I report a fake reversal?', 'Is this SMS real?'],
+  },
+  {
+    id: 't3', name: 'Bereket Belay', handle: 'bereket.fayda', avatar: '/avatars/avatar-4.png', title: 'Fayda integration trainer',
+    phone: '+251911000103', telegram: 'bereket_fayda', email: 'bereket.belay@example.com',
+    bio: 'Fayda and digital ID specialist. I can walk you through verification step by step, in person or on a call.',
+    languages: ['Amharic', 'English'], region: 'Hawassa', hours: { days: [1, 2, 3, 4, 5], from: '09:00', to: '17:00' }, replies: 'within 2 hours', rating: 4.7,
+    reviews: [{ name: 'Liya Mekonnen', stars: 5, text: 'Fayda finally makes sense to me 😄', ago: '2 weeks' }],
+    faqs: ['The Fayda code is not arriving. What do I do?', 'Can a customer register without Fayda?'],
+  },
+  {
+    id: 't4', name: 'Selamawit Bekele', handle: 'selam.merchants', avatar: '/avatars/avatar-5.png', title: 'Enterprise & merchants',
+    phone: '+251911000104', telegram: 'selam_merchants', email: 'selamawit.bekele@example.com',
+    bio: 'I set up merchants with Till and Paybill and help businesses grow with Lipa na M-PESA. Merchants: book a call any time in office hours.',
+    languages: ['Amharic', 'English', 'Tigrinya'], region: 'Addis Ababa', hours: { days: WEEKDAYS, from: '08:30', to: '17:30' }, replies: 'within an hour', rating: 4.9,
+    reviews: [
+      { name: 'Bole Mini Market', stars: 5, text: 'Our till was ready in one visit. Thank you!', ago: '4 days' },
+      { name: 'Yonas Alemu', stars: 5, text: 'Clear and quick, recommended for every shop owner.', ago: '2 weeks' },
+    ],
+    faqs: ['Do I need a Till or a Paybill?', 'How do I see my daily payments?', 'Can you help set up my shop?'],
+  },
+  {
+    id: 't5', name: 'Hana Tesfaye', handle: 'hana.cares', avatar: '/avatars/avatar-6.png', title: 'Customer care coach',
+    phone: '+251911000105', telegram: 'hana_cares', email: 'hana.tesfaye@example.com',
+    bio: 'Coaching teams to stay calm, kind and quick with every customer. Happy to role-play a tough call with you.',
+    languages: ['Amharic', 'English'], region: 'Adama', hours: { days: [1, 2, 3, 4, 5], from: '08:30', to: '17:00' }, replies: 'within a few hours', rating: 4.8,
+    reviews: [{ name: 'Selam Tadesse', stars: 5, text: 'The LEARN method changed how I handle complaints.', ago: '1 week' }],
+    faqs: ['How do I calm an angry customer?', 'Can we do a role-play session?'],
+  },
 ]
+
+/** Whether the trainer is inside office hours right now (local time). */
+export function availability(t: Trainer, now = new Date()) {
+  const hm = now.getHours() * 60 + now.getMinutes()
+  const toMin = (x: string) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3))
+  const open = t.hours.days.includes(now.getDay()) && hm >= toMin(t.hours.from) && hm < toMin(t.hours.to)
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const first = t.hours.days[0]
+  const last = t.hours.days[t.hours.days.length - 1]
+  return { open, label: `${dayNames[first]}–${dayNames[last]} · ${t.hours.from}–${t.hours.to}` }
+}
+
 export const trainerOf = (id: string) => TRAINERS.find((t) => t.id === id)!
 
 const V = (n: number) => `/trainings/Module (${n}).mp4`
@@ -248,7 +326,10 @@ export const CHATS: Chat[] = [
   { id: 'mariamawit', name: 'Mariamawit Fekadeselase', avatar: '/avatars/avatar-3.png', kind: 'trainer', trainerId: 't2' },
   { id: 'bole-team', name: 'Bole Shop Team', avatar: '/covers/mpesa-app-features.jpg', kind: 'group', members: 9, muted: true },
   { id: 'hana', name: 'Hana Tesfaye', avatar: '/avatars/avatar-6.png', kind: 'trainer', trainerId: 't5' },
+  { id: 'bereket', name: 'Bereket Belay', avatar: '/avatars/avatar-4.png', kind: 'trainer', trainerId: 't3' },
+  { id: 'selamawit', name: 'Selamawit Bekele', avatar: '/avatars/avatar-5.png', kind: 'trainer', trainerId: 't4' },
 ]
+export const chatOfTrainer = (trainerId: string) => CHATS.find((c) => c.trainerId === trainerId)!
 
 const min = 60_000
 const hr = 60 * min
@@ -277,6 +358,8 @@ export function seedMessages(now: number): Record<string, Msg[]> {
       { id: 'bt2', from: 'me', text: 'I can take it', at: now - 49 * hr },
     ],
     hana: [{ id: 'h1', from: 'hana', text: 'Try the 3-second rule today and tell me how it went 😊', at: now - 30 * hr }],
+    bereket: [{ id: 'be1', from: 'bereket', text: 'Selam! Any Fayda questions, I’m here 🆔', at: now - 4 * 24 * hr }],
+    selamawit: [{ id: 'se1', from: 'selamawit', text: 'Hi! Merchants and shop owners: ask me about Till and Paybill any time 🏪', at: now - 6 * 24 * hr }],
   }
 }
 
@@ -299,6 +382,8 @@ export type Post = {
   id: string
   author: string
   avatar: string
+  /** Posted by the Academy team (shown with a verified tick). */
+  official?: boolean
   ago: string
   text: string
   image?: string
@@ -308,11 +393,15 @@ export type Post = {
   shares: number
 }
 
+export const ACADEMY = { name: 'M-PESA Academy', avatar: '/favicon white.svg' }
+
+/** Community posts are written by the Academy team and trainers; learners react, comment and share. */
 export const POSTS: Post[] = [
-  { id: 'po1', author: 'Selam Tadesse', avatar: '/avatars/avatar-5.png', ago: '35 min', text: 'Finished “Spot the Scam” on my break ☕ The swipe slides made it so easy. Certificate unlocked!', badge: { emoji: '🎓', title: 'Earned a certificate · Spot the Scam' }, reactions: 128, comments: 14, shares: 3 },
-  { id: 'po2', author: 'Dereje Desta', avatar: '/avatars/avatar-1.png', ago: '2 h', text: 'New video in M-PESA Basics: registering a customer step by step. Watch it before your next shift 👇', image: '/covers/test-training-3.jpg', reactions: 342, comments: 41, shares: 22 },
-  { id: 'po3', author: 'Abel Girma', avatar: '/avatars/avatar-1.png', ago: '5 h', text: 'A customer almost sent money back to a scammer today. Remembered red flag #4 and stopped it in time 💪', reactions: 516, comments: 63, shares: 48 },
-  { id: 'po4', author: 'Meron Kebede', avatar: '/avatars/avatar-6.png', ago: 'Yesterday', text: '7-day learning streak 🔥 Who’s joining me for week two?', badge: { emoji: '🔥', title: 'Reached a 7-day streak' }, reactions: 204, comments: 27, shares: 5 },
+  { id: 'po1', author: ACADEMY.name, avatar: ACADEMY.avatar, official: true, ago: '35 min', text: '🎉 Congratulations to Selam Tadesse for finishing “Spot the Scam” on her coffee break. Who’s next?', badge: { emoji: '🎓', title: 'Certificate earned · Spot the Scam' }, reactions: 128, comments: 14, shares: 3 },
+  { id: 'po2', author: 'Dereje Desta', avatar: '/avatars/avatar-1.png', official: true, ago: '2 h', text: 'New video in M-PESA Basics: registering a customer step by step. Watch it before your next shift 👇', image: '/covers/test-training-3.jpg', reactions: 342, comments: 41, shares: 22 },
+  { id: 'po3', author: ACADEMY.name, avatar: ACADEMY.avatar, official: true, ago: '5 h', text: 'Story of the week 💪 Abel Girma stopped a customer from sending money back to a scammer. He spotted red flag #4 from “Spot the Scam”. Training works!', reactions: 516, comments: 63, shares: 48 },
+  { id: 'po4', author: ACADEMY.name, avatar: ACADEMY.avatar, official: true, ago: 'Yesterday', text: '🔥 Streak challenge: learn something every day this week and earn a bonus 50 XP. Meron Kebede is already on 7 days!', badge: { emoji: '🔥', title: '7-day streak challenge' }, reactions: 204, comments: 27, shares: 5 },
+  { id: 'po5', author: 'Mariamawit Fekadeselase', avatar: '/avatars/avatar-3.png', official: true, ago: '2 days', text: 'Reminder: the fraud desk Q&A is live tomorrow at 10:00. Bring your toughest questions 🎙️ Tap LIVE on the Home tab to set a reminder.', image: '/covers/fraud-awareness.jpg', reactions: 187, comments: 19, shares: 31 },
 ]
 
 export const LIVE = [

@@ -5,6 +5,7 @@ import { cn, todayISO } from '../../lib/utils'
 import { useAuth } from '../../store/Auth'
 import { shortDate, time12 } from '../helpers'
 import { participantProgress, useAdmin } from '../store'
+import { useScope } from '../scope'
 import { DateRangePicker } from '../../components/DateRangePicker'
 import { filterActivityLogs, isInRange, type DateRange } from '../reports/filters'
 import { auditActionCategory, auditEntityType } from '../audit'
@@ -105,6 +106,7 @@ function activityIcon(entity: string, action: string): { icon: LucideIcon; tone:
 
 export function AdminDashboard() {
   const { data } = useAdmin()
+  const scope = useScope()
   const { user } = useAuth()
   const [creating, setCreating] = useState(false)
   const [scheduling, setScheduling] = useState<TrainingPreset | null>(null)
@@ -461,9 +463,12 @@ export function AdminDashboard() {
           ) : (
             <Empty icon={BarChart3} title="No activity yet" text="Changes across trainings and users appear here." />
           )}
-          <Link to="/admin/settings/audit-logs" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
-            View audit logs <ArrowRight className="size-3.5" />
-          </Link>
+          {/* The full audit log is under Settings, which department admins don't open by default. */}
+          {scope.role === 'admin' && (
+            <Link to="/admin/settings/audit-logs" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
+              View audit logs <ArrowRight className="size-3.5" />
+            </Link>
+          )}
         </section>
       </div>
 

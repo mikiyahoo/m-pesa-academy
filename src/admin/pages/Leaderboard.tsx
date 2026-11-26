@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Award, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flame, Minus, Star, Target, Trophy, Users } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAdmin } from '../store'
+import { useScope } from '../scope'
 import { deriveGamification, buildLeaderboard, type LeaderboardRow } from '../gamification'
 import { ALL_BADGES } from '../types'
 import { UserAvatar } from '../../components/UserAvatar'
@@ -65,7 +66,9 @@ export function AdminLeaderboard() {
   const pagerRef = useRef<HTMLDivElement>(null)
 
   const gData = useMemo(() => deriveGamification(data), [data])
-  const rows = useMemo(() => buildLeaderboard(data, gData, groupId || undefined), [data, gData, groupId])
+  const scope = useScope()
+  // A department admin ranks only their own department's people.
+  const rows = useMemo(() => buildLeaderboard(data, gData, groupId || undefined).filter((r) => !scope.department || r.person.department === scope.department), [data, gData, groupId, scope.department])
   const filtered = useMemo(() => {
     if (!search) return rows
     const q = search.toLowerCase()

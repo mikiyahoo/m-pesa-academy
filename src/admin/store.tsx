@@ -112,25 +112,34 @@ export function TrainerScope({ trainerId, children }: { trainerId: string; child
 }
 
 /**
- * Department admin: trainings run for their department or with its people, requests from its
- * teams, and the submissions, feedback and alerts of those trainings. People stay complete so
- * names resolve everywhere; the Users page narrows them to the department.
+ * Department admin: one department only. Its trainings, requests from its teams, and the
+ * submissions, feedback and alerts of those trainings; its people (plus the trainers and learners
+ * on its trainings, so names resolve), its groups and its own audit trail. Nothing from other departments.
  */
 export function DepartmentScope({ department, children }: { department: string; children: ReactNode }) {
   const ctx = useAdmin()
   const value = useMemo(() => {
     const d = ctx.data
     const inDept = new Set(d.people.filter((p) => p.department === department).map((p) => p.id))
-    const own = new Set(d.trainings.filter((t) => t.department === department || t.participantIds.some((pid) => inDept.has(pid))).map((t) => t.id))
+    const trainings = d.trainings.filter((t) => t.department === department)
+    const own = new Set(trainings.map((t) => t.id))
+    const requests = d.requests.filter((r) => r.team === department || inDept.has(r.requesterId))
+    // People: the department, plus whoever teaches or attends its trainings and whoever sent its requests.
+    const visible = new Set([...inDept, ...trainings.flatMap((t) => [...t.participantIds, ...trainerIdsOf(t)]), ...requests.map((r) => r.requesterId)])
+    const people = d.people.filter((p) => visible.has(p.id))
+    const names = new Set([...people.filter((p) => inDept.has(p.id)).map((p) => p.name), ...trainings.map((t) => t.name)])
     return {
       ...ctx,
       data: {
         ...d,
-        trainings: d.trainings.filter((t) => own.has(t.id)),
+        trainings,
+        people,
+        groups: d.groups.filter((g) => people.some((p) => inDept.has(p.id) && p.groupIds.includes(g.id))),
         submissions: d.submissions.filter((s) => own.has(s.trainingId)),
         feedbackResponses: d.feedbackResponses.filter((r) => own.has(r.trainingId)),
-        requests: d.requests.filter((r) => r.team === department || inDept.has(r.requesterId)),
+        requests,
         alerts: d.alerts.filter((a) => own.has(a.trainingId)),
+        auditLogs: d.auditLogs.filter((l) => names.has(l.actor) || names.has(l.target) || l.target === department),
       },
     }
   }, [ctx, department])
