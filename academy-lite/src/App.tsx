@@ -1,4 +1,4 @@
-import { House, MessageCircle, Play, UserRound, UsersRound } from 'lucide-react'
+import { CirclePlay, House, MessageCircle, UserRound, UsersRound } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Community } from './community'
 import { CHATS, COURSES, allChannels, chatOfTrainer, findItem } from './data'
@@ -114,11 +114,10 @@ function Shell() {
         <NavBtn label="Community" active={screen === 'community'} onClick={() => setScreen('community')} dark={dark} badge={communityUnread}>
           <UsersRound className={cn('size-6', screen === 'community' && 'fill-current')} />
         </NavBtn>
-        <button type="button" onClick={resume} aria-label="Continue learning" className="relative -mt-1 flex h-9 w-14 items-center justify-center rounded-xl bg-gradient-to-r from-[#39b54a] to-[#d03c3b] p-[3px] shadow-lg transition active:scale-95">
-          <span className={cn('grid size-full place-items-center rounded-[9px]', dark ? 'bg-white text-black' : 'bg-white text-zinc-900')}>
-            <Play className="ml-0.5 size-5 fill-current" />
-          </span>
-        </button>
+        {/* Carries on from the next post you haven't seen. */}
+        <NavBtn label="Learn" active={false} onClick={resume} dark={dark}>
+          <CirclePlay className="size-6" />
+        </NavBtn>
         <NavBtn label="Inbox" active={screen === 'inbox'} onClick={() => setScreen('inbox')} dark={dark} badge={unread}>
           <MessageCircle className={cn('size-6', screen === 'inbox' && 'fill-current')} />
         </NavBtn>
