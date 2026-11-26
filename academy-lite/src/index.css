@@ -22,6 +22,8 @@
   --animate-pop: pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1);
   --animate-confetti: confetti 1.6s ease-out forwards;
   --animate-story: story-fill 4s linear forwards;
+  --animate-sms: sms-in 0.45s cubic-bezier(0.2, 1.2, 0.4, 1);
+  --animate-shake: shake 0.4s ease-in-out;
 
   @keyframes heart-pop {
     0% { transform: translate(-50%, -50%) scale(0.2) rotate(var(--tilt, 0deg)); opacity: 0; }
@@ -49,6 +51,15 @@
   @keyframes story-fill {
     from { width: 0; }
     to { width: 100%; }
+  }
+  @keyframes sms-in {
+    from { transform: translateY(-140%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
   }
   @keyframes confetti {
     0% { transform: translate(0, 0) rotate(0); opacity: 1; }

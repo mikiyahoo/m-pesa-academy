@@ -4,6 +4,7 @@ import { Community } from './community'
 import { CHATS, COURSES, allChannels, chatOfTrainer, findItem } from './data'
 import { Feed, type FeedTab } from './feed'
 import { Inbox } from './inbox'
+import { Login } from './login'
 import { Profile } from './profile'
 import { Discover, LiveSheet } from './sheets'
 import { TrainerProfile } from './trainer'
@@ -20,12 +21,18 @@ export default function App() {
         {/* The phone: full screen on a phone, a device-sized frame on a computer. */}
         <div className="relative h-full w-full overflow-hidden bg-black sm:h-[min(calc(100dvh-32px),880px)] sm:w-[400px] sm:rounded-[2.6rem] sm:border-[10px] sm:border-zinc-900 sm:shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
           <ToastProvider>
-            <Shell />
+            <Gate />
           </ToastProvider>
         </div>
       </div>
     </LiteProvider>
   )
+}
+
+/** Signed out: the phone login. Signed in: the app. */
+function Gate() {
+  const { s } = useLite()
+  return s.phone ? <Shell /> : <Login />
 }
 
 function Shell() {

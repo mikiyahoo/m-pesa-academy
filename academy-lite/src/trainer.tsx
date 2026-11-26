@@ -255,13 +255,13 @@ const SLOTS = ['As soon as possible', 'Today, afternoon', 'Tomorrow, morning', '
 
 /** Ask the trainer to phone you: when, about what, and on which number. It also lands in your chat with them. */
 function CallbackSheet({ trainerId, onClose }: { trainerId: string; onClose: () => void }) {
-  const { set } = useLite()
+  const { s, set } = useLite()
   const toast = useToast()
   const t = trainerOf(trainerId)
   const courses = COURSES.filter((c) => c.trainerId === t.id)
   const [slot, setSlot] = useState(SLOTS[0])
   const [topic, setTopic] = useState(courses[0]?.title ?? 'Something else')
-  const [phone, setPhone] = useState(ME.phone)
+  const [phone, setPhone] = useState(s.phone ?? ME.phone)
   const chat = chatOfTrainer(t.id)
 
   const send = () => {

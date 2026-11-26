@@ -25,6 +25,8 @@ export type LiteState = {
   status: string
   notifications: boolean
   lang: string
+  /** The phone number you signed in with; null shows the login screen. */
+  phone: string | null
 }
 
 const KEY = 'academy-lite:v1'
@@ -56,6 +58,7 @@ function initial(): LiteState {
     status: '📚 Learning Spot the Scam',
     notifications: true,
     lang: 'English',
+    phone: null,
   }
 }
 
@@ -119,7 +122,8 @@ export function LiteProvider({ children }: { children: ReactNode }) {
     },
     [s.viewed],
   )
-  const reset = useCallback(() => setS(initial()), [])
+  // Resetting the demo keeps you signed in.
+  const reset = useCallback(() => setS((x) => ({ ...initial(), phone: x.phone })), [])
 
   const value = useMemo(() => ({ s, set, toggle, markViewed, answer, progress, reset }), [s, set, toggle, markViewed, answer, progress, reset])
   return <LiteContext.Provider value={value}>{children}</LiteContext.Provider>

@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, Award, Bell, Bookmark, Camera, Check, ChevronDown, ChevronRight, CircleHelp, Copy, Grid3x3, Info, Languages, Menu, MessageSquareText, QrCode, RotateCcw, Share2, Sparkles, UserPen } from 'lucide-react'
+import { Activity, ArrowLeft, Award, Bell, Bookmark, Camera, Check, ChevronDown, ChevronRight, CircleHelp, Copy, Grid3x3, Info, Languages, LogOut, Menu, MessageSquareText, QrCode, RotateCcw, Share2, Sparkles, UserPen } from 'lucide-react'
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
 import { COURSES, ME, findItem, trainerOf } from './data'
@@ -387,7 +387,7 @@ function SettingsScreen({ onClose, onTab }: { onClose: () => void; onTab: (t: Ta
           <Avatar src={ME.avatar} name={ME.name} size={84} />
           <p className="mt-2 text-xl font-extrabold">{ME.name}</p>
           <p className="text-sm text-zinc-500">
-            {ME.phone} · @{ME.handle}
+            {s.phone ?? ME.phone} · @{ME.handle}
           </p>
         </div>
         <div className="overflow-hidden rounded-2xl bg-white">
@@ -423,6 +423,9 @@ function SettingsScreen({ onClose, onTab }: { onClose: () => void; onTab: (t: Ta
               toast('Demo data restored')
             }}
           />
+        </div>
+        <div className="overflow-hidden rounded-2xl bg-white">
+          <Row icon={LogOut} tone="bg-[#d03c3b]" label="Log out" danger onClick={() => set((x) => ({ ...x, phone: null }))} />
         </div>
         <p className="px-2 text-center text-[11px] text-zinc-400">Everything you do is kept in this browser only.</p>
       </div>
