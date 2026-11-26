@@ -29,7 +29,7 @@ export type Trainer = {
 export type Slide = { emoji: string; title: string; body?: string; points?: string[]; bg: string }
 
 export type Item =
-  | { id: string; kind: 'video'; src: string; caption: string; tags: string[] }
+  | { id: string; kind: 'video'; src: string; caption: string; tags: string[]; /** Picture shown before the video plays (defaults to the course cover). */ poster?: string }
   | { id: string; kind: 'slides'; slides: Slide[]; caption: string; tags: string[] }
   | { id: string; kind: 'quiz'; question: string; options: string[]; answer: number; explain: string; caption: string; tags: string[] }
   | { id: string; kind: 'tip'; slide: Slide; caption: string; tags: string[] }
@@ -135,6 +135,8 @@ export const COURSES: Course[] = [
     level: 'Beginner',
     learners: 1840,
     items: [
+      // Real vertical training clip (public/lite): the first post in the feed.
+      { id: 'b0', kind: 'video', src: '/lite/send-money.mp4', poster: '/lite/send-money.jpg', caption: 'Send money in 10 seconds 💸 Enter the number, the amount and your PIN. Done!', tags: ['SendMoney', 'HowTo', 'MPESA'] },
       { id: 'b1', kind: 'video', src: V(1), caption: 'Welcome! What M-PESA is and why it matters to every customer you serve 👋', tags: ['MPESA', 'Onboarding'] },
       {
         id: 'b2',
@@ -360,6 +362,29 @@ export function seedMessages(now: number): Record<string, Msg[]> {
     hana: [{ id: 'h1', from: 'hana', text: 'Try the 3-second rule today and tell me how it went 😊', at: now - 30 * hr }],
     bereket: [{ id: 'be1', from: 'bereket', text: 'Selam! Any Fayda questions, I’m here 🆔', at: now - 4 * 24 * hr }],
     selamawit: [{ id: 'se1', from: 'selamawit', text: 'Hi! Merchants and shop owners: ask me about Till and Paybill any time 🏪', at: now - 6 * 24 * hr }],
+    'sp-announce': [
+      { id: 'spa1', from: 'sp-announce', text: '👋 Welcome to the M-PESA Academy community! Announcements from the training team land here.', at: now - 3 * 24 * hr, views: 11240 },
+      { id: 'spa2', from: 'sp-announce', text: '📌 New: “Send money in 10 seconds” is now the first post on Home. Watch it and share it with your team!', at: now - 50 * min, views: 2380 },
+    ],
+    'sp-start': [{ id: 'sps1', from: 'sp-start', text: '✅ Start here: 1) Watch the first course on Home. 2) Ask questions in #ask-a-question. 3) Be kind and never share PINs or codes, even here.', at: now - 9 * 24 * hr, views: 9030 }],
+    'sp-events': [{ id: 'spe1', from: 'sp-events', text: '🎪 Fraud desk Q&A is LIVE now. Fayda walkthrough tomorrow 10:00. Merchant clinic Friday 14:30.', at: now - 2 * hr, views: 4120 }],
+    'sp-ask': [
+      { id: 'spq1', from: 'Yonas Alemu', text: 'Can a customer register with a kebele ID?', at: now - 5 * hr },
+      { id: 'spq2', from: 'Dereje Desta', text: 'Yes, a valid kebele ID works. Fayda is faster though 👍', at: now - 4 * hr },
+    ],
+    'sp-general': [
+      { id: 'spg1', from: 'Liya Mekonnen', text: 'Good morning everyone ☀️', at: now - 3 * hr },
+      { id: 'spg2', from: 'Abel Girma', text: 'Morning! Who’s joining the live session today?', at: now - 70 * min },
+    ],
+    'sp-wins': [{ id: 'spw1', from: 'Selam Tadesse', text: '🎓 Got my Spot the Scam certificate!', at: now - 40 * min }],
+    'sp-guides': [{ id: 'spt1', from: 'sp-guides', text: '💡 Guide: the 5 red flags of a fake reversal, on one page. Open “Spot the Scam” on Home to swipe through it.', at: now - 26 * hr, views: 5310 }],
+    'sp-recordings': [{ id: 'spr1', from: 'sp-recordings', text: '🎥 Missed last week’s Fayda session? The recording is in the Fayda course.', at: now - 4 * 24 * hr, views: 2875 }],
+    'sp-scam-news': [{ id: 'ssn1', from: 'sp-scam-news', text: '🚨 Alert: SMS messages pretending to be refunds are going around Addis. Check the real balance before anything else.', at: now - 90 * min, views: 41 }],
+    'sp-scam-ask': [{ id: 'ssa1', from: 'Mariamawit Fekadeselase', text: 'Ask me anything about fraud here. I answer every day before noon 🙂', at: now - 2 * 24 * hr }],
+    'sp-scam-chat': [{ id: 'ssc1', from: 'Meron Kebede', text: 'Quiz 3 was tricky 😅', at: now - 12 * min }],
+    'sp-merch-news': [{ id: 'smn1', from: 'sp-merch-news', text: '🏪 Tip: show every new merchant where to see their daily statement.', at: now - 30 * hr, views: 288 }],
+    'sp-merch-ask': [{ id: 'sma1', from: 'Selamawit Bekele', text: 'Shop owners: questions about Till or Paybill? Post them here.', at: now - 3 * 24 * hr }],
+    'sp-merch-chat': [{ id: 'smc1', from: 'Bole Mini Market', text: 'Our till is live, payments are so much faster now!', at: now - 6 * hr }],
   }
 }
 
@@ -403,6 +428,58 @@ export const POSTS: Post[] = [
   { id: 'po4', author: ACADEMY.name, avatar: ACADEMY.avatar, official: true, ago: 'Yesterday', text: '🔥 Streak challenge: learn something every day this week and earn a bonus 50 XP. Meron Kebede is already on 7 days!', badge: { emoji: '🔥', title: '7-day streak challenge' }, reactions: 204, comments: 27, shares: 5 },
   { id: 'po5', author: 'Mariamawit Fekadeselase', avatar: '/avatars/avatar-3.png', official: true, ago: '2 days', text: 'Reminder: the fraud desk Q&A is live tomorrow at 10:00. Bring your toughest questions 🎙️ Tap LIVE on the Home tab to set a reminder.', image: '/covers/fraud-awareness.jpg', reactions: 187, comments: 19, shares: 31 },
 ]
+
+/* ---------------------------------- spaces ---------------------------------- */
+
+export type Channel = { id: string; name: string; emoji: string; kind: 'channel' | 'group'; trainerId?: string }
+export type Space = { id: string; name: string; icon: string; members: number; sections: { title?: string; channels: Channel[] }[] }
+
+/** Community spaces: the Academy plus course groups, each with channels like a community server. */
+export const SPACES: Space[] = [
+  {
+    id: 'academy',
+    name: 'M-PESA Academy',
+    icon: '/favicon white.svg',
+    members: 12840,
+    sections: [
+      { channels: [{ id: 'sp-announce', name: 'announcements', emoji: '📢', kind: 'channel' }, { id: 'sp-start', name: 'start-here', emoji: '✅', kind: 'channel' }] },
+      {
+        title: 'General',
+        channels: [
+          { id: 'sp-events', name: 'events-and-live', emoji: '🎪', kind: 'channel' },
+          { id: 'sp-ask', name: 'ask-a-question', emoji: '❓', kind: 'group', trainerId: 't1' },
+          { id: 'sp-general', name: 'general-chat', emoji: '💬', kind: 'group' },
+          { id: 'sp-wins', name: 'wins', emoji: '🏆', kind: 'group' },
+        ],
+      },
+      { title: 'Learning resources', channels: [{ id: 'sp-guides', name: 'tips-and-guides', emoji: '💡', kind: 'channel' }, { id: 'sp-recordings', name: 'live-recordings', emoji: '🎥', kind: 'channel' }] },
+    ],
+  },
+  {
+    id: 'scam',
+    name: 'Spot the Scam · Batch 12',
+    icon: '/covers/fraud-awareness.jpg',
+    members: 46,
+    sections: [
+      { channels: [{ id: 'sp-scam-news', name: 'fraud-alerts', emoji: '🚨', kind: 'channel' }] },
+      { title: 'Class', channels: [{ id: 'sp-scam-ask', name: 'ask-mariamawit', emoji: '❓', kind: 'group', trainerId: 't2' }, { id: 'sp-scam-chat', name: 'class-chat', emoji: '💬', kind: 'group' }] },
+    ],
+  },
+  {
+    id: 'merchants',
+    name: 'Merchants Hub',
+    icon: '/covers/merchant-payments.jpg',
+    members: 318,
+    sections: [
+      { channels: [{ id: 'sp-merch-news', name: 'merchant-news', emoji: '🏪', kind: 'channel' }] },
+      { title: 'Help', channels: [{ id: 'sp-merch-ask', name: 'ask-selamawit', emoji: '❓', kind: 'group', trainerId: 't4' }, { id: 'sp-merch-chat', name: 'shop-owners-chat', emoji: '💬', kind: 'group' }] },
+    ],
+  },
+]
+
+export const allChannels = () => SPACES.flatMap((sp) => sp.sections.flatMap((sec) => sec.channels.map((ch) => ({ space: sp, channel: ch }))))
+/** A channel as a chat, so it opens in the same chat screen. */
+export const channelChat = (space: Space, ch: Channel): Chat => ({ id: ch.id, name: `# ${ch.name}`, avatar: space.icon, kind: ch.kind, members: space.members, trainerId: ch.trainerId })
 
 export const LIVE = [
   { id: 'l1', title: 'Fraud desk Q&A', host: 't2', when: 'Live now', live: true, viewers: 214 },

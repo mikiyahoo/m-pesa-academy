@@ -255,7 +255,7 @@ export function LiveSheet({ onClose }: { onClose: () => void }) {
 
 /** A small square preview of a post: the cover for videos, the slide colours for slides and tips. */
 export function ItemThumb({ item, course, className }: { item: Item; course: Course; className?: string }) {
-  if (item.kind === 'video') return <img src={course.cover} alt="" className={cn('object-cover', className)} />
+  if (item.kind === 'video') return <img src={item.poster ?? course.cover} alt="" className={cn('object-cover', className)} />
   const slide = item.kind === 'slides' ? item.slides[0] : item.kind === 'tip' ? item.slide : { emoji: '❓', bg: 'from-[#1e1b4b] via-[#312e81] to-[#0b0a24]' }
   return (
     <div className={cn('grid place-items-center bg-gradient-to-br', slide.bg, className)}>

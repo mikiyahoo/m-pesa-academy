@@ -179,9 +179,9 @@ function Post({ entry, active, onComments, onShare, onPlaylist, onTrainer }: { e
 
   return (
     <div className="relative size-full select-none" onClick={onTap}>
-      {item.kind === 'video' && <VideoBody src={item.src} active={active} paused={paused} cover={entry.course.cover} />}
-      {item.kind === 'slides' && <SlidesBody slides={item.slides} />}
-      {item.kind === 'tip' && <SlideFace slide={item.slide} badge="💡 Tip" />}
+      {item.kind === 'video' && <VideoBody src={item.src} active={active} paused={paused} cover={item.poster ?? entry.course.cover} />}
+      {item.kind === 'slides' && <SlidesBody slides={item.slides} course={entry.course} />}
+      {item.kind === 'tip' && <SlideFace slide={item.slide} course={entry.course} badge="💡 Tip" />}
       {item.kind === 'quiz' && <QuizBody item={item} />}
 
       {hearts.map((h) => (
@@ -271,7 +271,7 @@ function Caption({ entry, onPlaylist, onTrainer }: { entry: Entry; onPlaylist: (
   const t = trainerOf(entry.course.trainerId)
   const p = progress(entry.course.id)
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/75 via-black/30 to-transparent pt-24 pr-20 pb-4 pl-3">
+    <div className={cn('pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t to-transparent pr-20 pb-4 pl-3', item.kind === 'video' ? 'from-black/75 via-black/30 pt-24' : 'from-black/40 pt-4')}>
       <button type="button" onClick={() => onTrainer(t.id)} className="text-shadow pointer-events-auto text-[15px] font-bold hover:underline">
         @{t.handle}
       </button>
@@ -331,59 +331,79 @@ function VideoBody({ src, active, paused, cover }: { src: string; active: boolea
   )
 }
 
-function SlideFace({ slide, badge }: { slide: Slide; badge?: string }) {
+/**
+ * A slide that reads like a presentation page: a clean white card with the course name on top,
+ * a small icon, a clear title, short text or bullets, and the page number at the bottom.
+ * It sits on a dark backdrop so the buttons on the right and the caption stay readable.
+ */
+function SlideFace({ slide, course, badge, page, onPage }: { slide: Slide; course: Course; badge?: string; page?: { at: number; total: number }; onPage?: (i: number) => void }) {
   return (
-    <div className={cn('flex size-full flex-col justify-center bg-gradient-to-br px-7 pt-16 pr-20 pb-44', slide.bg)}>
-      {badge && <span className="mb-4 w-fit rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide backdrop-blur">{badge}</span>}
-      <span className="text-7xl leading-none drop-shadow-lg" aria-hidden>
-        {slide.emoji}
-      </span>
-      <h2 className="mt-5 text-[1.9rem] leading-tight font-extrabold tracking-tight">{slide.title}</h2>
-      {slide.body && <p className="mt-3 text-lg leading-snug font-medium text-white/90">{slide.body}</p>}
-      {slide.points && (
-        <ul className="mt-4 space-y-2.5">
-          {slide.points.map((pt) => (
-            <li key={pt} className="flex items-start gap-2.5 text-lg leading-snug font-medium text-white/95">
-              <span className="mt-1 grid size-5 shrink-0 place-items-center rounded-full bg-white text-[#111]">
-                <Check className="size-3.5" strokeWidth={3} />
+    <div className={cn('relative size-full bg-gradient-to-br', slide.bg)}>
+      <div className="absolute inset-0 bg-black/55" />
+      <div className="absolute top-16 right-[4.25rem] bottom-44 left-3 flex flex-col overflow-hidden rounded-2xl bg-white text-zinc-900 shadow-2xl">
+        <div className={cn('h-1.5 shrink-0 bg-gradient-to-r', slide.bg)} />
+        <div className="flex shrink-0 items-center justify-between gap-2 px-5 pt-3.5">
+          <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold tracking-[0.14em] text-zinc-400 uppercase">
+            <span className="size-1.5 shrink-0 rounded-full bg-[#d03c3b]" />
+            <span className="truncate">{course.title}</span>
+          </span>
+          {badge && <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">{badge}</span>}
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col justify-center px-5">
+          <span className={cn('grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-2xl shadow-sm', slide.bg)} aria-hidden>
+            {slide.emoji}
+          </span>
+          <h2 className="mt-4 text-[1.35rem] leading-tight font-bold tracking-tight">{slide.title}</h2>
+          <span className="mt-2.5 block h-1 w-10 shrink-0 rounded-full bg-[#d03c3b]" />
+          {slide.body && <p className="mt-3 text-[15px] leading-relaxed text-zinc-600">{slide.body}</p>}
+          {slide.points && (
+            <ul className="mt-3 space-y-2">
+              {slide.points.map((pt) => (
+                <li key={pt} className="flex items-start gap-2.5 text-[15px] leading-snug text-zinc-700">
+                  <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-[#d03c3b]" />
+                  {pt}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-zinc-100 px-5 py-2.5 text-[11px] font-medium text-zinc-400">
+          <span>M-PESA Academy</span>
+          {page && page.total > 1 ? (
+            <span className="flex items-center gap-2">
+              <span className="flex gap-1">
+                {Array.from({ length: page.total }, (_, i) => (
+                  <button key={i} type="button" aria-label={`Slide ${i + 1}`} onClick={() => onPage?.(i)} className={cn('h-1.5 rounded-full transition-all', i === page.at ? 'w-4 bg-[#d03c3b]' : 'w-1.5 bg-zinc-300')} />
+                ))}
               </span>
-              {pt}
-            </li>
-          ))}
-        </ul>
-      )}
+              <span className="tabular-nums">
+                {page.at + 1} / {page.total}
+              </span>
+            </span>
+          ) : (
+            <span>Tip</span>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
 
-/** Photo-mode style: slides swipe left and right inside the post, with dots and a counter. */
-function SlidesBody({ slides }: { slides: Slide[] }) {
+/** Photo-mode style: slides swipe left and right inside the post; each page shows its number. */
+function SlidesBody({ slides, course }: { slides: Slide[]; course: Course }) {
   const track = useRef<HTMLDivElement>(null)
   const [at, setAt] = useState(0)
+  const goTo = (i: number) => track.current?.scrollTo({ left: i * track.current.clientWidth, behavior: 'smooth' })
   return (
     <>
       <div ref={track} onScroll={(e) => setAt(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))} className="scrollbar-none flex size-full snap-x snap-mandatory overflow-x-auto">
-        {slides.map((sl) => (
+        {slides.map((sl, i) => (
           <div key={sl.title} className="h-full w-full shrink-0 snap-center">
-            <SlideFace slide={sl} />
+            <SlideFace slide={sl} course={course} page={{ at: i, total: slides.length }} onPage={goTo} />
           </div>
         ))}
       </div>
-      <span className="absolute top-14 right-3 z-20 rounded-full bg-black/35 px-2.5 py-1 text-xs font-semibold backdrop-blur">
-        {at + 1}/{slides.length}
-      </span>
-      <div className="absolute inset-x-0 bottom-[8.5rem] z-20 flex justify-center gap-1.5">
-        {slides.map((sl, i) => (
-          <button
-            key={sl.title}
-            type="button"
-            aria-label={`Slide ${i + 1}`}
-            onClick={() => track.current?.scrollTo({ left: i * track.current.clientWidth, behavior: 'smooth' })}
-            className={cn('h-1.5 rounded-full transition-all', i === at ? 'w-5 bg-white' : 'w-1.5 bg-white/45')}
-          />
-        ))}
-      </div>
-      {at === 0 && slides.length > 1 && <span className="animate-fade pointer-events-none absolute top-1/2 right-[4.5rem] z-10 text-sm font-semibold text-white/70">Swipe ›</span>}
+      {at === 0 && slides.length > 1 && <span className="animate-fade pointer-events-none absolute top-[calc(4rem+0.9rem)] right-[5.25rem] z-10 rounded-full bg-zinc-900/80 px-2.5 py-1 text-[11px] font-semibold text-white">Swipe ›</span>}
     </>
   )
 }

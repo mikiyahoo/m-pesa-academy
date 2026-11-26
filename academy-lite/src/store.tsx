@@ -21,6 +21,10 @@ export type LiteState = {
   muted: boolean
   /** Your star rating per trainer. */
   ratings: Record<string, number>
+  /** Profile status shown in the bubble next to your photo. */
+  status: string
+  notifications: boolean
+  lang: string
 }
 
 const KEY = 'academy-lite:v1'
@@ -40,7 +44,7 @@ function initial(): LiteState {
     comments: {},
     chats,
     // Everything is read except the newest few, so the inbox shows unread badges.
-    lastRead: { dereje: now, mariamawit: now, hana: now, bereket: now, selamawit: now, 'bole-team': now, announce: now - 60 * 60_000, 'fraud-group': now - 60 * 60_000 },
+    lastRead: { dereje: now, mariamawit: now, hana: now, bereket: now, selamawit: now, 'bole-team': now, 'sp-start': now, 'sp-guides': now, 'sp-recordings': now, 'sp-merch-news': now, 'sp-merch-ask': now, 'sp-merch-chat': now, 'sp-scam-ask': now, 'sp-ask': now - 6 * 60 * 60_000, 'sp-general': now - 4 * 60 * 60_000, 'sp-wins': now - 60 * 60_000, 'sp-announce': now - 2 * 60 * 60_000, 'sp-events': now - 3 * 60 * 60_000, 'sp-scam-news': now - 2 * 60 * 60_000, 'sp-scam-chat': now - 60 * 60_000, announce: now - 60 * 60_000, 'fraud-group': now - 60 * 60_000 },
     posts: POSTS,
     reacted: [],
     enrolled: ['basics', 'fraud'],
@@ -49,6 +53,9 @@ function initial(): LiteState {
     streak: { days: 3, last: yesterday() },
     muted: true,
     ratings: {},
+    status: '📚 Learning Spot the Scam',
+    notifications: true,
+    lang: 'English',
   }
 }
 
