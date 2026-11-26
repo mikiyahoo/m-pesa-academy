@@ -22,12 +22,15 @@ export function Inbox({ target, onTargetUsed, onTrainer }: { target?: { chatId: 
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<Chat | null>(() => (target ? (CHATS.find((c) => c.id === target.chatId) ?? null) : null))
-  const [draft] = useState(target?.draft ?? '')
-  // Opened from a trainer profile: go straight to that chat.
+  const [draft, setDraft] = useState(target?.draft ?? '')
+  // Opened from a trainer profile: go straight to that chat, with any question already typed in.
   useEffect(() => {
     if (!target) return
     const c = CHATS.find((x) => x.id === target.chatId)
-    if (c) setOpen(c)
+    if (c) {
+      setOpen(c)
+      setDraft(target.draft ?? '')
+    }
     onTargetUsed?.()
   }, [target, onTargetUsed])
 
@@ -40,7 +43,19 @@ export function Inbox({ target, onTargetUsed, onTrainer }: { target?: { chatId: 
     [s, filter, q],
   )
 
-  if (open) return <ChatView chat={open} onBack={() => setOpen(null)} initialText={open.id === target?.chatId || draft ? draft : ''} onTrainer={onTrainer} />
+  if (open)
+    return (
+      <ChatView
+        key={`${open.id}-${draft}`}
+        chat={open}
+        onBack={() => {
+          setOpen(null)
+          setDraft('')
+        }}
+        initialText={draft}
+        onTrainer={onTrainer}
+      />
+    )
 
   return (
     <div className="flex h-full flex-col bg-white text-zinc-900">

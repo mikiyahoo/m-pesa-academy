@@ -97,7 +97,7 @@ function Shell() {
       <div className="relative min-h-0 flex-1">
         {screen === 'home' && <Feed tab={feedTab} onTab={setFeedTab} jumpTo={jumpTo} onJumped={() => setJumpTo(null)} onDiscover={() => setDiscover(true)} onLive={() => setLive(true)} onTrainer={setTrainer} />}
         {screen === 'community' && <Community />}
-        {screen === 'inbox' && <Inbox key={chatTarget?.chatId ?? 'inbox'} target={chatTarget} onTargetUsed={clearChatTarget} onTrainer={setTrainer} />}
+        {screen === 'inbox' && <Inbox target={chatTarget} onTargetUsed={clearChatTarget} onTrainer={setTrainer} />}
         {screen === 'profile' && <Profile onOpenCourse={openCourse} onOpenItem={openItem} />}
         {discover && <Discover onClose={() => setDiscover(false)} onOpenItem={openItem} onOpenCourse={openCourse} />}
         {live && <LiveSheet onClose={() => setLive(false)} />}
