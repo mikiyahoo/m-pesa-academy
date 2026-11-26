@@ -52,7 +52,7 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6]
 export const TRAINERS: Trainer[] = [
   {
     id: 't1', name: 'Dereje Desta', handle: 'dereje.trains', avatar: '/avatars/avatar-1.png', title: 'Lead trainer · Onboarding',
-    phone: '+251911000101', telegram: 'dereje_trains', email: 'dereje.desta@example.com',
+    phone: '+251715965321', telegram: '+251715965321', email: 'dereje.desta@example.com',
     bio: '8 years onboarding agents and merchants across Ethiopia. I keep things short, practical and friendly. Ask me anything about getting started with M-PESA.',
     languages: ['Amharic', 'English'], region: 'Addis Ababa', hours: { days: WEEKDAYS, from: '08:30', to: '17:30' }, replies: 'within an hour', rating: 4.9,
     reviews: [
@@ -63,7 +63,7 @@ export const TRAINERS: Trainer[] = [
   },
   {
     id: 't2', name: 'Mariamawit Fekadeselase', handle: 'mariamawit.f', avatar: '/avatars/avatar-3.png', title: 'Fraud & risk trainer',
-    phone: '+251911000102', telegram: 'mariamawit_f', email: 'mariamawit.f@example.com',
+    phone: '+251715965321', telegram: '+251715965321', email: 'mariamawit.f@example.com',
     bio: 'I help agents and merchants spot scams before they cost anything. If something feels wrong at your counter, message me straight away.',
     languages: ['Amharic', 'English', 'Afaan Oromo'], region: 'Addis Ababa', hours: { days: WEEKDAYS, from: '08:00', to: '18:00' }, replies: 'within 30 minutes', rating: 4.8,
     reviews: [
@@ -74,7 +74,7 @@ export const TRAINERS: Trainer[] = [
   },
   {
     id: 't3', name: 'Bereket Belay', handle: 'bereket.fayda', avatar: '/avatars/avatar-4.png', title: 'Fayda integration trainer',
-    phone: '+251911000103', telegram: 'bereket_fayda', email: 'bereket.belay@example.com',
+    phone: '+251715965321', telegram: '+251715965321', email: 'bereket.belay@example.com',
     bio: 'Fayda and digital ID specialist. I can walk you through verification step by step, in person or on a call.',
     languages: ['Amharic', 'English'], region: 'Hawassa', hours: { days: [1, 2, 3, 4, 5], from: '09:00', to: '17:00' }, replies: 'within 2 hours', rating: 4.7,
     reviews: [{ name: 'Liya Mekonnen', stars: 5, text: 'Fayda finally makes sense to me 😄', ago: '2 weeks' }],
@@ -82,7 +82,7 @@ export const TRAINERS: Trainer[] = [
   },
   {
     id: 't4', name: 'Selamawit Bekele', handle: 'selam.merchants', avatar: '/avatars/avatar-5.png', title: 'Enterprise & merchants',
-    phone: '+251911000104', telegram: 'selam_merchants', email: 'selamawit.bekele@example.com',
+    phone: '+251715965321', telegram: '+251715965321', email: 'selamawit.bekele@example.com',
     bio: 'I set up merchants with Till and Paybill and help businesses grow with Lipa na M-PESA. Merchants: book a call any time in office hours.',
     languages: ['Amharic', 'English', 'Tigrinya'], region: 'Addis Ababa', hours: { days: WEEKDAYS, from: '08:30', to: '17:30' }, replies: 'within an hour', rating: 4.9,
     reviews: [
@@ -93,7 +93,7 @@ export const TRAINERS: Trainer[] = [
   },
   {
     id: 't5', name: 'Hana Tesfaye', handle: 'hana.cares', avatar: '/avatars/avatar-6.png', title: 'Customer care coach',
-    phone: '+251911000105', telegram: 'hana_cares', email: 'hana.tesfaye@example.com',
+    phone: '+251715965321', telegram: '+251715965321', email: 'hana.tesfaye@example.com',
     bio: 'Coaching teams to stay calm, kind and quick with every customer. Happy to role-play a tough call with you.',
     languages: ['Amharic', 'English'], region: 'Adama', hours: { days: [1, 2, 3, 4, 5], from: '08:30', to: '17:00' }, replies: 'within a few hours', rating: 4.8,
     reviews: [{ name: 'Selam Tadesse', stars: 5, text: 'The LEARN method changed how I handle complaints.', ago: '1 week' }],

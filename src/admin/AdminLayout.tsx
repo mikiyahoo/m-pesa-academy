@@ -88,6 +88,7 @@ const trainerNav: NavItem[] = [
     children: [
       { label: 'Journeys', to: '/admin/journeys' },
       { label: 'Materials', to: '/admin/materials' },
+      { label: 'Assignments', to: '/admin/assignments' },
     ],
   },
   {
