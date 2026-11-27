@@ -74,7 +74,7 @@ const externalIdentity = (person: Person): Identity => ({
     name: person.name,
     email: person.email,
     phone: person.phone,
-    role: `${person.source === 'self-signup' ? 'Guest' : 'Temporary trainee'}${person.organization ? ` · ${person.organization}` : ''}`,
+    role: `${person.source === 'self-signup' ? 'Self-registered' : 'Temporary trainee'}${person.organization ? ` · ${person.organization}` : ''}`,
   },
 })
 

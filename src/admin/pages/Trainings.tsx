@@ -1,7 +1,8 @@
-import { AlertTriangle, BadgeCheck, CalendarDays, Eye, GraduationCap, MapPin, Pencil, Plus, QrCode, Repeat, Users } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, CalendarDays, Eye, Globe2, GraduationCap, MapPin, Pencil, Plus, QrCode, Repeat, Users } from 'lucide-react'
 import { RowMenu, type RowMenuItem } from '../../components/RowMenu'
 import { ViewToggle } from '../../pages/Learning'
 import { useEffect, useMemo, useState } from 'react'
+import { useFeedback } from '../../components/Feedback'
 import { Link, useSearchParams } from 'react-router-dom'
 import { shortDate, time12 } from '../helpers'
 import { NewTrainingModal } from '../TrainingForm'
@@ -19,7 +20,8 @@ type TrainingsAdminView = 'list' | 'calendar'
 export { NewTrainingModal, type TrainingPreset } from '../TrainingForm'
 
 export function AdminTrainings() {
-  const { data } = useAdmin()
+  const { data, update } = useAdmin()
+  const { confirm, toast } = useFeedback()
   const scope = useScope()
   const [searchParams, setSearchParams] = useSearchParams()
   const [q, setQ] = useState('')
@@ -28,6 +30,7 @@ export function AdminTrainings() {
   const [trainer, setTrainer] = useState('')
   const [team, setTeam] = useState('')
   const [type, setType] = useState('')
+  const [publicFilter, setPublicFilter] = useState<'ALL' | 'PUBLIC' | 'PRIVATE'>('ALL')
   const [creating, setCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [view, setView] = useState<TrainingsAdminView>(() => searchParams.get('view') === 'calendar' ? 'calendar' : 'list')
@@ -42,6 +45,26 @@ export function AdminTrainings() {
     setSearchParams(params, { replace: true })
   }
   const conflicts = useMemo(() => conflictIndex(data.trainings, data.people), [data.trainings, data.people])
+
+  const togglePublicAccess = async (training: AdminTraining) => {
+    const makePublic = !training.isPublic
+    if (!(await confirm({
+      title: makePublic ? `Make ${training.name} public?` : `Revoke public access to ${training.name}?`,
+      message: makePublic
+        ? 'Self-registered users will be able to find and join this training.'
+        : 'It will no longer appear to self-registered users. Existing training records are kept.',
+      confirmLabel: makePublic ? 'Make public' : 'Revoke public access',
+      danger: !makePublic,
+    }))) return
+    update((d) => ({ ...d, trainings: d.trainings.map((item) => item.id === training.id ? { ...item, isPublic: makePublic } : item) }), {
+      action: 'Changed public access',
+      target: training.name,
+      entityId: training.id,
+      entityType: 'Training',
+      changes: [{ field: 'Public access', from: makePublic ? 'Off' : 'On', to: makePublic ? 'On' : 'Off' }],
+    })
+    toast(makePublic ? `${training.name} is public` : 'Public access revoked')
+  }
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { ALL: data.trainings.length }
@@ -59,6 +82,7 @@ export function AdminTrainings() {
 
   const rows = data.trainings
     .filter((t) => filter === 'ALL' || t.status === filter)
+    .filter((t) => publicFilter === 'ALL' || (publicFilter === 'PUBLIC' ? !!t.isPublic : !t.isPublic))
     .filter((t) => (!trainer || trainerIdsOf(t).includes(trainer)) && (!type || t.typeId === type) && inTeam(t))
     .filter((t) => !q || `${t.name} ${t.location}`.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -89,6 +113,11 @@ export function AdminTrainings() {
         </div>
       </TabBar>
       <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+        {!scope.trainerId && <Select aria-label="Public access" value={publicFilter} onChange={(e) => setPublicFilter(e.target.value as typeof publicFilter)} className="w-auto! py-1.5 text-xs">
+          <option value="ALL">All access</option>
+          <option value="PUBLIC">Public only</option>
+          <option value="PRIVATE">Private only</option>
+        </Select>}
         <Select aria-label="Trainer" value={trainer} onChange={(e) => setTrainer(e.target.value)} className="w-auto! py-1.5 text-xs">
           <option value="">All trainers</option>
           {data.people.filter((p) => p.role === 'Trainer').map((p) => (
@@ -117,7 +146,7 @@ export function AdminTrainings() {
           {/* Keep the list compact on desktop and readable on phones. */}
           <div className="grid grid-cols-1 gap-4 md:hidden">
             {rows.map((t) => (
-              <TrainingTile key={t.id} t={t} conflict={conflicts.has(t.id)} onEdit={() => setEditingId(t.id)} />
+              <TrainingTile key={t.id} t={t} conflict={conflicts.has(t.id)} onEdit={() => setEditingId(t.id)} onTogglePublic={() => void togglePublicAccess(t)} canManagePublic={!scope.trainerId} />
             ))}
           </div>
           {/* Data table for the list view on desktop. */}
@@ -129,8 +158,9 @@ export function AdminTrainings() {
                     <Link to={`/admin/trainings/${t.id}`} className="font-medium text-zinc-900 hover:text-brand-600">
                       {t.name}
                     </Link>
-                    {(t.seriesId || conflicts.has(t.id)) && (
+                    {(t.isPublic || t.seriesId || conflicts.has(t.id)) && (
                       <span className="mt-1 flex flex-wrap gap-1.5">
+                        {t.isPublic && <Badge tone="green"><Globe2 className="mr-1 size-3" />Public</Badge>}
                         {t.seriesId && (
                           <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600">
                             <Repeat className="size-3" /> Series
@@ -168,7 +198,7 @@ export function AdminTrainings() {
                     <Badge tone={trainingStatusTone[t.status]}>{statusLabel(t.status)}</Badge>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <RowMenu label={`Actions for ${t.name}`} items={trainingMenu(t, !!scope.trainerId, () => setEditingId(t.id))} />
+                    <RowMenu label={`Actions for ${t.name}`} items={trainingMenu(t, !!scope.trainerId, () => setEditingId(t.id), () => void togglePublicAccess(t))} />
                   </td>
                 </tr>
               ))}
@@ -188,16 +218,17 @@ export function AdminTrainings() {
 
 const statusLabel = (s: TrainingStatus) => s[0] + s.slice(1).toLowerCase()
 
-const trainingMenu = (t: AdminTraining, trainer: boolean, onEdit: () => void): RowMenuItem[] => [
+const trainingMenu = (t: AdminTraining, trainer: boolean, onEdit: () => void, onTogglePublic: () => void): RowMenuItem[] => [
   { label: 'Open training', icon: Eye, to: `/admin/trainings/${t.id}`, primary: true },
   { label: 'Attendance & check-in', icon: QrCode, to: `/admin/trainings/${t.id}#attendance` },
   { label: 'Certificates', icon: BadgeCheck, to: '/admin/certificates' },
+  ...(!trainer ? [{ label: t.isPublic ? 'Revoke public access' : 'Make public', icon: Globe2, onClick: onTogglePublic }] : []),
   // Admins change a training's journey, materials, tests and details here (not for finished ones).
   ...(trainer || t.status === 'COMPLETED' || t.status === 'CANCELLED' ? [] : [{ label: 'Edit', icon: Pencil, onClick: onEdit }]),
 ]
 
 /** Training as a learner-style card: banner with status and trainer, title, journey, when/where, participants. */
-function TrainingTile({ t, conflict, onEdit }: { t: AdminTraining; conflict: boolean; onEdit: () => void }) {
+function TrainingTile({ t, conflict, onEdit, onTogglePublic, canManagePublic }: { t: AdminTraining; conflict: boolean; onEdit: () => void; onTogglePublic: () => void; canManagePublic: boolean }) {
   const { data } = useAdmin()
   const trainers = trainerIdsOf(t).map((id) => data.people.find((person) => person.id === id)).filter((person): person is NonNullable<typeof person> => !!person)
   const journey = combinedJourney(data, t)
@@ -222,6 +253,7 @@ function TrainingTile({ t, conflict, onEdit }: { t: AdminTraining; conflict: boo
           <Badge tone={trainingStatusTone[t.status]} className="bg-white/95 backdrop-blur">
             {statusLabel(t.status)}
           </Badge>
+          {t.isPublic && <Badge tone="green" className="bg-white/95 backdrop-blur"><Globe2 className="mr-1 size-3" />Public</Badge>}
           {t.seriesId && (
             <span className="inline-flex items-center gap-1 rounded-full bg-black/25 px-2 py-0.5 text-[11px] font-medium text-white ring-1 ring-white/25 backdrop-blur-md">
               <Repeat className="size-3" /> Series
@@ -265,7 +297,7 @@ function TrainingTile({ t, conflict, onEdit }: { t: AdminTraining; conflict: boo
             <Users className="size-3.5" /> {t.participantIds.length} enrolled
           </span>
           <span className="relative z-10">
-            <RowMenu label={`Actions for ${t.name}`} items={trainingMenu(t, false, onEdit)} />
+            <RowMenu label={`Actions for ${t.name}`} items={trainingMenu(t, !canManagePublic, onEdit, onTogglePublic)} />
           </span>
         </div>
       </div>

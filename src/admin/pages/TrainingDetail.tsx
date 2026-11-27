@@ -112,6 +112,7 @@ function AttachAssessmentModal({ training, kind, onClose }: { training: AdminTra
 
 function StatusMenu({ training, onCancel }: { training: AdminTraining; onCancel: () => void }) {
   const { update } = useAdmin()
+  const { confirm } = useFeedback()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -154,16 +155,28 @@ function StatusMenu({ training, onCancel }: { training: AdminTraining; onCancel:
           ))}
           <p className="mt-1 border-t border-zinc-100 px-3 pt-2 pb-1.5 text-xs text-zinc-500">Who can join</p>
           <button
-            onClick={() => {
-              update((d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, isPublic: !training.isPublic || undefined } : t)) }), {
-                action: training.isPublic ? 'Made training invite-only' : 'Made training public',
+            onClick={() => void (async () => {
+              const makePublic = !training.isPublic
+              if (!(await confirm({
+                title: makePublic ? `Make ${training.name} public?` : `Revoke public access to ${training.name}?`,
+                message: makePublic
+                  ? 'Self-registered users will be able to find and join this training.'
+                  : 'It will no longer appear to self-registered users. Existing training records are kept.',
+                confirmLabel: makePublic ? 'Make public' : 'Revoke public access',
+                danger: !makePublic,
+              }))) return
+              update((d) => ({ ...d, trainings: d.trainings.map((t) => (t.id === training.id ? { ...t, isPublic: makePublic || undefined } : t)) }), {
+                action: 'Changed public access',
                 target: training.name,
+                entityId: training.id,
+                entityType: 'Training',
+                changes: [{ field: 'Public access', from: training.isPublic ? 'On' : 'Off', to: makePublic ? 'On' : 'Off' }],
               })
               setOpen(false)
-            }}
+            })()}
             className="flex w-full items-center rounded-xl px-3 py-2 text-left text-zinc-700 hover:bg-zinc-100"
           >
-            {training.isPublic ? 'Make invite-only' : 'Make public (open to guests)'}
+            {training.isPublic ? 'Make invite-only' : 'Make public (open to self-registration)'}
           </button>
         </div>
       )}

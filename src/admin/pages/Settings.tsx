@@ -110,6 +110,7 @@ function TemplateModal({ template, onClose }: { template?: CertificateTemplate; 
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-3.5">
               <p className="text-sm font-semibold text-blue-900">Imported fillable PDF</p>
               <p className="mt-1 break-all text-xs text-blue-800">{template.pdfFileName}</p>
+              <p className="mt-2 text-xs text-blue-800">The trainer name is filled into the <code className="font-mono">training.trainer</code> field. If this older PDF does not have that field, import an updated template that includes it.</p>
             </div>
           ) : (
             <div>
@@ -267,6 +268,7 @@ function ImportTemplateModal({ onClose }: { onClose: () => void }) {
         </Field>
         <div className="rounded-xl border border-brand-200 bg-brand-50 p-2.5 text-brand-700">
           <p className="text-xs font-semibold">Supported PDF placeholders</p>
+          <p className="mt-1 text-[11px]">Add every listed field as a fillable text field. The trainer field is required so certificates show who delivered the training.</p>
           <div className="scrollbar-none mt-1.5 flex flex-nowrap gap-1 overflow-x-auto">
             {CERTIFICATE_PDF_FIELDS.map((fieldName) => <code key={fieldName} className="shrink-0 whitespace-nowrap rounded-md border border-brand-200 bg-white/80 px-1 py-0.5 font-mono text-[10px] text-brand-700">{fieldName}</code>)}
           </div>

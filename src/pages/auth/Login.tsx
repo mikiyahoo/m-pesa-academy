@@ -288,7 +288,7 @@ export function Login() {
       <p className="mt-6 text-center text-sm text-zinc-500">
         New to M-PESA Academy?{" "}
         <Link to="/signup" className="inline-flex items-center gap-1 font-semibold text-brand-600 hover:underline">
-          <UserPlus className="size-3.5" /> Create an account
+          <UserPlus className="size-3.5" /> Self-register
         </Link>
       </p>
 

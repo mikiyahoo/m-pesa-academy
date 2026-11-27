@@ -418,6 +418,7 @@ function FillablePdfCertificate({ pdfTemplate, fields }: { pdfTemplate: string; 
       name: fields.name,
       email: fields.email ?? '',
       training: fields.course,
+      trainer: fields.trainer,
       date: fields.issued,
       code: fields.certificateId,
     }).then((bytes) => {

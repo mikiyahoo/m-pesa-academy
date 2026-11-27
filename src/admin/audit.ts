@@ -1,4 +1,4 @@
-import type { AdminData, AuditLog } from './types'
+import type { AdminData, AuditContext, AuditLog } from './types'
 
 export const AUDIT_ACTION_CATEGORIES = ['Create', 'Update', 'Delete', 'Approve', 'Reject', 'Cancel', 'Reschedule', 'Status Change', 'Invite'] as const
 export type AuditActionCategory = (typeof AUDIT_ACTION_CATEGORIES)[number]
@@ -30,8 +30,8 @@ export function auditActionCategory(action: string): AuditActionCategory {
   if (/\breschedul/.test(value)) return 'Reschedule'
   if (/\binvit|invite\b/.test(value)) return 'Invite'
   if (/\bdelete|\bremove/.test(value)) return 'Delete'
-  if (/\bcreate|\badd|\bclone|\bupload/.test(value)) return 'Create'
-  if (/\b(start|started|close|closed|complete|completed|status|grade|graded|issue|issued|reissue|reissued|link|linked|unlink|unlinked|trainer changed)\b/.test(value)) return 'Status Change'
+  if (/\bcreate|\badd|\bclone|\bupload|\bregister/.test(value)) return 'Create'
+  if (/\b(start|started|close|closed|complete|completed|status|grade|graded|issue|issued|reissue|reissued|link|linked|unlink|unlinked|trainer changed|visibility|public access|suspend|reactivat|deactivat)\b/.test(value)) return 'Status Change'
   return 'Update'
 }
 
@@ -98,4 +98,49 @@ export function resolveAuditEntity(data: AdminData, action: string, target: stri
 
 export function auditEntityType(log: AuditLog) {
   return log.entityType || inferAuditEntityType(log.action, log.target)
+}
+
+/** Capture useful related-record details so audit entries remain understandable later. */
+export function captureAuditContext(data: AdminData, entityType: string, entityId?: string): AuditContext[] {
+  if (!entityId) return []
+  const details: AuditContext[] = []
+  const add = (label: string, value: string | undefined | null) => {
+    if (value?.trim()) details.push({ label, value: value.trim() })
+  }
+  if (entityType === 'User') {
+    const person = data.people.find((item) => item.id === entityId)
+    if (!person) return details
+    add('Email', person.email)
+    add('Department', person.department)
+    add('Role', person.role)
+    add('Organization', person.organization)
+    add('Designation', person.designation)
+    add('Groups', person.groupIds.map((id) => data.groups.find((group) => group.id === id)?.name).filter(Boolean).join(', '))
+  } else if (entityType === 'Training') {
+    const training = data.trainings.find((item) => item.id === entityId)
+    if (!training) return details
+    add('Department', training.department)
+    add('Date', training.date)
+    add('Status', training.status)
+    add('Location', training.location)
+    add('Trainers', trainerNames(data, training.trainerIds?.length ? training.trainerIds : [training.trainerId]))
+    add('Participants', String(training.participantIds.length))
+  } else if (entityType === 'Training Request') {
+    const request = data.requests.find((item) => item.id === entityId)
+    if (!request) return details
+    add('Department / team', request.team)
+    add('Status', request.status)
+    add('Preferred date', request.preferredDate)
+    add('Requester', data.people.find((person) => person.id === request.requesterId)?.name)
+  } else if (entityType === 'Group') {
+    const group = data.groups.find((item) => item.id === entityId)
+    if (!group) return details
+    add('Organization', group.organization)
+    add('Description', group.description)
+  }
+  return details
+}
+
+function trainerNames(data: AdminData, ids: string[]) {
+  return ids.map((id) => data.people.find((person) => person.id === id)?.name).filter(Boolean).join(', ')
 }

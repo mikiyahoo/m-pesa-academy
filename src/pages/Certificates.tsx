@@ -413,6 +413,7 @@ export function CertificateView() {
           name: user.name,
           email: user.email,
           training: training.title,
+          trainer: training.trainer,
           date: formatDate(p?.completedAt ?? training.date),
           code: certificateId(training),
         })

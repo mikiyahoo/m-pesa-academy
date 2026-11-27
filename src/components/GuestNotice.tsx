@@ -14,7 +14,7 @@ export function GuestNotice() {
     <p className="flex items-start gap-3 rounded-2xl bg-brand-50/70 px-4 py-3 text-sm text-brand-800 ring-1 ring-brand-100">
       <Globe2 className="mt-0.5 size-4 shrink-0 text-brand-600" />
       <span>
-        {isGuest(person) ? 'You’re using a guest account.' : 'You have external trainee access.'} You can see <b>public trainings</b> and the ones you’re invited to
+        {isGuest(person) ? 'You’re using a self-registered account.' : 'You have external trainee access.'} You can see <b>public trainings</b> and the ones you’re invited to
         {left !== null && left >= 0 && (
           <>
             {' '}

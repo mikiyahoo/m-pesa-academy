@@ -2,7 +2,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ch
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DateRangePicker } from '../../components/DateRangePicker'
 import { cn } from '../../lib/utils'
-import { auditActionCategory, auditEntityType, AUDIT_ACTION_CATEGORIES, AUDIT_ENTITY_TYPES, resolveAuditEntity } from '../audit'
+import { auditActionCategory, auditEntityType, AUDIT_ACTION_CATEGORIES, AUDIT_ENTITY_TYPES, captureAuditContext, resolveAuditEntity } from '../audit'
 import { dateTime } from '../helpers'
 import { useAdmin } from '../store'
 import type { AuditLog } from '../types'
@@ -179,6 +179,14 @@ function ChangeDetails({ log, entityId, onClose }: { log: AuditLog; entityId: st
         <div><span className="text-xs text-zinc-500">Entity ID</span><p className="mt-0.5 break-all font-mono text-xs text-zinc-900">{entityId}</p></div>
         <div className="sm:col-span-2"><span className="text-xs text-zinc-500">Remarks</span><p className="mt-0.5 text-zinc-800">{log.remarks || '—'}</p></div>
       </div>
+      {!!log.context?.length && (
+        <div className="mt-4 rounded-xl border border-zinc-200 p-4">
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-zinc-500">Related details</h3>
+          <dl className="grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">
+            {log.context.map((item) => <div key={`${item.label}:${item.value}`} className="min-w-0"><dt className="text-xs text-zinc-500">{item.label}</dt><dd className="mt-0.5 break-words font-medium text-zinc-900">{item.value}</dd></div>)}
+          </dl>
+        </div>
+      )}
       <div className="mt-5">
         <h3 className="mb-2 text-sm font-bold text-zinc-900">Changed fields</h3>
         {changes.length ? (
@@ -212,7 +220,7 @@ function timestampParts(value: string) {
 
 export function AdminAuditLogs() {
   const { data } = useAdmin()
-  const [idQuery, setIdQuery] = useState('')
+  const [issueQuery, setIssueQuery] = useState('')
   const [dateRange, setDateRange] = useState<DateRange>({ from: '', to: '' })
   const [actions, setActions] = useState<Set<string>>(new Set())
   const [entityTypes, setEntityTypes] = useState<Set<string>>(new Set())
@@ -226,31 +234,55 @@ export function AdminAuditLogs() {
 
   const auditRows = useMemo(() => data.auditLogs.map((log) => {
     const resolved = resolveAuditEntity(data, log.action, log.target)
-    return { ...log, entityId: log.entityId ?? resolved.entityId, entityType: log.entityType ?? resolved.entityType }
+    const entityId = log.entityId ?? resolved.entityId
+    const entityType = log.entityType ?? resolved.entityType
+    const currentContext = captureAuditContext(data, entityType, entityId).map((item) => ({ ...item, label: `Current ${item.label.toLowerCase()}` }))
+    const actor = data.people.find((person) => person.name === log.actor)
+    return {
+      ...log,
+      entityId,
+      entityType,
+      context: log.context ?? [
+        ...currentContext,
+        ...(actor ? [
+          { label: 'Current actor email', value: actor.email },
+          { label: 'Current actor department', value: actor.department },
+          { label: 'Current actor role', value: actor.role },
+        ].filter((item) => item.value.trim()) : []),
+      ],
+    }
   }), [data])
 
   const filteredRows = useMemo(() => auditRows
     .filter((log) => {
-      const entityId = log.entityId ?? ''
-      const matchesId = !idQuery.trim() || `${entityId} ${log.id} ${log.target} ${log.action}`.toLowerCase().includes(idQuery.trim().toLowerCase())
+      const issueText = [
+        log.target,
+        log.action,
+        log.remarks ?? '',
+        log.actor,
+        auditEntityType(log),
+        ...(log.context ?? []).flatMap((item) => [item.label, item.value]),
+        ...(log.changes ?? []).flatMap((change) => [change.field, change.from, change.to]),
+      ].join(' ').toLowerCase()
+      const matchesIssue = !issueQuery.trim() || issueText.includes(issueQuery.trim().toLowerCase())
       const matchesDate = isInRange(log.at.slice(0, 10), dateRange)
       const matchesAction = !actions.size || actions.has(auditActionCategory(log.action))
       const matchesEntity = !entityTypes.size || entityTypes.has(auditEntityType(log))
       const matchesUser = !users.size || users.has(log.actor)
-      return matchesId && matchesDate && matchesAction && matchesEntity && matchesUser
+      return matchesIssue && matchesDate && matchesAction && matchesEntity && matchesUser
     })
-    .sort((a, b) => ascending ? a.at.localeCompare(b.at) : b.at.localeCompare(a.at)), [auditRows, idQuery, dateRange, actions, entityTypes, users, ascending])
+    .sort((a, b) => ascending ? a.at.localeCompare(b.at) : b.at.localeCompare(a.at)), [auditRows, issueQuery, dateRange, actions, entityTypes, users, ascending])
 
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const currentPage = Math.min(page, pageCount)
   const pageRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const firstItem = filteredRows.length ? (currentPage - 1) * pageSize + 1 : 0
   const lastItem = Math.min(currentPage * pageSize, filteredRows.length)
-  const hasFilters = !!idQuery || !!dateRange.from || !!dateRange.to || actions.size > 0 || entityTypes.size > 0 || users.size > 0
+  const hasFilters = !!issueQuery || !!dateRange.from || !!dateRange.to || actions.size > 0 || entityTypes.size > 0 || users.size > 0
 
   const resetPage = () => setPage(1)
   const clearFilters = () => {
-    setIdQuery('')
+    setIssueQuery('')
     setDateRange({ from: '', to: '' })
     setActions(new Set())
     setEntityTypes(new Set())
@@ -260,7 +292,7 @@ export function AdminAuditLogs() {
   const toggleColumn = (key: ColumnKey, value: boolean) => setColumns((current) => ({ ...current, [key]: value }))
   const exportRows = () => downloadCsv(
     'audit-logs.csv',
-    ['Entity ID', 'Timestamp', 'User', 'Action', 'Entity Type', 'Remarks', 'Target', 'Changes'],
+    ['Entity ID', 'Timestamp', 'User', 'Action', 'Entity Type', 'Remarks', 'Target', 'Changes', 'Related details'],
     filteredRows.map((log) => [
       log.entityId ?? log.id,
       log.at,
@@ -270,6 +302,7 @@ export function AdminAuditLogs() {
       log.remarks ?? '',
       log.target,
       (log.changes ?? []).map((change) => `${change.field}: ${change.from || '—'} → ${change.to || '—'}`).join('; '),
+      (log.context ?? []).map((item) => `${item.label}: ${item.value}`).join('; '),
     ]),
   )
 
@@ -282,7 +315,7 @@ export function AdminAuditLogs() {
     ...(columns.action ? ['Action'] : []),
     ...(columns.entityType ? ['Entity Type'] : []),
     ...(columns.remarks ? ['Remarks'] : []),
-    ...(columns.changes ? ['Action'] : []),
+    ...(columns.changes ? ['Changes'] : []),
   ]
 
   return (
@@ -295,7 +328,7 @@ export function AdminAuditLogs() {
 
       <Card className="mb-4 p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <SearchInput value={idQuery} onChange={(value) => { setIdQuery(value); resetPage() }} placeholder="Search by ID" className="w-full sm:w-52" />
+          <SearchInput value={issueQuery} onChange={(value) => { setIssueQuery(value); resetPage() }} placeholder="Search issue, action, details…" className="w-full sm:w-64" />
           <DateRangePicker value={dateRange} onChange={(value) => { setDateRange(value); resetPage() }} emptyLabel="Date Range" />
           <FilterMenu label="Action" options={AUDIT_ACTION_CATEGORIES} selected={actions} onChange={(value) => { setActions(value); resetPage() }} />
           <FilterMenu label="Entity Type" options={AUDIT_ENTITY_TYPES} selected={entityTypes} onChange={(value) => { setEntityTypes(value); resetPage() }} />

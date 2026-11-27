@@ -4,9 +4,9 @@ import { localISO } from '../lib/utils'
 import { useAuth } from '../store/Auth'
 import { ADMIN_STORAGE_KEY, freshAdminData, loadAdminData, saveAdminData } from './storage'
 import { scanAlerts } from './insights'
-import { resolveAuditEntity } from './audit'
+import { captureAuditContext, resolveAuditEntity } from './audit'
 import { trainerIdsOf } from './scheduling'
-import type { AdminData, AdminTraining, AuditChange } from './types'
+import type { AdminData, AdminTraining, AuditChange, AuditContext } from './types'
 
 type AdminStore = {
   data: AdminData
@@ -14,7 +14,7 @@ type AdminStore = {
    * Applies an immutable update. When `log` is given it is recorded in the audit log
    * and confirmed with a toast that offers Undo.
    */
-  update: (fn: (d: AdminData) => AdminData, log?: { action: string; target: string; silent?: boolean; changes?: AuditChange[]; entityId?: string; entityType?: string; remarks?: string }) => void
+  update: (fn: (d: AdminData) => AdminData, log?: { action: string; target: string; silent?: boolean; changes?: AuditChange[]; entityId?: string; entityType?: string; remarks?: string; context?: AuditContext[] }) => void
   reset: () => void
 }
 
@@ -65,16 +65,31 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       const changes = log.changes?.filter((c) => c.from !== c.to)
       const currentEntity = resolveAuditEntity(next, log.action, log.target)
       const previousEntity = resolveAuditEntity(before, log.action, log.target)
+      const entityId = log.entityId ?? currentEntity.entityId ?? previousEntity.entityId
+      const entityType = log.entityType ?? currentEntity.entityType ?? previousEntity.entityType
+      const recordContext = captureAuditContext(next, entityType, entityId).length
+        ? captureAuditContext(next, entityType, entityId)
+        : captureAuditContext(before, entityType, entityId)
+      const actor = before.people.find((person) => person.name === user.name)
+      const context = [
+        ...(log.context ?? recordContext),
+        ...(actor ? [
+          { label: 'Actor email', value: actor.email },
+          { label: 'Actor department', value: actor.department },
+          { label: 'Actor role', value: actor.role },
+        ].filter((item) => item.value.trim()) : []),
+      ]
       const entry = {
         id: uid('al'),
         actor: user.name,
         action: log.action,
         target: log.target,
         at: localISO(),
-        ...((log.entityId ?? currentEntity.entityId ?? previousEntity.entityId) ? { entityId: log.entityId ?? currentEntity.entityId ?? previousEntity.entityId } : {}),
-        entityType: log.entityType ?? currentEntity.entityType ?? previousEntity.entityType,
+        ...(entityId ? { entityId } : {}),
+        entityType,
         ...(log.remarks ? { remarks: log.remarks } : {}),
         ...(changes?.length ? { changes } : {}),
+        ...(context.length ? { context } : {}),
       }
       dataRef.current = { ...next, auditLogs: [entry, ...next.auditLogs] }
       setData(dataRef.current)

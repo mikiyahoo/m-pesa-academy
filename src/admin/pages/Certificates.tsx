@@ -53,6 +53,7 @@ export function AdminCertificates() {
           name: participant?.name ?? preview.c.personId,
           email: participant?.email ?? '',
           training: preview.t.name,
+          trainer: trainerNames(preview.t),
           date: new Date(preview.c.issuedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
           code: `MPL-${preview.t.date.replaceAll('-', '')}-${preview.t.id.toUpperCase()}-${preview.c.personId.toUpperCase()}`,
         })

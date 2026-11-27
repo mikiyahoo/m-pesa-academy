@@ -1,9 +1,10 @@
-export const CERTIFICATE_PDF_FIELDS = ['user.name', 'user.email', 'training.title', 'date.now', 'certificate.code'] as const
+export const CERTIFICATE_PDF_FIELDS = ['user.name', 'user.email', 'training.title', 'training.trainer', 'date.now', 'certificate.code'] as const
 
 export type CertificatePdfValues = {
   name: string
   email: string
   training: string
+  trainer: string
   date: string
   code: string
 }
@@ -61,6 +62,11 @@ export async function fillCertificatePdf(templateData: string, values: Certifica
   form.getTextField('user.name').setText(values.name)
   form.getTextField('user.email').setText(values.email)
   form.getTextField('training.title').setText(values.training)
+  // Older saved templates may not have this field yet. New imports require it;
+  // keep old PDFs printable so admins can replace them with an updated template.
+  if (form.getFields().some((field) => field.getName() === 'training.trainer')) {
+    form.getTextField('training.trainer').setText(values.trainer)
+  }
   form.getTextField('date.now').setText(values.date)
   form.getTextField('certificate.code').setText(values.code)
   return document.save()

@@ -913,7 +913,7 @@ export function AdminUserView() {
 export function AdminUsers() {
   const { data, update } = useAdmin()
   const scope = useScope()
-  const { toast } = useFeedback()
+  const { confirm, toast } = useFeedback()
   const navigate = useNavigate()
   const [q, setQ] = useState('')
   const [userTypes, setUserTypes] = useState<Set<string>>(new Set())
@@ -926,6 +926,7 @@ export function AdminUsers() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [editing, setEditing] = useState<Person | 'new' | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
   const filtersRef = useRef<HTMLDivElement>(null)
@@ -966,9 +967,19 @@ export function AdminUsers() {
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const current = Math.min(page, pages - 1)
   const rows = filtered.slice(current * pageSize, current * pageSize + pageSize)
+  const selectedPeople = filtered.filter((person) => selectedIds.has(person.id))
+  const selectedActive = selectedPeople.filter((person) => person.status === 'Active')
+  const selectedInactive = selectedPeople.filter((person) => person.status === 'Inactive')
   const activeFilterCount = userTypes.size + groups.size + roles.size + statuses.size + accessTypes.size + Number(!!createdRange.from || !!createdRange.to)
   const hasFilters = !!q || activeFilterCount > 0
   const resetPage = () => setPage(0)
+  useEffect(() => {
+    const visibleIds = new Set(filtered.map((person) => person.id))
+    setSelectedIds((currentIds) => {
+      const next = new Set([...currentIds].filter((id) => visibleIds.has(id)))
+      return next.size === currentIds.size ? currentIds : next
+    })
+  }, [filtered])
   const requesterDisabledReason = (person: Person) => {
     if (person.isRequester) return undefined
     if (!isInternalEmail(person.email)) return 'Temporary users cannot request'
@@ -1036,6 +1047,47 @@ export function AdminUsers() {
     setMenu(null)
   }
 
+  const togglePageSelection = (checked: boolean) => {
+    setSelectedIds((currentIds) => {
+      const next = new Set(currentIds)
+      rows.forEach((person) => checked ? next.add(person.id) : next.delete(person.id))
+      return next
+    })
+  }
+  const toggleSelection = (personId: string, checked: boolean) => {
+    setSelectedIds((currentIds) => {
+      const next = new Set(currentIds)
+      checked ? next.add(personId) : next.delete(personId)
+      return next
+    })
+  }
+
+  const bulkSetStatus = async (status: AdminUserStatus) => {
+    const affected = selectedPeople.filter((person) => person.status !== status)
+    if (!affected.length) return
+    const suspending = status === 'Inactive'
+    const operation = suspending ? 'Suspend' : 'Restore'
+    if (!(await confirm({
+      title: `${operation} ${affected.length} selected user${affected.length === 1 ? '' : 's'}?`,
+      message: suspending
+        ? 'They will no longer be able to sign in. Their training records and history stay in place.'
+        : 'They will be able to sign in again using their existing account.',
+      confirmLabel: `${operation} users`,
+      danger: suspending,
+    }))) return
+    update((d) => ({ ...d, people: d.people.map((person) => affected.some((selected) => selected.id === person.id) ? { ...person, status } : person) }), {
+      action: 'Bulk user status change',
+      target: `${affected.length} users`,
+      entityType: 'User',
+      changes: affected.map((person) => ({ field: `${person.name} · Status`, from: person.status, to: status })),
+      context: [
+        { label: 'Operation', value: suspending ? 'Suspended' : 'Restored' },
+        { label: 'Affected users', value: affected.map((person) => `${person.name} (${person.department || 'No department'})`).join(', ') },
+      ],
+    })
+    setSelectedIds(new Set())
+  }
+
   return (
     <>
       <PageHeader
@@ -1065,6 +1117,18 @@ export function AdminUsers() {
         {hasFilters && <Button size="sm" variant="ghost" onClick={clearFilters}><X className="size-3.5" /> Clear filters</Button>}
         <SearchInput value={q} onChange={(value) => { setQ(value); resetPage() }} placeholder="Search by name/email…" className="w-full sm:ml-auto sm:w-[280px]" />
       </div>
+      {!!rows.length && <Card className="mb-3 flex flex-wrap items-center gap-3 px-4 py-3">
+        <label className="flex items-center gap-2 text-xs font-semibold text-zinc-700">
+          <input type="checkbox" checked={rows.length > 0 && rows.every((person) => selectedIds.has(person.id))} onChange={(event) => togglePageSelection(event.target.checked)} className="size-4 accent-brand-600" />
+          Select this page
+        </label>
+        <span className="text-xs text-zinc-500">{selectedPeople.length} selected</span>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {selectedActive.length > 0 && <Button size="sm" variant="primary" onClick={() => void bulkSetStatus('Inactive')}><Lock className="size-3.5" /> Suspend {selectedActive.length}</Button>}
+          {selectedInactive.length > 0 && <Button size="sm" variant="ghost" onClick={() => void bulkSetStatus('Active')}><UserCheck className="size-3.5" /> Restore {selectedInactive.length}</Button>}
+          {selectedPeople.length > 0 && <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}><X className="size-3.5" /> Clear selection</Button>}
+        </div>
+      </Card>}
       {rows.length ? (
         <>
           {/* Mobile cards (< md) */}
@@ -1073,6 +1137,7 @@ export function AdminUsers() {
               <Card key={p.id} className="flex flex-col gap-3 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
+                      <input type="checkbox" aria-label={`Select ${p.name}`} checked={selectedIds.has(p.id)} onChange={(event) => toggleSelection(p.id, event.target.checked)} className="size-4 shrink-0 accent-brand-600" />
                     <Avatar name={p.name} size="sm" />
                     <div className="min-w-0">
                       <span className="block font-semibold text-zinc-900 truncate">{p.name}</span>
@@ -1137,6 +1202,7 @@ export function AdminUsers() {
                 <tr key={p.id} className="hover:bg-zinc-50">
                   <td className="min-w-0 px-1.5 py-3 sm:px-2">
                     <div className="flex min-w-0 items-center gap-3">
+                      <input type="checkbox" aria-label={`Select ${p.name}`} checked={selectedIds.has(p.id)} onChange={(event) => toggleSelection(p.id, event.target.checked)} className="size-4 shrink-0 accent-brand-600" />
                       <Avatar name={p.name} size="sm" />
                       <span className="min-w-0 leading-tight">
                         <span className="block truncate font-medium text-zinc-900">{p.name}</span>

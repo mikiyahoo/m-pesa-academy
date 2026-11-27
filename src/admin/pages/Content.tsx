@@ -1252,6 +1252,7 @@ export function AssignMaterialModal({ material, onClose }: { material: Material;
   const { data, update } = useAdmin()
   const { toast } = useFeedback()
   const [groupIds, setGroupIds] = useState<string[]>(material.assignedGroupIds ?? [])
+  const [groupToAdd, setGroupToAdd] = useState('')
   const [personIds, setPersonIds] = useState<string[]>(material.assignedPersonIds ?? [])
   const [personSearch, setPersonSearch] = useState('')
   const [dueDate, setDueDate] = useState(material.dueDate ?? '')
@@ -1305,22 +1306,31 @@ export function AssignMaterialModal({ material, onClose }: { material: Material;
     >
       <div className="grid gap-5 md:grid-cols-2">
         <div className="space-y-4">
-        <div>
-          <p className="mb-1.5 text-sm font-medium text-zinc-700">Groups</p>
-          <div className="grid grid-cols-1 gap-1.5">
-            {data.groups.map((g) => (
-              <label key={g.id} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-brand-600"
-                  checked={groupIds.includes(g.id)}
-                  onChange={(e) => setGroupIds(e.target.checked ? [...groupIds, g.id] : groupIds.filter((id) => id !== g.id))}
-                />
-                <span className="min-w-0 flex-1 truncate">{g.name}</span>
-              </label>
-            ))}
+        <Field label="Groups" hint="Choose one or more groups from the list.">
+          <Select
+            value={groupToAdd}
+            onChange={(event) => {
+              const id = event.target.value
+              if (id && !groupIds.includes(id)) setGroupIds((current) => [...current, id])
+              setGroupToAdd('')
+            }}
+          >
+            <option value="">Add a group…</option>
+            {data.groups.filter((group) => !groupIds.includes(group.id)).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+          </Select>
+          <div className="mt-2 flex min-h-10 flex-wrap gap-2 rounded-xl border border-zinc-200 p-2">
+            {groupIds.map((id) => {
+              const group = data.groups.find((item) => item.id === id)
+              return (
+                <span key={id} className="inline-flex max-w-full items-center gap-1 rounded-lg bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700">
+                  <span className="truncate">{group?.name ?? id}</span>
+                  <button type="button" onClick={() => setGroupIds((current) => current.filter((value) => value !== id))} aria-label={`Remove ${group?.name ?? id}`} className="shrink-0 rounded p-0.5 hover:bg-brand-100"><X className="size-3" /></button>
+                </span>
+              )
+            })}
+            {!groupIds.length && <span className="px-1 py-1 text-xs text-zinc-500">No groups selected.</span>}
           </div>
-        </div>
+        </Field>
         <Field label="Due date (optional)">
           <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
         </Field>

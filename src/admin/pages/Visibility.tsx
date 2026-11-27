@@ -12,12 +12,12 @@ type Access = 'ALL' | 'PUBLIC' | 'DEPARTMENT' | 'INVITE'
 const isInviteOnly = (t: AdminTraining) => !t.isPublic && !t.department
 
 /**
- * Who can see each training: public (open to guests who sign up), a department's own,
+ * Who can see each training: public (open to people who self-register), a department's own,
  * or invite-only (just the people enrolled). Admins can open a training up or close it here.
  */
 export function AdminVisibility() {
   const { data, update } = useAdmin()
-  const { toast } = useFeedback()
+  const { confirm, toast } = useFeedback()
   const [tab, setTab] = useState<Access>('ALL')
   const [q, setQ] = useState('')
   const [department, setDepartment] = useState('')
@@ -37,13 +37,23 @@ export function AdminVisibility() {
     .filter((t) => !q || `${t.name} ${t.department ?? ''}`.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => b.date.localeCompare(a.date))
 
-  const setPublic = (t: AdminTraining, on: boolean) => {
+  const setPublic = async (t: AdminTraining, on: boolean) => {
+    if (!(await confirm({
+      title: on ? `Make ${t.name} public?` : `Revoke public access to ${t.name}?`,
+      message: on
+        ? 'Self-registered users will be able to find and join this training.'
+        : 'It will no longer appear to self-registered users. Existing training records are kept.',
+      confirmLabel: on ? 'Make public' : 'Revoke public access',
+      danger: !on,
+    }))) return
     update((d) => ({ ...d, trainings: d.trainings.map((x) => (x.id === t.id ? { ...x, isPublic: on || undefined } : x)) }), {
-      action: on ? 'Made training public' : 'Made training private',
+      action: 'Changed public access',
       target: t.name,
+      entityId: t.id,
+      entityType: 'Training',
       changes: [{ field: 'Visibility', from: t.isPublic ? 'Public' : 'Private', to: on ? 'Public' : 'Private' }],
     })
-    toast(on ? `“${t.name}” is now open to guests` : `“${t.name}” is no longer public`)
+    toast(on ? `“${t.name}” is now open to self-registered users` : `“${t.name}” is no longer public`)
   }
 
   const copyLink = async (t: AdminTraining) => {
@@ -60,7 +70,7 @@ export function AdminVisibility() {
     <>
       <PageHeader title="Training Visibility" />
       <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Globe2} label="Public" value={counts.PUBLIC} hint="Guests can find and join" tone="green" />
+        <StatCard icon={Globe2} label="Public" value={counts.PUBLIC} hint="Self-registered users can join" tone="green" />
         <StatCard icon={Building2} label="Department" value={counts.DEPARTMENT} hint="Run by a department" tone="amber" />
         <StatCard icon={Lock} label="Invite only" value={counts.INVITE} hint="Only people enrolled" tone="zinc" />
         <StatCard icon={Users} label="All trainings" value={counts.ALL} hint="Not counting cancelled" tone="red" />
@@ -106,7 +116,7 @@ export function AdminVisibility() {
                   <span className="flex flex-wrap items-center gap-1.5">
                     {t.isPublic && (
                       <Badge tone="green">
-                        <Globe2 className="mr-1 size-3" /> Public · guests can join
+                        <Globe2 className="mr-1 size-3" /> Public · self-registered users can join
                       </Badge>
                     )}
                     {t.department && (

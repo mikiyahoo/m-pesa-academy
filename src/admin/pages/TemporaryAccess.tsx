@@ -450,7 +450,7 @@ function EditInvitedUserModal({ person, onClose }: { person: Person; onClose: ()
   )
 }
 
-type Filter = 'all' | 'active' | 'pending' | 'expiring' | 'ended' | 'guests'
+type Filter = 'all' | 'active' | 'pending' | 'expiring' | 'ended' | 'self-registered'
 
 /** Turns guest self sign-up on or off and sets how long new guest accounts last. */
 function GuestSignupModal({ onClose }: { onClose: () => void }) {
@@ -462,7 +462,7 @@ function GuestSignupModal({ onClose }: { onClose: () => void }) {
   const publicCount = data.trainings.filter((t) => t.isPublic && t.status !== 'CANCELLED').length
   const save = () => {
     update((d) => ({ ...d, publicAccess: { enabled, accessDays: Number(days) } }), {
-      action: 'Updated guest sign-up',
+      action: 'Updated self-registration',
       target: enabled ? `Open · ${days} days` : 'Closed',
       changes: [
         { field: 'Sign-up', from: current.enabled ? 'Open' : 'Closed', to: enabled ? 'Open' : 'Closed' },
@@ -475,8 +475,8 @@ function GuestSignupModal({ onClose }: { onClose: () => void }) {
     <Modal
       open
       onClose={onClose}
-      title="Guest sign-up"
-      description="People outside the company can create a guest account from the sign-in page and join public trainings."
+      title="Self-registration settings"
+      description="People outside the company can register themselves and join public trainings."
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -490,15 +490,15 @@ function GuestSignupModal({ onClose }: { onClose: () => void }) {
         <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-zinc-200/90 p-4 transition hover:bg-zinc-50/80">
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-brand-600" />
           <span>
-            <span className="block text-sm font-semibold text-zinc-900">Allow guest sign-up</span>
-            <span className="mt-0.5 block text-xs text-zinc-500">Shows “Create a guest account” on the sign-in page. Existing guests can still sign in when it’s off.</span>
+            <span className="block text-sm font-semibold text-zinc-900">Allow self-registration</span>
+            <span className="mt-0.5 block text-xs text-zinc-500">Shows “Self-register” on the sign-in page. People who already registered can still sign in when registration is closed.</span>
           </span>
         </label>
-        <Field label="New guest accounts last (days)" hint="Between 1 and 365. You can extend any guest later.">
+        <Field label="New self-registered accounts last (days)" hint="Between 1 and 365. You can extend access later.">
           <Input type="number" min={1} max={365} value={days} onChange={(e) => setDays(e.target.value)} disabled={!enabled} />
         </Field>
         <p className="rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-600">
-          Guests see <b>{publicCount} public training{publicCount === 1 ? '' : 's'}</b> right now, plus the public built-in courses. Make a training public from its page (⋯ → Make public) or when scheduling it.
+          Self-registered users see <b>{publicCount} public training{publicCount === 1 ? '' : 's'}</b> right now, plus the public built-in courses. Make a training public from Trainings → ⋯ → Make public.
         </p>
       </div>
     </Modal>
@@ -506,8 +506,8 @@ function GuestSignupModal({ onClose }: { onClose: () => void }) {
 }
 
 const GuestPill = () => (
-  <span className="shrink-0 rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-brand-700 uppercase" title="Signed up as a guest">
-    Guest
+  <span className="shrink-0 rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-brand-700 uppercase" title="Registered themselves">
+    Self-registered
   </span>
 )
 
@@ -524,10 +524,10 @@ export function AdminTemporaryAccess() {
   const [invitingTo, setInvitingTo] = useState<Person | null>(null)
   // A guest account can be removed outright; their sign-in stops working (US47).
   const deleteGuest = async (p: Person) => {
-    if (!(await confirm({ title: `Delete ${p.name}'s guest account?`, message: 'They can no longer sign in. Feedback they gave stays in the reports without their name.', confirmLabel: 'Delete account', danger: true }))) return
+    if (!(await confirm({ title: `Delete ${p.name}'s self-registered account?`, message: 'They can no longer sign in. Feedback they gave stays in the reports without their name.', confirmLabel: 'Delete account', danger: true }))) return
     update(
       (d) => ({ ...d, people: d.people.filter((x) => x.id !== p.id), trainings: d.trainings.map((t) => (t.participantIds.includes(p.id) ? { ...t, participantIds: t.participantIds.filter((id) => id !== p.id) } : t)) }),
-      { action: 'Deleted guest account', target: p.name },
+      { action: 'Deleted self-registered user', target: p.name },
     )
   }
   const [viewing, setViewing] = useState<Person | null>(null)
@@ -540,12 +540,21 @@ export function AdminTemporaryAccess() {
   const temps = useMemo(() => data.people.filter(isTemporary).map((p) => ({ p, state: accessState(p) })), [data.people])
   const match = (s: AccessState, f: Filter) =>
     f === 'all' || (f === 'active' && (s === 'active' || s === 'expiring')) || (f === 'pending' && (s === 'pending' || s === 'scheduled')) || (f === 'expiring' && s === 'expiring') || (f === 'ended' && (s === 'expired' || s === 'revoked'))
-  const inFilter = (p: Person, s: AccessState, f: Filter) => (f === 'guests' ? isGuest(p) : match(s, f))
+  const inFilter = (p: Person, s: AccessState, f: Filter) => (f === 'self-registered' ? isGuest(p) : match(s, f))
   const rows = temps.filter(({ p, state }) => inFilter(p, state, filter) && (!q || `${p.name} ${p.email} ${p.organization ?? ''}`.toLowerCase().includes(q.toLowerCase())))
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const current = Math.min(page, pages - 1)
   const pageRows = rows.slice(current * pageSize, current * pageSize + pageSize)
   const count = (f: Filter) => temps.filter(({ p, state }) => inFilter(p, state, f)).length
+
+  const copyRegistrationLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/login`)
+      toast('Self-registration link copied')
+    } catch {
+      toast('Could not copy the link', { tone: 'error' })
+    }
+  }
 
 
   const copy = async (p: Person) => {
@@ -578,22 +587,22 @@ export function AdminTemporaryAccess() {
     <>
       <PageHeader
         title="Temporary access"
-        description="External trainees invited by email and guests who signed up themselves. Each has an access window; they sign in with a code."
+        description="Manage invited trainees and people who registered themselves. Each has an access window; they sign in with a code."
         actions={
           <>
             <Button onClick={() => setGuestSettings(true)}>
-              <Globe2 className="size-4" /> Guest sign-up
+              <Globe2 className="size-4" /> Self-registration
             </Button>
             <ExportMenu
               label="Export"
-              filename={filter === 'guests' ? 'guests' : 'temporary-users'}
-              title={filter === 'guests' ? 'M-PESA Academy — guest accounts' : 'M-PESA Academy — temporary users'}
+              filename={filter === 'self-registered' ? 'self-registered-users' : 'temporary-users'}
+              title={filter === 'self-registered' ? 'M-PESA Academy — self-registered users' : 'M-PESA Academy — temporary users'}
               filters={[filter !== 'all' ? `Showing: ${filter}` : '', q ? `Search: “${q}”` : ''].filter(Boolean).join(' · ')}
               sheets={() => [
                 {
-                  name: filter === 'guests' ? 'Guests' : 'Temporary users',
+                  name: filter === 'self-registered' ? 'Self-registered' : 'Temporary users',
                   header: ['Name', 'Email', 'Phone', 'Organisation', 'Role', 'Region', 'Type', 'Signed up / invited', 'Access ends', 'Status', 'Last sign-in'],
-                  rows: rows.map(({ p, state }) => [p.name, p.email, p.phone, p.organization ?? '', p.designation ?? '', p.region ?? '', isGuest(p) ? 'Guest' : 'Invited', (p.invitedAt ?? p.createdAt ?? '').slice(0, 10), p.accessEnd ?? '', accessLabel[state], p.lastSignInAt ?? '']),
+                  rows: rows.map(({ p, state }) => [p.name, p.email, p.phone, p.organization ?? '', p.designation ?? '', p.region ?? '', isGuest(p) ? 'Self-registered' : 'Invited', (p.invitedAt ?? p.createdAt ?? '').slice(0, 10), p.accessEnd ?? '', accessLabel[state], p.lastSignInAt ?? '']),
                 },
               ]}
             />
@@ -615,13 +624,25 @@ export function AdminTemporaryAccess() {
                 ['pending', 'Not signed in yet'],
                 ['expiring', 'Expiring soon'],
                 ['ended', 'Expired / revoked'],
-                ['guests', 'Guests'],
+                ['self-registered', 'Self-registered'],
               ] as [Filter, string][]
             ).map(([value, label]) => ({ value, label, count: count(value) }))}
           />
           <SearchInput value={q} onChange={(value) => { setQ(value); setPage(0) }} placeholder="Search by name/email…" className="w-full sm:w-[280px]" />
         </TabBar>
       </div>
+      {filter === 'self-registered' && (
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-4 border-brand-200 bg-brand-50/40">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-bold text-zinc-900">How self-registration works</h2>
+            <p className="mt-1 text-xs leading-relaxed text-zinc-600">Share the sign-in page. A new user chooses “Self-register,” enters their details, confirms their sign-in code, then browses public trainings. Turn registration on here and mark trainings public in Trainings.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => void copyRegistrationLink()}><Copy className="size-3.5" /> Copy sign-up link</Button>
+            <Button size="sm" variant="primary" onClick={() => setGuestSettings(true)}><Globe2 className="size-3.5" /> Settings</Button>
+          </div>
+        </Card>
+      )}
 
       {rows.length ? (
         <>

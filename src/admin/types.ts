@@ -476,9 +476,12 @@ export type AuditLog = {
   remarks?: string
   /** Field-level before/after values (Y02). */
   changes?: AuditChange[]
+  /** Related record and actor details captured when the event was written. */
+  context?: AuditContext[]
 }
 
 export type AuditChange = { field: string; from: string; to: string }
+export type AuditContext = { label: string; value: string }
 
 /** Raised on low feedback (F04) or low attendance (T06); email delivery is simulated. */
 export type AdminAlert = {

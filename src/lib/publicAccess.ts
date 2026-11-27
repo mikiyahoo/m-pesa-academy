@@ -1,6 +1,6 @@
 import { addDays, isTemporary } from '../admin/temporary'
 import { EMAIL_RE } from '../admin/requests'
-import type { AdminData, Person, PublicAccessSettings } from '../admin/types'
+import type { AdminData, AuditLog, Person, PublicAccessSettings } from '../admin/types'
 import type { Training } from '../types'
 import { localISO, todayISO } from './utils'
 
@@ -75,8 +75,23 @@ export function createGuest(data: AdminData, form: GuestSignUp): { data: AdminDa
     source: 'self-signup',
     accessStart: today,
     accessEnd: addDays(today, accessDays),
-    accessHistory: [{ at, by: name, change: `Signed up as a guest · ${accessDays} days of access` }],
+    accessHistory: [{ at, by: name, change: `Self-registered · ${accessDays} days of access` }],
   }
-  const log = { id: `al-${Math.random().toString(36).slice(2, 10)}`, actor: person.name, action: 'Guest signed up', target: person.name, at, entityId: person.id, entityType: 'Person' }
+  const log: AuditLog = {
+    id: `al-${Math.random().toString(36).slice(2, 10)}`,
+    actor: person.name,
+    action: 'Self-registered user joined',
+    target: person.name,
+    at,
+    entityId: person.id,
+    entityType: 'User',
+    context: [
+      { label: 'Email', value: person.email },
+      { label: 'Department', value: person.department },
+      { label: 'Role', value: person.role },
+      ...(person.organization ? [{ label: 'Organization', value: person.organization }] : []),
+      ...(person.designation ? [{ label: 'Designation', value: person.designation }] : []),
+    ],
+  }
   return { data: { ...data, people: [...data.people, person], auditLogs: [log, ...data.auditLogs] }, person }
 }

@@ -14,6 +14,7 @@ import { QUESTION_TYPE_OPTIONS, QuestionModal } from '../QuestionModal'
 import { ImportFeedbackModal } from '../ImportFeedbackModal'
 import type { ParsedFeedbackQuestion } from '../ImportFeedbackModal'
 import { autoGradeSubmission, scoreDescriptiveAnswer } from '../../lib/aiGrading'
+import { exportXlsx } from '../reports/export'
 
 function Stars({ value }: { value: number }) {
   return (
@@ -1271,6 +1272,47 @@ export function AdminSubmissions() {
     const a = data.assessments.find((x) => x.id === s.assessmentId)
     return a && a.passMark > 0 && (s.score ?? 0) < a.passMark
   }).length
+  const exportSubmissions = () => {
+    const answerRows = rows.flatMap((submission) => {
+      const assessment = data.assessments.find((item) => item.id === submission.assessmentId)
+      const person = data.people.find((item) => item.id === submission.personId)
+      const training = data.trainings.find((item) => item.id === submission.trainingId)
+      const questions = assessment?.questions ?? []
+      if (!questions.length) return [[
+        submission.id, person?.name ?? '', person?.email ?? '', person?.department ?? '', assessment?.title ?? '', training?.name ?? '', submission.attempt, submission.score ?? '', submission.status, submission.submittedAt, '', '', '',
+      ]]
+      return questions.map((question, index) => {
+        const value = submission.answers[question.id]
+        const answer = question.type === 'mcq' && typeof value === 'number' ? question.options?.[value] ?? String(value) : value === undefined ? '' : String(value)
+        return [submission.id, person?.name ?? '', person?.email ?? '', person?.department ?? '', assessment?.title ?? '', training?.name ?? '', submission.attempt, submission.score ?? '', submission.status, submission.submittedAt, index + 1, question.question, answer]
+      })
+    })
+    exportXlsx('assessment-submissions.xlsx', [
+      {
+        name: 'Submissions',
+        header: ['Submission ID', 'Participant', 'Email', 'Department', 'Assessment', 'Training', 'Attempt', 'Score', 'Status', 'Comment', 'Started', 'Submitted'],
+        rows: rows.map((submission) => [
+          submission.id,
+          data.people.find((person) => person.id === submission.personId)?.name ?? '',
+          data.people.find((person) => person.id === submission.personId)?.email ?? '',
+          data.people.find((person) => person.id === submission.personId)?.department ?? '',
+          data.assessments.find((assessment) => assessment.id === submission.assessmentId)?.title ?? '',
+          data.trainings.find((training) => training.id === submission.trainingId)?.name ?? '',
+          submission.attempt,
+          submission.score ?? '',
+          submission.status,
+          submission.comment ?? '',
+          submission.startedAt,
+          submission.submittedAt,
+        ]),
+      },
+      {
+        name: 'Answers',
+        header: ['Submission ID', 'Participant', 'Email', 'Department', 'Assessment', 'Training', 'Attempt', 'Score', 'Status', 'Submitted', 'Question #', 'Question', 'Answer'],
+        rows: answerRows,
+      },
+    ])
+  }
 
   return (
     <>
@@ -1318,26 +1360,8 @@ export function AdminSubmissions() {
               </option>
             ))}
           </Select>
-          <Button
-            onClick={() =>
-              downloadCsv(
-                'submissions.csv',
-                ['Assessment', 'Topic', 'Training', 'Participant', 'Attempt', 'Score', 'Status', 'Comment', 'Submitted'],
-                rows.map((s) => [
-                  data.assessments.find((a) => a.id === s.assessmentId)?.title ?? '',
-                  data.assessments.find((a) => a.id === s.assessmentId)?.topic ?? '',
-                  data.trainings.find((t) => t.id === s.trainingId)?.name ?? '',
-                  data.people.find((p) => p.id === s.personId)?.name ?? '',
-                  s.attempt,
-                  s.score ?? '',
-                  s.status,
-                  s.comment ?? '',
-                  s.submittedAt,
-                ]),
-              )
-            }
-          >
-            Export CSV
+          <Button onClick={exportSubmissions} disabled={!rows.length}>
+            Export submissions
           </Button>
           </>
         }
