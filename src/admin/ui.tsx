@@ -91,7 +91,7 @@ const statTile: Record<StatTone, string> = {
   red: 'bg-brand-50 text-brand-600 dark:bg-brand-500/15',
   green: 'bg-mpesa-500/10 text-mpesa-600',
   amber: 'bg-amber-500/10 text-amber-600',
-  zinc: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800',
+  zinc: 'bg-zinc-100 text-zinc-700',
 }
 
 export type StatCardTrend = { text: string; period: string; direction: 'up' | 'down' | 'flat' | 'unavailable'; tone: 'positive' | 'negative' | 'neutral'; points?: number[] }
@@ -196,7 +196,7 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', classN
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="w-full rounded-full border border-transparent bg-zinc-100 py-2 pr-4 pl-9 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-500 focus:border-brand-500 focus:bg-surface focus:ring-2 focus:ring-brand-100 dark:bg-zinc-800/70"
+        className="w-full rounded-full border border-transparent bg-zinc-100 py-2 pr-4 pl-9 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-500 focus:border-brand-500 focus:bg-surface focus:ring-2 focus:ring-brand-100"
       />
     </div>
   )

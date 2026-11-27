@@ -217,14 +217,47 @@ function withSampleAssignments(data: AdminData): AdminData {
   }
 }
 
+const AUDIT_ID_PATTERN = /^AUD-\d{13}-[A-Z0-9]{6}$/i
+
+/** Migrate legacy/mixed audit IDs once into one stable format without changing entity references. */
+function withConsistentAuditIds(data: AdminData): AdminData {
+  const used = new Set<string>()
+  let next = 1
+  let changed = false
+  const auditLogs = data.auditLogs.map((log) => {
+    const currentId = typeof log.id === 'string' ? log.id.toUpperCase() : ''
+    if (AUDIT_ID_PATTERN.test(currentId) && !used.has(currentId)) {
+      used.add(currentId)
+      if (log.id !== currentId) changed = true
+      return log.id === currentId ? log : { ...log, id: currentId }
+    }
+    let id: string
+    do {
+      const serial = String(next++).padStart(13, '0')
+      id = `AUD-${serial}-${serial.slice(-6)}`
+    } while (used.has(id))
+    used.add(id)
+    changed = true
+    return { ...log, id }
+  })
+  if (!changed) return data
+  const migrated = { ...data, auditLogs }
+  try {
+    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(migrated))
+  } catch {
+    // Keep normalized IDs in memory when storage is unavailable.
+  }
+  return migrated
+}
+
 export function loadAdminData(): AdminData {
   try {
     const raw = localStorage.getItem(ADMIN_STORAGE_KEY)
-    if (raw) return withSampleVisibility(withSampleExtraMaterials(withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(JSON.parse(raw))))))))
+    if (raw) return withConsistentAuditIds(withSampleVisibility(withSampleExtraMaterials(withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(JSON.parse(raw)))))))))
   } catch {
     // Fall through to seed data.
   }
-  return withSampleVisibility(withSampleExtraMaterials(withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(seedAdminData())))))))
+  return withConsistentAuditIds(withSampleVisibility(withSampleExtraMaterials(withQrDemoTraining(withDemoDepartmentAdmin(withSampleAssignments(withPendingRequestSamples(withDemoLearner(seedAdminData()))))))))
 }
 
 /** Fired after admin data is saved, so the learner portal can pick up newly scheduled trainings. */

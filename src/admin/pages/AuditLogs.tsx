@@ -2,7 +2,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ch
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DateRangePicker } from '../../components/DateRangePicker'
 import { cn } from '../../lib/utils'
-import { auditActionCategory, auditEntityType, AUDIT_ACTION_CATEGORIES, AUDIT_ENTITY_TYPES, captureAuditContext, resolveAuditEntity } from '../audit'
+import { auditActionCategory, auditEntityType, AUDIT_ACTION_CATEGORIES, AUDIT_ENTITY_TYPES, captureAuditContext, formatAuditLogId, resolveAuditEntity } from '../audit'
 import { dateTime } from '../helpers'
 import { useAdmin } from '../store'
 import type { AuditLog } from '../types'
@@ -168,7 +168,7 @@ const ACTION_TONES: Record<string, 'green' | 'red' | 'amber' | 'zinc'> = {
   Invite: 'zinc',
 }
 
-function ChangeDetails({ log, entityId, onClose }: { log: AuditLog; entityId: string; onClose: () => void }) {
+function ChangeDetails({ log, entityId, onClose }: { log: AuditLog; entityId?: string; onClose: () => void }) {
   const changes = log.changes ?? []
   return (
     <Modal open wide onClose={onClose} title="Audit log details" description={`${auditEntityType(log)} · ${log.target}`}>
@@ -176,7 +176,8 @@ function ChangeDetails({ log, entityId, onClose }: { log: AuditLog; entityId: st
         <div><span className="text-xs text-zinc-500">User</span><p className="mt-0.5 font-medium text-zinc-900">{log.actor}</p></div>
         <div><span className="text-xs text-zinc-500">Timestamp</span><p className="mt-0.5 font-medium text-zinc-900">{dateTime(log.at)}</p></div>
         <div><span className="text-xs text-zinc-500">Action</span><p className="mt-0.5 font-medium text-zinc-900">{log.action}</p></div>
-        <div><span className="text-xs text-zinc-500">Entity ID</span><p className="mt-0.5 break-all font-mono text-xs text-zinc-900">{entityId}</p></div>
+        <div><span className="text-xs text-zinc-500">Audit ID</span><p className="mt-0.5 break-all font-mono text-xs text-zinc-900">{formatAuditLogId(log.id)}</p></div>
+        <div><span className="text-xs text-zinc-500">Entity ID</span><p className="mt-0.5 break-all font-mono text-xs text-zinc-900">{entityId || '—'}</p></div>
         <div className="sm:col-span-2"><span className="text-xs text-zinc-500">Remarks</span><p className="mt-0.5 text-zinc-800">{log.remarks || '—'}</p></div>
       </div>
       {!!log.context?.length && (
@@ -292,9 +293,10 @@ export function AdminAuditLogs() {
   const toggleColumn = (key: ColumnKey, value: boolean) => setColumns((current) => ({ ...current, [key]: value }))
   const exportRows = () => downloadCsv(
     'audit-logs.csv',
-    ['Entity ID', 'Timestamp', 'User', 'Action', 'Entity Type', 'Remarks', 'Target', 'Changes', 'Related details'],
+    ['Audit ID', 'Entity ID', 'Timestamp', 'User', 'Action', 'Entity Type', 'Remarks', 'Target', 'Changes', 'Related details'],
     filteredRows.map((log) => [
-      log.entityId ?? log.id,
+      formatAuditLogId(log.id),
+      log.entityId ?? '',
       log.at,
       log.actor,
       log.action,
@@ -307,7 +309,7 @@ export function AdminAuditLogs() {
   )
 
   const header: ReactNode[] = [
-    'Entity ID',
+    'Audit ID',
     <button key="timestamp" type="button" onClick={() => { setAscending((value) => !value); resetPage() }} className="inline-flex items-center gap-1.5 hover:text-brand-700 focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/20" aria-label={`Sort by timestamp ${ascending ? 'descending' : 'ascending'}`}>
       Timestamp {ascending ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
     </button>,
@@ -341,7 +343,6 @@ export function AdminAuditLogs() {
         <>
           <Table head={header} minWidth={1120}>
             {pageRows.map((log) => {
-              const id = log.entityId ?? log.id
               const entityType = auditEntityType(log)
               const action = auditActionCategory(log.action)
               const timestamp = timestampParts(log.at)
@@ -349,7 +350,7 @@ export function AdminAuditLogs() {
               return (
                 <tr key={log.id} className="transition hover:bg-zinc-50/80">
                   <td className={cn('whitespace-nowrap px-3 text-xs text-zinc-700', compact ? 'py-2' : 'py-3')}>
-                    <span title={log.entityId ? 'Affected record ID' : 'Audit entry ID'} className="inline-block max-w-28 truncate font-mono tabular-nums">{id}</span>
+                    <span title="Audit entry ID" className="inline-block max-w-48 truncate font-mono tabular-nums">{formatAuditLogId(log.id)}</span>
                   </td>
                   <td className={cn('whitespace-nowrap px-3 text-xs', compact ? 'py-2' : 'py-3')}>
                     <p className="font-medium text-zinc-700">{timestamp.date}</p>
@@ -405,7 +406,7 @@ export function AdminAuditLogs() {
           <Empty icon={FileClock} title="No audit logs match" text="Try changing or clearing the filters." action={hasFilters && <Button size="sm" onClick={clearFilters}><X className="size-3.5" /> Clear filters</Button>} />
         </Card>
       )}
-      {selectedLog && <ChangeDetails log={selectedLog} entityId={selectedLog.entityId ?? selectedLog.id} onClose={() => setSelectedLog(null)} />}
+      {selectedLog && <ChangeDetails log={selectedLog} entityId={selectedLog.entityId} onClose={() => setSelectedLog(null)} />}
     </>
   )
 }

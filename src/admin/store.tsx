@@ -4,7 +4,7 @@ import { localISO } from '../lib/utils'
 import { useAuth } from '../store/Auth'
 import { ADMIN_STORAGE_KEY, freshAdminData, loadAdminData, saveAdminData } from './storage'
 import { scanAlerts } from './insights'
-import { captureAuditContext, resolveAuditEntity } from './audit'
+import { captureAuditContext, createAuditLogId, resolveAuditEntity } from './audit'
 import { trainerIdsOf } from './scheduling'
 import type { AdminData, AdminTraining, AuditChange, AuditContext } from './types'
 
@@ -80,7 +80,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         ].filter((item) => item.value.trim()) : []),
       ]
       const entry = {
-        id: uid('al'),
+        id: createAuditLogId(),
         actor: user.name,
         action: log.action,
         target: log.target,

@@ -1,6 +1,7 @@
-import { BookOpenCheck, CalendarClock, CheckCircle2, Download, FileText, X } from 'lucide-react'
+import { BookOpenCheck, CalendarClock, CheckCircle2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { canDownloadFile, downloadMaterial, materialFileName } from '../admin/materialFiles'
+import { MaterialAttachmentPreview } from '../admin/MaterialAttachmentPreview'
+import { canDownloadFile } from '../admin/materialFiles'
 import { loadAdminData } from '../admin/storage'
 import type { Material } from '../admin/types'
 import { activeLearner } from '../lib/learner'
@@ -8,6 +9,7 @@ import { acknowledgeAssignment, assignmentState, markAssignmentOpened, myLearner
 import { cn, formatDate } from '../lib/utils'
 import { useFeedback } from './Feedback'
 import { useDialogFocus } from '../lib/useDialogFocus'
+import { PptxViewer } from './PptxViewer'
 
 const stateStyle: Record<AssignmentState, string> = {
   Acknowledged: 'bg-mpesa-500/10 text-mpesa-700',
@@ -62,7 +64,7 @@ export function AssignmentReader({ m, onClose, personId = myLearnerId() }: { m: 
 
   return (
     <div role="dialog" aria-modal="true" aria-label={m.title} className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
-      <article ref={panel} className="flex max-h-[88dvh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <article ref={panel} className="flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-start justify-between gap-4 border-b border-zinc-100 px-6 py-5">
           <div className="min-w-0">
             <p className="text-xs font-semibold tracking-wide text-brand-600 uppercase">
@@ -74,30 +76,24 @@ export function AssignmentReader({ m, onClose, personId = myLearnerId() }: { m: 
             <X className="size-4" />
           </button>
         </header>
-        <div className="space-y-5 overflow-y-auto px-6 py-5 text-[15px] leading-relaxed text-zinc-700">
-          <p>{m.description || 'Read this material carefully.'}</p>
-          {canDownloadFile(m) && (
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-200 p-4">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-zinc-100 text-zinc-700">
-                <FileText className="size-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-zinc-900">{materialFileName(m)}</span>
-                <span className="block text-xs text-zinc-500">Version {m.version} · {downloadable ? 'downloadable for your group' : 'view in the portal'}</span>
-              </span>
-              {downloadable && (
-                <button
-                  onClick={async () => {
-                    if (await downloadMaterial(m)) toast(`Downloaded ${materialFileName(m)}`)
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
-                >
-                  <Download className="size-3.5" /> Download
-                </button>
-              )}
-            </div>
+        <div className="min-h-0 space-y-5 overflow-y-auto px-6 py-5 text-[15px] leading-relaxed text-zinc-700">
+          {m.fileId ? (
+            <>
+              {m.description && <p>{m.description}</p>}
+              <MaterialAttachmentPreview type={m.type} title={m.title} fileId={m.fileId} fileName={m.fileName} fileSize={m.fileSize} allowDownload={downloadable} />
+            </>
+          ) : m.type === 'PRESENTATION' ? (
+            <PptxViewer url="/trainings/Sample Training.pptx" title={m.title} />
+          ) : (
+            <article className="mx-auto w-full max-w-3xl rounded-2xl border border-zinc-200 bg-zinc-50 p-6 sm:p-9">
+              <p className="text-sm font-extrabold tracking-tight text-brand-600">M-PESA Academy · {m.type.toLowerCase()}</p>
+              <h3 className="mt-5 text-xl font-bold text-zinc-900">{m.title}</h3>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-zinc-700">{m.description || 'Read this material carefully.'}</p>
+              {m.skills.length > 0 && <p className="mt-5 border-t border-zinc-200 pt-4 text-sm text-zinc-600"><span className="font-semibold text-zinc-800">Topics:</span> {m.skills.join(', ')}</p>}
+              <p className="mt-5 text-xs text-zinc-400">Version {m.version} · Updated {formatDate(m.updatedAt)}</p>
+            </article>
           )}
-          {m.skills.length > 0 && (
+          {m.fileId && m.skills.length > 0 && (
             <p className="text-sm text-zinc-500">
               <span className="font-semibold text-zinc-700">Covers:</span> {m.skills.join(', ')}
             </p>

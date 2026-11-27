@@ -22,6 +22,19 @@ export const AUDIT_ENTITY_TYPES = [
   'Other',
 ] as const
 
+/** Audit IDs use one display prefix; they identify the log entry, not the affected record. */
+export const formatAuditLogId = (id: string) => {
+  const suffix = id.trim().replace(/^AUD-/i, '')
+  return `AUD-${suffix.toUpperCase()}`
+}
+
+/** New audit entries use the same AUD timestamp/random form across every service. */
+export const createAuditLogId = () => {
+  const timestamp = String(Date.now()).padStart(13, '0')
+  const random = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, '0')
+  return `AUD-${timestamp}-${random}`
+}
+
 export function auditActionCategory(action: string): AuditActionCategory {
   const value = action.toLowerCase()
   if (/\bapprove/.test(value)) return 'Approve'

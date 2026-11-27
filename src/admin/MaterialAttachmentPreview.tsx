@@ -13,6 +13,7 @@ export function MaterialAttachmentPreview({
   fileId,
   fileName,
   fileSize,
+  allowDownload = true,
 }: {
   type: MaterialType
   title: string
@@ -20,6 +21,7 @@ export function MaterialAttachmentPreview({
   fileId?: string
   fileName?: string
   fileSize?: number
+  allowDownload?: boolean
 }) {
   const [attachment, setAttachment] = useState<Attachment | null>(null)
   const [loading, setLoading] = useState(false)
@@ -80,7 +82,7 @@ export function MaterialAttachmentPreview({
             {attachment ? `${ext.toUpperCase() || 'FILE'} · ${formatBytes(attachment.size)}` : 'Attachment preview'}
           </span>
         </span>
-        {attachment && (
+        {attachment && allowDownload && (
           <a href={attachment.url} download={attachment.name} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-50">
             <Download className="size-3.5" /> Download
           </a>

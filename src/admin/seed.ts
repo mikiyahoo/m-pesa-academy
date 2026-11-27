@@ -548,7 +548,7 @@ export const seedAdminData = (): AdminData => {
     ['Dereje Desta', 'Completed training', 'M-PESA Call Center Training-Batch 57', '2026-09-24T17:10:00'],
     ['Fasil Wolde', 'Cancelled training', 'Customer Care Excellence-Cohort 11', '2026-09-08T08:30:00'],
     ['Fasil Wolde', 'Created group', 'Call Center — ISON', '2026-08-30T13:22:00'],
-  ].map(([actor, action, target, at], i) => ({ id: `al${i + 1}`, actor, action, target, at }))
+  ].map(([actor, action, target, at], i) => ({ id: `AUD-${String(i + 1).padStart(13, '0')}-${String(i + 1).padStart(6, '0')}`, actor, action, target, at }))
 
   // Graded post-assessment attempts for finished sessions, so results and certificates have data.
   trainings

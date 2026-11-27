@@ -201,27 +201,27 @@ export function buildHeatmapReport(
     <div className="space-y-6">
       {/* Top summary row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-zinc-200/80 bg-white p-5">
+        <div className="rounded-2xl border border-zinc-200/80 bg-surface p-5">
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
             <Globe2 className="size-4 text-brand-600" /> Active Regions
           </div>
           <p className="mt-2 text-2xl font-bold text-zinc-900">{rows.length}</p>
           <p className="mt-0.5 text-xs text-zinc-500">Across domestic & external branches</p>
         </div>
-        <div className="rounded-2xl border border-zinc-200/80 bg-white p-5">
+        <div className="rounded-2xl border border-zinc-200/80 bg-surface p-5">
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            <CheckCircle2 className="size-4 text-emerald-600" /> Top Performing Region
+            <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" /> Top Performing Region
           </div>
-          <p className="mt-2 text-2xl font-bold text-emerald-700">
+          <p className="mt-2 text-2xl font-bold text-emerald-700 dark:text-emerald-400">
             {rows.find((r) => r.rating === 'high')?.region ?? '—'}
           </p>
           <p className="mt-0.5 text-xs text-zinc-500">Exceeds 70% completion & attendance</p>
         </div>
-        <div className="rounded-2xl border border-zinc-200/80 bg-white p-5">
+        <div className="rounded-2xl border border-zinc-200/80 bg-surface p-5">
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-            <AlertTriangle className="size-4 text-amber-600" /> Regions Needing Attention
+            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" /> Regions Needing Attention
           </div>
-          <p className="mt-2 text-2xl font-bold text-amber-700">
+          <p className="mt-2 text-2xl font-bold text-amber-700 dark:text-amber-400">
             {rows.filter((r) => r.rating === 'low').length}
           </p>
           <p className="mt-0.5 text-xs text-zinc-500">Below 50% course completion</p>
