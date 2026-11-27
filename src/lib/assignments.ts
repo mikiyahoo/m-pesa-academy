@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { loadAdminData, saveAdminData } from '../admin/storage'
+import { ADMIN_SAVED_EVENT, loadAdminData, saveAdminData } from '../admin/storage'
 import type { AdminData, Material } from '../admin/types'
 import { activeLearner, DEMO_LEARNER_ID } from './learner'
 import { localISO, todayISO } from './utils'
@@ -45,48 +45,49 @@ export const assignmentDone = (m: Material, personId: string) => {
 
 // ---- Learner side ----
 
-const EVENT = 'mpesa-learning:assignments-change'
-
-function learnerList(data = loadAdminData()) {
-  const learner = activeLearner()
+function learnerList(data = loadAdminData(), personId = myLearnerId()) {
+  const person = data.people.find((item) => item.id === personId)
+  const groupIds = new Set([
+    ...(person?.groupIds ?? []),
+    ...(activeLearner().personId === personId ? activeLearner().groupIds : []),
+  ])
   return data.materials
-    .filter((m) => m.assignedPersonIds?.includes(learner.personId) || m.assignedGroupIds?.some((g) => learner.groupIds.includes(g)))
-    .sort((a, b) => Number(assignmentDone(a, myLearnerId())) - Number(assignmentDone(b, myLearnerId())) || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
+    .filter((m) => m.assignedPersonIds?.includes(personId) || m.assignedGroupIds?.some((g) => groupIds.has(g)))
+    .sort((a, b) => Number(assignmentDone(a, personId)) - Number(assignmentDone(b, personId)) || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
 }
 
 /** Materials assigned to the signed-in learner, unfinished first; refreshes when one is opened or acknowledged. */
-export function useLearnerAssignments() {
-  const id = myLearnerId()
-  const [list, setList] = useState(() => learnerList())
+export function useLearnerAssignments(personId = myLearnerId()) {
+  const id = personId
+  const [list, setList] = useState(() => learnerList(loadAdminData(), id))
   useEffect(() => {
-    setList(learnerList())
+    setList(learnerList(loadAdminData(), id))
   }, [id])
   useEffect(() => {
-    const sync = () => setList(learnerList())
-    window.addEventListener(EVENT, sync)
+    const sync = () => setList(learnerList(loadAdminData(), id))
+    window.addEventListener(ADMIN_SAVED_EVENT, sync)
     window.addEventListener('storage', sync)
     return () => {
-      window.removeEventListener(EVENT, sync)
+      window.removeEventListener(ADMIN_SAVED_EVENT, sync)
       window.removeEventListener('storage', sync)
     }
-  }, [])
+  }, [id])
   return list
 }
 
-function track(id: string, field: 'openedAt' | 'acknowledgedAt') {
+function track(id: string, field: 'openedAt' | 'acknowledgedAt', personId = myLearnerId()) {
   const data = loadAdminData()
   const at = localISO()
   saveAdminData({
     ...data,
     materials: data.materials.map((m) => {
       if (m.id !== id) return m
-      const prev = m.assignmentProgress?.[myLearnerId()] ?? {}
+      const prev = m.assignmentProgress?.[personId] ?? {}
       if (prev[field]) return m
-      return { ...m, assignmentProgress: { ...m.assignmentProgress, [myLearnerId()]: { ...prev, openedAt: prev.openedAt ?? at, [field]: at } } }
+      return { ...m, assignmentProgress: { ...m.assignmentProgress, [personId]: { ...prev, openedAt: prev.openedAt ?? at, [field]: at } } }
     }),
   })
-  window.dispatchEvent(new Event(EVENT))
 }
 
-export const markAssignmentOpened = (id: string) => track(id, 'openedAt')
-export const acknowledgeAssignment = (id: string) => track(id, 'acknowledgedAt')
+export const markAssignmentOpened = (id: string, personId = myLearnerId()) => track(id, 'openedAt', personId)
+export const acknowledgeAssignment = (id: string, personId = myLearnerId()) => track(id, 'acknowledgedAt', personId)

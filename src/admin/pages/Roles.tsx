@@ -1,8 +1,9 @@
 import { BadgeCheck, Building2, Check, GraduationCap, Lock, RotateCcw, ShieldCheck, UserPlus, Users } from 'lucide-react'
+import { Fragment } from 'react'
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useFeedback } from '../../components/Feedback'
-import { AREAS, DEFAULT_PERMISSIONS, permissionsOf, type Area, type LimitedRole } from '../permissions'
+import { DEFAULT_PERMISSIONS, permissionsOf, SERVICES, SERVICE_ROLE_SUPPORT, type LimitedRole, type Service } from '../permissions'
 import { useScope } from '../scope'
 import { useAdmin } from '../store'
 import type { AdminUserRole, Person } from '../types'
@@ -33,9 +34,9 @@ export function AdminRoles() {
   const count = (r: AdminUserRole) => data.people.filter((p) => p.role === r && p.status === 'Active').length
   const managers = data.people.filter((p) => p.role === 'Admin' || p.role === 'Department Admin').sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name))
 
-  const setPerm = (role: LimitedRole, area: Area, on: boolean) => {
-    const label = AREAS.find((a) => a.id === area)!.label
-    update((d) => ({ ...d, rolePermissions: { ...permissionsOf(d), [role]: { ...permissionsOf(d)[role], [area]: on } } }), {
+  const setPerm = (role: LimitedRole, service: Service, on: boolean) => {
+    const label = SERVICES.find((item) => item.id === service)!.label
+    update((d) => ({ ...d, rolePermissions: { ...permissionsOf(d), [role]: { ...permissionsOf(d)[role], [service]: on } } }), {
       action: on ? 'Granted access' : 'Removed access',
       target: `${role === 'department' ? 'Department admins' : 'Trainers'} · ${label}`,
       changes: [{ field: label, from: on ? 'Off' : 'On', to: on ? 'On' : 'Off' }],
@@ -72,12 +73,12 @@ export function AdminRoles() {
         <StatCard icon={Users} label="Participants" value={count('Participant')} hint="Learners" tone="green" />
       </div>
 
-      {/* What each role can open */}
+      {/* Service-by-service access */}
       <section className="mb-6 overflow-hidden rounded-2xl border border-zinc-200/80 bg-surface">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
           <div>
-            <h3 className="text-base font-bold text-zinc-900">What each role can open</h3>
-            <p className="text-xs text-zinc-500">Department admins only ever see their own department; trainers only their own sessions.</p>
+            <h3 className="text-base font-bold text-zinc-900">Service access</h3>
+            <p className="text-xs text-zinc-500">Set access separately for each service. Department admins stay within their department; trainers stay within their assigned trainings.</p>
           </div>
           <Button
             size="sm"
@@ -90,25 +91,36 @@ export function AdminRoles() {
           </Button>
         </div>
         <div className="mt-3">
-          <Table head={['Area', 'Admin', 'Department admin', 'Trainer']} minWidth={620}>
-            {AREAS.map((a) => (
-              <tr key={a.id} className="hover:bg-zinc-50">
-                <td className="px-4 py-3">
-                  <p className="font-semibold text-zinc-900">{a.label}</p>
-                  <p className="text-xs text-zinc-500">{a.detail}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-mpesa-700" title="Admins always have full access">
-                    <Check className="size-4" strokeWidth={3} /> Always
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <Switch on={perms.department[a.id]} onChange={(v) => setPerm('department', a.id, v)} label={`Department admins: ${a.label}`} />
-                </td>
-                <td className="px-4 py-3">
-                  <Switch on={perms.trainer[a.id]} onChange={(v) => setPerm('trainer', a.id, v)} label={`Trainers: ${a.label}`} />
-                </td>
-              </tr>
+          <Table head={['Service', 'Admin', 'Department admin', 'Trainer']} minWidth={720}>
+            {SERVICES.map((service, index) => (
+              <Fragment key={service.id}>
+                {(index === 0 || SERVICES[index - 1].group !== service.group) && (
+                  <tr className="bg-zinc-50/80">
+                    <td colSpan={4} className="px-4 pt-3 pb-1 text-[10px] font-bold tracking-wider text-zinc-500 uppercase">{service.group}</td>
+                  </tr>
+                )}
+                <tr className="hover:bg-zinc-50">
+                  <td className="px-4 py-2.5">
+                    <p className="font-semibold text-zinc-900">{service.label}</p>
+                    <p className="text-xs text-zinc-500">{service.detail}</p>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-mpesa-700" title="Admins always have full access">
+                      <Check className="size-4" strokeWidth={3} /> Always
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {SERVICE_ROLE_SUPPORT.department.has(service.id)
+                      ? <Switch on={perms.department[service.id]} onChange={(v) => setPerm('department', service.id, v)} label={`Department admins: ${service.label}`} />
+                      : <span className="text-xs text-zinc-400">Admin only</span>}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {SERVICE_ROLE_SUPPORT.trainer.has(service.id)
+                      ? <Switch on={perms.trainer[service.id]} onChange={(v) => setPerm('trainer', service.id, v)} label={`Trainers: ${service.label}`} />
+                      : <span className="text-xs text-zinc-400">Unavailable</span>}
+                  </td>
+                </tr>
+              </Fragment>
             ))}
           </Table>
         </div>

@@ -282,11 +282,11 @@ function UserModal({ person, onClose }: { person?: Person; onClose: () => void }
 type InviteMode = 'manual' | 'bulk'
 type InviteGroupMode = 'none' | 'existing' | 'new'
 
-function InviteUserModal({ onClose }: { onClose: () => void }) {
+function InviteUserModal({ onClose, initialMode = 'manual' }: { onClose: () => void; initialMode?: InviteMode }) {
   const scope = useScope()
   const { data, update } = useAdmin()
   const { user } = useAuth()
-  const [mode, setMode] = useState<InviteMode>('manual')
+  const [mode, setMode] = useState<InviteMode>(initialMode)
   const [groupMode, setGroupMode] = useState<InviteGroupMode>('none')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -380,7 +380,7 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
     const newEmailSet = new Set(newInvitees.map((person) => person.email))
     const existingEmailSet = new Set(existingInvitees.map((person) => person.email))
     const action = created.length
-      ? `Invited ${created.length} user${created.length === 1 ? '' : 's'}`
+      ? `${mode === 'bulk' ? 'Imported' : 'Invited'} ${created.length} user${created.length === 1 ? '' : 's'}`
       : `Added ${existingInvitees.length} existing user${existingInvitees.length === 1 ? '' : 's'} to a group`
     const target = newGroup?.name ?? data.groups.find((group) => group.id === groupId)?.name ?? created[0]?.name ?? 'Users'
 
@@ -409,7 +409,7 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
     <Modal
       open
       onClose={onClose}
-      title="Invite users"
+      title={mode === 'bulk' ? 'Import users' : 'Invite users'}
       extraWide
       footer={
         <>
@@ -418,14 +418,15 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
           </span>
           <Button onClick={onClose}>Cancel</Button>
           <Button variant="primary" disabled={!valid} onClick={invite}>
-            <UserRoundPlus className="size-4" /> Invite {mode === 'manual' ? 'user' : `${newInvitees.length || invitees.length} users`}
+            {mode === 'bulk' ? <FileSpreadsheet className="size-4" /> : <UserRoundPlus className="size-4" />}
+            {mode === 'bulk' ? `Import ${newInvitees.length || invitees.length} users` : 'Invite user'}
           </Button>
         </>
       }
     >
       <div className="space-y-5">
         <TabBar className="mb-0 w-full">
-          <Tabs value={mode} onChange={setMode} items={modeItems} label="Invite method" />
+          <Tabs value={mode} onChange={setMode} items={modeItems} label={mode === 'bulk' ? 'Import method' : 'Invite method'} />
         </TabBar>
 
         {mode === 'manual' ? (
@@ -927,7 +928,7 @@ export function AdminUsers() {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [editing, setEditing] = useState<Person | 'new' | null>(null)
+  const [editing, setEditing] = useState<Person | 'new' | 'import' | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
   const filtersRef = useRef<HTMLDivElement>(null)
   const tableRef = useRef<HTMLDivElement>(null)
@@ -1066,7 +1067,7 @@ export function AdminUsers() {
     const affected = selectedPeople.filter((person) => person.status !== status)
     if (!affected.length) return
     const suspending = status === 'Inactive'
-    const operation = suspending ? 'Suspend' : 'Restore'
+    const operation = suspending ? 'Deactivate' : 'Restore'
     if (!(await confirm({
       title: `${operation} ${affected.length} selected user${affected.length === 1 ? '' : 's'}?`,
       message: suspending
@@ -1081,7 +1082,7 @@ export function AdminUsers() {
       entityType: 'User',
       changes: affected.map((person) => ({ field: `${person.name} · Status`, from: person.status, to: status })),
       context: [
-        { label: 'Operation', value: suspending ? 'Suspended' : 'Restored' },
+        { label: 'Operation', value: suspending ? 'Deactivated' : 'Restored' },
         { label: 'Affected users', value: affected.map((person) => `${person.name} (${person.department || 'No department'})`).join(', ') },
       ],
     })
@@ -1097,6 +1098,9 @@ export function AdminUsers() {
           <>
             <Button onClick={() => downloadCsv('users.csv', ['Name', 'Email', 'Phone', 'Department', 'Designation', 'Organization', 'Location', 'Groups', 'Role', 'Status', 'Created By', 'Created At'], filtered.map((p) => [p.name, p.email, p.phone, p.department, p.designation ?? '', p.organization ?? '', p.region ?? '', groupName(p), p.role, p.status, p.createdBy ?? p.invitedBy ?? '', p.createdAt]))}>
               <Download className="size-4" /> Export
+            </Button>
+            <Button onClick={() => setEditing('import')}>
+              <FileSpreadsheet className="size-4" /> Import users
             </Button>
             <Button onClick={() => navigate('/admin/temporary-access')}>
               <KeyRound className="size-4" /> Grant temporary access
@@ -1124,7 +1128,7 @@ export function AdminUsers() {
         </label>
         <span className="text-xs text-zinc-500">{selectedPeople.length} selected</span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {selectedActive.length > 0 && <Button size="sm" variant="primary" onClick={() => void bulkSetStatus('Inactive')}><Lock className="size-3.5" /> Suspend {selectedActive.length}</Button>}
+          {selectedActive.length > 0 && <Button size="sm" variant="primary" onClick={() => void bulkSetStatus('Inactive')}><Lock className="size-3.5" /> Deactivate {selectedActive.length}</Button>}
           {selectedInactive.length > 0 && <Button size="sm" variant="ghost" onClick={() => void bulkSetStatus('Active')}><UserCheck className="size-3.5" /> Restore {selectedInactive.length}</Button>}
           {selectedPeople.length > 0 && <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}><X className="size-3.5" /> Clear selection</Button>}
         </div>
@@ -1298,7 +1302,8 @@ export function AdminUsers() {
       )}
 
       {editing === 'new' && <InviteUserModal onClose={() => setEditing(null)} />}
-      {editing && editing !== 'new' && <UserModal person={editing} onClose={() => setEditing(null)} />}
+      {editing === 'import' && <InviteUserModal initialMode="bulk" onClose={() => setEditing(null)} />}
+      {editing && editing !== 'new' && editing !== 'import' && <UserModal person={editing} onClose={() => setEditing(null)} />}
     </>
   )
 }

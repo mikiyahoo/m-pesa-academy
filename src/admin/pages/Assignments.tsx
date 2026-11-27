@@ -2,10 +2,12 @@ import { AlarmClock, BellRing, BookOpenCheck, CheckCircle2, ClipboardList, Downl
 import { useMemo, useState } from 'react'
 import { RowMenu } from '../../components/RowMenu'
 import { useFeedback } from '../../components/Feedback'
-import { assignedPeople, assignmentDone, assignmentState, isAssigned, type AssignmentState } from '../../lib/assignments'
+import { AssignmentReader, AssignmentRow } from '../../components/Assignments'
+import { assignedPeople, assignmentDone, assignmentState, isAssigned, myLearnerId, useLearnerAssignments, type AssignmentState } from '../../lib/assignments'
 import { cn, localISO, todayISO } from '../../lib/utils'
 import { shortDate } from '../helpers'
 import { useAdmin } from '../store'
+import { useScope } from '../scope'
 import { canDownloadFile } from '../materialFiles'
 import { AssignMaterialModal } from './Content'
 import type { Material } from '../types'
@@ -18,13 +20,17 @@ type Filter = 'all' | 'open' | 'overdue' | 'done'
 /** Reading assignments (no session): who has opened and acknowledged each assigned material. */
 export function AdminAssignments() {
   const { data, update } = useAdmin()
+  const scope = useScope()
   const { toast } = useFeedback()
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [viewing, setViewing] = useState<Material | null>(null)
   const [choosingMaterial, setChoosingMaterial] = useState(false)
   const [assigning, setAssigning] = useState<Material | null>(null)
+  const [myReading, setMyReading] = useState<Material | null>(null)
   const [materialSearch, setMaterialSearch] = useState('')
+  const assignmentOwnerId = scope.trainerId ?? myLearnerId()
+  const myAssignments = useLearnerAssignments(assignmentOwnerId)
   const today = todayISO()
 
   const rows = useMemo(
@@ -85,6 +91,25 @@ export function AdminAssignments() {
           </>
         }
       />
+
+      {scope.role === 'trainer' && (
+        <Card className="mt-5 p-4">
+          <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-zinc-900">Assigned to me</h2>
+              <p className="mt-0.5 text-xs text-zinc-500">Materials assigned directly to you or to your groups.</p>
+            </div>
+            <Badge>{myAssignments.length} assigned</Badge>
+          </div>
+          {myAssignments.length ? (
+            <div className="divide-y divide-zinc-100">
+              {myAssignments.map((material) => <AssignmentRow key={material.id} m={material} personId={assignmentOwnerId} onOpen={setMyReading} />)}
+            </div>
+          ) : (
+            <p className="py-3 text-sm text-zinc-500">Nothing assigned to you yet.</p>
+          )}
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard icon={FileText} tone="red" label="Assigned materials" value={rows.length} />
@@ -167,6 +192,7 @@ export function AdminAssignments() {
       )}
 
       {viewing && <PeopleModal material={data.materials.find((m) => m.id === viewing.id) ?? viewing} onClose={() => setViewing(null)} onRemind={remind} />}
+      {myReading && <AssignmentReader m={myReading} personId={assignmentOwnerId} onClose={() => setMyReading(null)} />}
       {choosingMaterial && (
         <MaterialPickerModal
           materials={data.materials.filter((material) => canDownloadFile(material) && (!materialSearch || material.title.toLowerCase().includes(materialSearch.trim().toLowerCase())))}

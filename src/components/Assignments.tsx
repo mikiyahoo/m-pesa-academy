@@ -1,6 +1,7 @@
 import { BookOpenCheck, CalendarClock, CheckCircle2, Download, FileText, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { canDownloadFile, downloadMaterial, materialFileName } from '../admin/materialFiles'
+import { loadAdminData } from '../admin/storage'
 import type { Material } from '../admin/types'
 import { activeLearner } from '../lib/learner'
 import { acknowledgeAssignment, assignmentState, markAssignmentOpened, myLearnerId, type AssignmentState } from '../lib/assignments'
@@ -15,14 +16,14 @@ const stateStyle: Record<AssignmentState, string> = {
   Overdue: 'bg-brand-50 text-brand-700',
 }
 
-function StatePill({ m }: { m: Material }) {
-  const st = assignmentState(m, myLearnerId())
+function StatePill({ m, personId }: { m: Material; personId: string }) {
+  const st = assignmentState(m, personId)
   const label = st === 'Read' && m.requiresAck ? 'Needs acknowledgement' : st === 'Read' ? 'Done' : st
   return <span className={cn('shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold', st === 'Read' && m.requiresAck ? 'bg-amber-500/10 text-amber-700' : stateStyle[st])}>{label}</span>
 }
 
 /** One assigned reading as a row; opens the reader. */
-export function AssignmentRow({ m, onOpen }: { m: Material; onOpen: (m: Material) => void }) {
+export function AssignmentRow({ m, onOpen, personId = myLearnerId() }: { m: Material; onOpen: (m: Material) => void; personId?: string }) {
   return (
     <button onClick={() => onOpen(m)} className="flex w-full items-center gap-3 py-3 text-left transition hover:bg-zinc-50/60">
       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
@@ -35,23 +36,29 @@ export function AssignmentRow({ m, onOpen }: { m: Material; onOpen: (m: Material
           {m.dueDate ? `Due ${formatDate(m.dueDate, { month: 'short', day: 'numeric' })}` : 'No due date'} · {m.minutes} min
         </span>
       </span>
-      <StatePill m={m} />
+      <StatePill m={m} personId={personId} />
     </button>
   )
 }
 
 /** Reads an assigned material; opening it is recorded, and acknowledging confirms it when required. */
-export function AssignmentReader({ m, onClose }: { m: Material; onClose: () => void }) {
+export function AssignmentReader({ m, onClose, personId = myLearnerId() }: { m: Material; onClose: () => void; personId?: string }) {
   const { toast } = useFeedback()
-  const [acked, setAcked] = useState(!!m.assignmentProgress?.[myLearnerId()]?.acknowledgedAt)
+  const [acked, setAcked] = useState(!!m.assignmentProgress?.[personId]?.acknowledgedAt)
   const [agree, setAgree] = useState(false)
-  const downloadable = canDownloadFile(m) && m.downloadableGroupIds.some((g) => activeLearner().groupIds.includes(g))
+  const person = loadAdminData().people.find((item) => item.id === personId)
+  const personGroups = person?.groupIds ?? (activeLearner().personId === personId ? activeLearner().groupIds : [])
+  const downloadable = canDownloadFile(m) && m.downloadableGroupIds.some((g) => personGroups.includes(g))
 
   const panel = useRef<HTMLElement>(null)
   useDialogFocus(panel, onClose)
   useEffect(() => {
-    markAssignmentOpened(m.id)
-  }, [m.id])
+    markAssignmentOpened(m.id, personId)
+  }, [m.id, personId])
+  useEffect(() => {
+    setAcked(!!m.assignmentProgress?.[personId]?.acknowledgedAt)
+    setAgree(false)
+  }, [m.id, m.assignmentProgress, personId])
 
   return (
     <div role="dialog" aria-modal="true" aria-label={m.title} className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
@@ -113,7 +120,7 @@ export function AssignmentReader({ m, onClose }: { m: Material; onClose: () => v
               <button
                 disabled={!agree}
                 onClick={() => {
-                  acknowledgeAssignment(m.id)
+                  acknowledgeAssignment(m.id, personId)
                   setAcked(true)
                   toast('Acknowledged — thanks!')
                 }}

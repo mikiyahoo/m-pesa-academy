@@ -9,7 +9,7 @@ import { DEMO_LEARNER_ID } from '../lib/learner'
  * Bump the version when the data shape changes so old browser data is replaced by the new seed.
  */
 export const ADMIN_STORAGE_KEY = 'mpesa-learning:admin:v8'
-const ASSIGNMENT_SAMPLE_MIGRATION_KEY = 'mpesa-learning:assignment-samples:v1'
+const ASSIGNMENT_SAMPLE_MIGRATION_KEY = 'mpesa-learning:assignment-samples:v2'
 
 /** The learner portal's demo account as an admin person (group ISON), so admins can invite and assign them. */
 /** Demo department admin (Enterprise) so the role can be tried without setting it up first. */
@@ -170,15 +170,14 @@ function withSampleAssignments(data: AdminData): AdminData {
     if (localStorage.getItem(ASSIGNMENT_SAMPLE_MIGRATION_KEY) === 'done') return data
 
     const assigned = (material: AdminData['materials'][number]) => !!(material.assignedGroupIds?.length || material.assignedPersonIds?.length)
+    const learner = data.people.find((person) => person.id === DEMO_LEARNER_ID)
+    const learnerGroups = new Set([...(learner?.groupIds ?? []), ...LEARNER_GROUP_IDS])
+    const learnerHasAssignment = (material: AdminData['materials'][number]) =>
+      material.assignedPersonIds?.includes(DEMO_LEARNER_ID) || material.assignedGroupIds?.some((id) => learnerGroups.has(id))
     const alreadyAssigned = data.materials.filter(assigned).length
     let remaining = Math.max(0, 3 - alreadyAssigned)
-    if (!remaining) {
-      localStorage.setItem(ASSIGNMENT_SAMPLE_MIGRATION_KEY, 'done')
-      return data
-    }
-
     const samples = new Map(seedAdminData().materials.filter(assigned).map((material) => [material.id, material]))
-    const materials = data.materials.map((material) => {
+    let materials = data.materials.map((material) => {
       if (!remaining || assigned(material)) return material
       const sample = samples.get(material.id)
       if (!sample) return material
@@ -193,8 +192,26 @@ function withSampleAssignments(data: AdminData): AdminData {
         assignmentProgress: sample.assignmentProgress,
       }
     })
+    if (!materials.some(learnerHasAssignment)) {
+      const sample = samples.get('mat1')
+      if (sample) {
+        materials = materials.map((material) => material.id !== sample.id ? material : {
+          ...material,
+          assignedGroupIds: [...new Set([...(material.assignedGroupIds ?? []), ...(sample.assignedGroupIds ?? [])])],
+          assignedPersonIds: [...new Set([...(material.assignedPersonIds ?? []), DEMO_LEARNER_ID])],
+          dueDate: material.dueDate ?? sample.dueDate,
+          requiresAck: material.requiresAck ?? sample.requiresAck,
+          assignedAt: material.assignedAt ?? sample.assignedAt,
+          assignmentProgress: material.assignmentProgress ?? sample.assignmentProgress,
+        })
+      }
+    }
     localStorage.setItem(ASSIGNMENT_SAMPLE_MIGRATION_KEY, 'done')
-    return { ...data, materials }
+    const migrated = { ...data, materials }
+    // Persist the one-time migration. Otherwise the next read would see the completion
+    // marker but load the old assignments from storage and the learner tab would be empty.
+    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(migrated))
+    return migrated
   } catch {
     return data
   }

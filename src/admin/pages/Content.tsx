@@ -1259,7 +1259,7 @@ export function AssignMaterialModal({ material, onClose }: { material: Material;
   const [requiresAck, setRequiresAck] = useState(material.requiresAck ?? true)
   const reach = assignedPeople(data, { ...material, assignedGroupIds: groupIds, assignedPersonIds: personIds }).length
   const people = data.people
-    .filter((person) => person.role === 'Participant' && person.status === 'Active')
+    .filter((person) => (person.role === 'Participant' || person.role === 'Trainer') && person.status === 'Active')
     .filter((person) => `${person.name} ${person.email} ${person.department}`.toLowerCase().includes(personSearch.trim().toLowerCase()))
   const hasRecipients = groupIds.length > 0 || personIds.length > 0
 
@@ -1345,7 +1345,7 @@ export function AssignMaterialModal({ material, onClose }: { material: Material;
         <div className="space-y-2">
           <div>
             <p className="text-sm font-medium text-zinc-700">Individual users</p>
-            <p className="mt-0.5 text-xs text-zinc-500">Assign directly to active users without adding a group.</p>
+            <p className="mt-0.5 text-xs text-zinc-500">Assign directly to active learners or trainers without adding a group.</p>
           </div>
           <SearchInput value={personSearch} onChange={setPersonSearch} placeholder="Search users by name, email or department" className="w-full" />
           <div className="max-h-72 divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200">

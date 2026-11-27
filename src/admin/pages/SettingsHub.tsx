@@ -1,7 +1,9 @@
 import { Award, FileClock, MapPin, Settings2, ShieldCheck, Tags, type LucideIcon } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Navigate, NavLink, Outlet } from 'react-router-dom'
 import { cn } from '../../lib/utils'
+import { canOpen } from '../permissions'
 import { useScope } from '../scope'
+import { useAdmin } from '../store'
 import { PageHeader, SectionHeaderProvider, TabBar } from '../ui'
 
 const SECTIONS: { to: string; label: string; icon: LucideIcon; adminOnly?: boolean }[] = [
@@ -19,12 +21,14 @@ const SECTIONS: { to: string; label: string; icon: LucideIcon; adminOnly?: boole
  */
 export function AdminSettings() {
   const scope = useScope()
+  const { data } = useAdmin()
+  const sections = SECTIONS.filter((section) => (!section.adminOnly || scope.role === 'admin') && canOpen(data, scope.role, `/admin/settings/${section.to}`))
   return (
     <>
       <PageHeader title="Settings" />
       <TabBar>
         <nav aria-label="Settings sections" className="scrollbar-none flex min-w-0 max-w-full gap-1 overflow-x-auto">
-          {SECTIONS.filter((s) => !s.adminOnly || scope.role === 'admin').map((s) => (
+          {sections.map((s) => (
             <NavLink
               key={s.to}
               to={s.to}
@@ -45,4 +49,13 @@ export function AdminSettings() {
       </SectionHeaderProvider>
     </>
   )
+}
+
+/** Sends limited roles to the first configuration service their admin enabled. */
+export function SettingsDefaultRedirect() {
+  const scope = useScope()
+  const { data } = useAdmin()
+  if (scope.role === 'admin') return <Navigate to="/admin/settings/roles" replace />
+  const first = SECTIONS.find((section) => !section.adminOnly && canOpen(data, scope.role, `/admin/settings/${section.to}`))
+  return <Navigate to={first ? `/admin/settings/${first.to}` : '/admin'} replace />
 }

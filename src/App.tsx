@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AssessmentGate } from './pages/AssessmentGate'
 import { AdminVenues } from './admin/pages/Venues'
-import { AdminSettings } from './admin/pages/SettingsHub'
+import { AdminSettings, SettingsDefaultRedirect } from './admin/pages/SettingsHub'
 import { AdminVisibility } from './admin/pages/Visibility'
 import { AdminRoles } from './admin/pages/Roles'
 import { loadAdminData } from './admin/storage'
@@ -110,7 +110,7 @@ export default function App() {
             <Route path="calendar" element={<Navigate to="/admin/trainings?view=calendar" replace />} />
             {/* Set-up pages live under Settings; the old addresses still work. */}
             <Route path="settings" element={<AdminSettings />}>
-              <Route index element={<Navigate to={role === 'admin' ? 'roles' : 'categories'} replace />} />
+              <Route index element={<SettingsDefaultRedirect />} />
               <Route path="roles" element={<AdminRoles />} />
               <Route path="categories" element={<AdminCategories />} />
               <Route path="training-types" element={<AdminTrainingTypes />} />

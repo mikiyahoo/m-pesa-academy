@@ -502,7 +502,7 @@ export type AlertRules = {
 }
 
 export type AdminData = {
-  /** Which admin areas department admins and trainers may open (Settings → Roles & access). */
+  /** Which admin services department admins and trainers may open (Settings → Roles & access). */
   rolePermissions?: import('./permissions').RolePermissions
   /** Departments whose access an admin suspended (US44). */
   suspendedDepartments?: string[]

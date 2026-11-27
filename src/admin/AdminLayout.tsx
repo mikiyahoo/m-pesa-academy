@@ -8,7 +8,7 @@ import { CommandPalette } from './CommandPalette'
 import { ChangePasswordDialog, EditProfileDialog } from '../components/ProfileSettings'
 import { DepartmentScope, TrainerScope, useAdmin } from './store'
 import { ScopeContext } from './scope'
-import { canOpen, permissionsOf } from './permissions'
+import { canOpen } from './permissions'
 import { useDiscussionAttention } from './pages/Discussions'
 import { dateTime } from './helpers'
 import { UserAvatar } from '../components/UserAvatar'
@@ -630,7 +630,7 @@ export function AdminLayout({ variant = 'admin', trainerId, personId }: { varian
                 <Search className="size-4" />
               </button>
               {variant === 'admin' && <AlertsBell />}
-              <UserMenu dark={dark} setDark={setDark} role={title} showSettings={variant === 'admin' || (variant === 'department' && permissionsOf(data).department.settings)} />
+              <UserMenu dark={dark} setDark={setDark} role={title} showSettings={variant === 'admin' || (variant === 'department' && canOpen(data, 'department', '/admin/settings'))} />
             </div>
           </header>
           {/* Full-page editors (wizards) render here: under the header, beside the sidebar. */}
